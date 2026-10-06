@@ -1,7 +1,7 @@
 ## weewx-live : panneau « Soleil et Lune » (almanach weewx, astro.js)
   <section class="wide" hidden>
     <article class="card astro-card" id="astro-card" style="--c: var(--sun)">
-      <header><h2>Soleil et Lune</h2><span class="hint">#if $day_page#$livejson_day_info.label#else#aujourd'hui#end if#</span></header>
+      <header><h2>Soleil et Lune</h2><span class="hint">aujourd'hui</span></header>
       <div class="astro">
         <div class="astro-info">
           <div class="astro-col"><h3><i class="as-dot" style="background:var(--sun)"></i>Soleil</h3><div id="astro-sun"></div></div>

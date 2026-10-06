@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.41.
+et n'a pas besoin d'être joignable depuis internet. Version 1.42.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -54,7 +54,8 @@ aucun port à ouvrir sur votre box.
 | `install.py` | installeur pour `weectl extension install` |
 | `bin/user/livejson.py` | extension weewx (SearchList) : calcule tous les fichiers JSON et les valeurs du gabarit |
 | `skins/WeewxLive/skin.conf` | configuration du rapport : paramètres affichés, MQTT, prévisions, cartes, extrêmes |
-| `skins/WeewxLive/live/panels.inc`, `astro.inc` | panneaux des paramètres et « Soleil et Lune », partagés par le tableau de bord et les pages « jour » |
+| `skins/WeewxLive/live/panels.inc` | panneaux des paramètres, partagés par le tableau de bord et les pages « jour » |
+| `skins/WeewxLive/live/astro.inc` | panneau « Soleil et Lune » du tableau de bord |
 | `skins/WeewxLive/live/days/day-%Y-%m-%d.html.tmpl` | page « jour » (une par journée) |
 | `skins/WeewxLive/live/index.html.tmpl`, `app.js` | tableau de bord : gabarit Cheetah (un panneau par paramètre de `[[parameters]]`, configuration intégrée à la page) et script temps réel |
 | `skins/WeewxLive/live/extras.js` | prévisions, radar et satellite du tableau de bord |
@@ -561,9 +562,8 @@ bord pour ce jour-là :
 - chaque paramètre (panneaux standard, génériques et groupés) : minimum et maximum du jour
   avec l'heure, cumuls, graphique de 0 h à 24 h, rose des vents de la journée ; la grande
   valeur est la dernière mesure de la journée ;
-- « Soleil et Lune » de ce jour (almanach weewx) ;
 - liens « Veille » / « Lendemain », menu « Données » (entrée « Pages par jour » : page du
-  jour en cours). Pas de temps réel, ni prévisions, ni cartes.
+  jour en cours). Pas de temps réel, ni « Soleil et Lune », ni prévisions, ni cartes.
 
 Les données de la journée sont intégrées à la page (aucun fichier JSON à lire). La page du
 jour en cours est régénérée à chaque archive ; celles des journées passées ne sont produites

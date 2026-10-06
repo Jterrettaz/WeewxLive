@@ -43,7 +43,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.41"
+VERSION = "1.42"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -754,7 +754,7 @@ class LiveJSON(SearchList):
 
     def day_data(self, timespan, db_lookup):
         """Même structure que history.json, pour la journée de « timespan » (minuit à minuit,
-        ou jusqu'à la dernière archive pour le jour en cours) + soleil et lune du jour."""
+        ou jusqu'à la dernière archive pour le jour en cours)."""
         t1 = time.time()
         dbm = db_lookup(self.binding)
         day_span = self._day_span_of(timespan)
@@ -766,8 +766,6 @@ class LiveJSON(SearchList):
             "units": self.units, "series": series,
             "day": self._day_aggregates(day_span, dbm),
         }
-        if to_bool(self.astro.get("enable", True)):
-            out["astro"] = self.astro_data(int(day_span.start) + 43200, db_lookup)
         log.debug("livejson: page jour générée en %.2f s", time.time() - t1)
         return out
 
