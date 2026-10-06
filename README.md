@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.47.
+et n'a pas besoin d'être joignable depuis internet. Version 1.48.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -547,7 +547,7 @@ l'une sous l'autre (statistiques puis graphique) ; ancres : `#p24h`, `#p7d`, `#p
 | Pression | minimum, maximum, moyenne, écart |
 | Rayonnement | maximum, moyenne, moyenne des maxima journaliers |
 | Vent | vent moyen, vent max., rafale max., direction dominante (vecteur moyen) |
-| Pluie | cumul, intensité max. ; jours de pluie (≥ 1 mm) et maximum journalier à partir de 7 jours, max. en 1 h et heures de pluie sur 24 h |
+| Pluie | cumul, intensité max. ; jours de pluie (≥ 0,2 mm) et maximum journalier à partir de 7 jours, max. en 1 h et heures de pluie sur 24 h |
 | Groupe | tableau min. / max. / moyenne par mesure |
 
 Les extrêmes et moyennes viennent des résumés journaliers de weewx ; les séries journalières
@@ -643,7 +643,7 @@ affichent « — ») et une ligne « Année » ; l'icône à gauche du mois ouvr
 | Tableau | Colonnes |
 |---|---|
 | Température | moyenne, moyenne des minima, minimum, moyenne des maxima, maximum (couleurs `TEMP_STEPS`) ; jours sans dégel (max. ≤ 0 °C), jours de gel (min. < 0 °C), jours de forte chaleur (max. > 30 °C) |
-| Pluie | cumul (vert pâle → bleu → violet), jours de pluie (≥ 1 mm), jours ≥ 10 mm |
+| Pluie | cumul (vert pâle → bleu → violet), jours de pluie (≥ 0,2 mm), jours ≥ 10 mm |
 | Vent | vent moyen, plus forte vitesse moyenne sur un intervalle d'archive (« vent 10 min » si `archive_interval = 600`), rafale maximum (gris relatif à l'année) |
 
 En gras : extrêmes de l'année. En haut : choix de l'année, année précédente / suivante, lien

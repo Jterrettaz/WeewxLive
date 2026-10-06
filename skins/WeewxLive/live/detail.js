@@ -179,7 +179,7 @@
         add("Cumul", r.sum, u);
         add("Intensité max.", rr.max, "mm/h", rr.max ? when(rr.maxTime) : "");
         if (days) {
-          add("Jours de pluie", days.rainDays, "", `≥ ${fmt(days.thresholds.rain, 0)} mm · sur ${days.days} j`, 0);
+          add("Jours de pluie", days.rainDays, "", `≥ ${fmt(days.thresholds.rain, 1)} mm · sur ${days.days} j`, 0);
           const m = days.maxDailyRain;
           add("Max. journalier", m ? m.value : null, u, m && m.value ? dayLabel(m.time) : "");
         } else {
@@ -548,7 +548,7 @@
         frostDays: daily.outTemp.min.filter((p) => p[1] < 0).length,
         hotDays: daily.outTemp.max.filter((p) => p[1] >= 25).length,
         rainDays: daily.rain.sum.filter((p) => p[1] >= 1).length,
-        thresholds: { frost: 0, hot: 25, rain: 1 },
+        thresholds: { frost: 0, hot: 25, rain: 0.2 },
       };
       const best = daily.rain.sum.reduce((a, b) => (!a || b[1] > a[1] ? b : a), null);
       if (best) out.days.maxDailyRain = { value: best[1], time: best[0] };

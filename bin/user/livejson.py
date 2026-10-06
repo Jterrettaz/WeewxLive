@@ -46,7 +46,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.47"
+VERSION = "1.48"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -85,7 +85,7 @@ SERIES_AGGREGATES = {
 # Seuils des comptages journaliers
 FROST_C = 0.0
 HOT_C = 25.0
-RAIN_DAY_MM = 1.0
+RAIN_DAY_MM = 0.2      # mm (valeur incluse) : jour de pluie
 
 # observation weewx -> unité cible
 TARGET = {
@@ -1054,7 +1054,7 @@ class LiveJSON(SearchList):
             m = day.month - 1
             mm = ref_r(sm, "mm")
             acc(m, "rain", sm, "sum")
-            acc(m, "rainDays", 1 if mm >= RAIN_DAY_MM else 0, "count")
+            acc(m, "rainDays", 1 if mm >= RAIN_DAY_MM - 1e-6 else 0, "count")
             acc(m, "heavyDays", 1 if mm >= self.CLIMATO_HEAVY_MM else 0, "count")
         rows, conv_w, _ = table("windSpeed", self.col("windSpeed"), "max, wsum, sumtime")
         for day, (mx, ws, st) in rows or ():
@@ -1651,7 +1651,7 @@ class LiveJSON(SearchList):
             "days": len(t.get("max", [])) or len(rain),
             "frostDays": sum(1 for _, v in t.get("min", []) if v < FROST_C),
             "hotDays": sum(1 for _, v in t.get("max", []) if v >= HOT_C),
-            "rainDays": sum(1 for _, v in rain if v >= RAIN_DAY_MM),
+            "rainDays": sum(1 for _, v in rain if v >= RAIN_DAY_MM - 1e-6),
             "thresholds": {"frost": FROST_C, "hot": HOT_C, "rain": RAIN_DAY_MM},
         }
         if rain:
