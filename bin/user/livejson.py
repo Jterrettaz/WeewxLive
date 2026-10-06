@@ -46,7 +46,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.45"
+VERSION = "1.47"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -212,7 +212,7 @@ def _archive_options(opts):
     a = opts.get("archives", {})
     return {
         "day": to_bool(a.get("day", old.get("enable", True))),
-        "days": _int(a.get("days", old.get("days")), 365, 0, 100000),   # 0 = toutes
+        "days": _int(a.get("days", old.get("days")), 0, 0, 100000),     # 0 = toutes (défaut)
         "month": to_bool(a.get("month", True)),
         "year": to_bool(a.get("year", True)),
         "climato": to_bool(a.get("climato", True)),    # tableaux climatologiques mensuels

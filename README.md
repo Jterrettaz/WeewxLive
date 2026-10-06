@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.45.
+et n'a pas besoin d'être joignable depuis internet. Version 1.47.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -592,16 +592,17 @@ qu'une fois (si le fichier n'existe pas déjà).
         month = true      # pages « mois » (toutes, depuis le début de la base)
         year = true       # pages « année » (toutes)
         climato = true    # tableaux climatologiques mensuels et annuels (tous)
-        days = 365        # pages « jour » produites en remontant depuis aujourd'hui (0 = toutes)
+        days = 0          # pages « jour » produites en remontant depuis aujourd'hui (0 = toutes, défaut)
 ```
 
 L'ancienne section `[[day_pages]]` (`enable`, `days`, versions 1.41-1.42) reste reconnue.
 Les pages « jour » des versions précédentes étaient dans `days/` : ce dossier peut être
 supprimé du serveur.
 
-Avec `days = 0`, la première génération produit une page pour chaque journée de la base
-(plusieurs milliers sur une base de plusieurs années, environ 40 à 90 Ko chacune) : elle peut
-prendre du temps et le premier envoi FTP sera volumineux. Le skin utilise pour cela son
+Par défaut (`days = 0`), la première génération produit une page pour chaque journée de la
+base (plusieurs milliers sur une base de plusieurs années, environ 40 à 90 Ko chacune) : elle
+peut prendre du temps et le premier envoi FTP sera volumineux ; les suivantes ne produisent
+que la page du jour. Pour limiter, par exemple, aux 365 derniers jours : `days = 365`. Le skin utilise pour cela son
 propre générateur (`user.livejson.LiveCheetahGenerator`, le générateur Cheetah de weewx avec
 ces options), déclaré dans `[Generators]` de `skin.conf`.
 
