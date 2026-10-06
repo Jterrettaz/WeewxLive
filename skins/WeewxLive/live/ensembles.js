@@ -6,7 +6,7 @@
  * Tout le reste est calculé ici selon les modèles cochés et l'horizon choisi :
  *   - graphiques « chaque membre » (couleur du modèle) avec moyenne groupée et bande 10–90 % ;
  *   - pluie par jour (moyenne groupée, 90e centile, moyenne de chaque modèle) et probabilité ;
- *   - analyse écrite, comparaison des modèles, tableau jour après jour.
+ *   - comparaison des modèles, tableau jour après jour.
  * Inspiré de la page « Prévisions Open-Meteo » de Météo Sciez (scripts de digitalurban). */
 (function () {
   "use strict";
@@ -117,7 +117,6 @@
           <div class="chart en-chart" id="en-press" role="img" aria-label="Pression : chaque membre des modèles"></div>
           <ul class="legend" id="en-leg-press"></ul></article>
       </div>
-      <article class="card en-block" id="en-analysis"></article>
       <article class="card en-block" id="en-compare"></article>
       <article class="card en-block" id="en-days"></article>
       <p class="en-foot">Source : API Ensemble d'Open-Meteo · ${MODELS.map((m) => esc(m.label)).join(" · ")}.
@@ -184,7 +183,7 @@
       const d = new Date(w.day0 * 1000); d.setDate(d.getDate() + i);
       dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
     }
-    const thr = D.threshold, heavy = D.heavy;
+    const thr = D.threshold;
     const days = dates.map((iso) => {
       const all = { tmax: [], tmin: [], rain: [], wind: [], press: [] };
       const per = [];
@@ -206,7 +205,6 @@
       for (const k of Object.keys(all)) r[k] = stats(all[k]);
       if (r.rain) {
         r.prob = r.rain.vals.filter((v) => v >= thr - 1e-6).length / r.rain.n;
-        r.heavyProb = r.rain.vals.filter((v) => v >= heavy - 1e-6).length / r.rain.n;
       }
       // confiance : dispersion des maxima (température) ; accord des membres et
       // dispersion des cumuls (pluie)
@@ -286,80 +284,9 @@
   }
 
   // ------------------------------------------------------------------
-  // Analyse écrite
+  // Tableaux : comparaison des modèles, jour après jour
   // ------------------------------------------------------------------
-  const list = (a) => (a.length > 1 ? `${a.slice(0, -1).join(", ")} et ${a[a.length - 1]}` : a[0] || "");
   const nj = (n) => `${n} jour${n > 1 ? "s" : ""}`;
-
-  function analysis(days) {
-    const S = selected();
-    const N = days.length;
-    if (!N) return `<header><h2>Analyse écrite</h2></header><p class="muted">Pas de données sur la période.</p>`;
-    const members = sum(S.map((m) => m.members));
-    const T = days.filter((r) => r.tmax);
-    const avgMax = mean(T.map((r) => r.tmax.mean)), avgMin = mean(days.filter((r) => r.tmin).map((r) => r.tmin.mean));
-    const lo = Math.min(...days.filter((r) => r.tmin).map((r) => r.tmin.min)), hi = Math.max(...T.map((r) => r.tmax.max));
-    const R = days.filter((r) => r.rain);
-    const rainTot = sum(R.map((r) => r.rain.mean));
-    const wet = R.filter((r) => r.prob >= 0.7).length, dry = R.filter((r) => r.prob < 0.3).length;
-    const dryLike = R.filter((r) => r.prob < 0.5).length;
-    const Wd = days.filter((r) => r.wind);
-    const wMax = Wd.length ? Wd.reduce((a, b) => (b.wind.mean > a.wind.mean ? b : a)) : null;
-    const P = days.filter((r) => r.press);
-    const pAvg = mean(P.map((r) => r.press.mean));
-    const pTrend = P.length > 1 ? P[P.length - 1].press.mean - P[0].press.mean : 0;
-    const hot = T.reduce((a, b) => (b.tmax.mean > a.tmax.mean ? b : a)), cold = T.reduce((a, b) => (b.tmax.mean < a.tmax.mean ? b : a));
-    const wettest = R.length ? R.reduce((a, b) => (b.rain.mean > a.rain.mean ? b : a)) : null;
-    const maxMember = R.length ? Math.max(...R.map((r) => r.rain.max)) : 0;
-    const spread = mean(T.map((r) => r.tmax.p90 - r.tmax.p10));
-    const confT = T.filter((r) => r.confT === 2).length, confR = R.filter((r) => r.confR === 2).length;
-    const level = spread <= 2.5 ? "élevée" : spread <= 5 ? "modérée" : "faible";
-    const feel = avgMax < 5 ? "froid" : avgMax < 12 ? "frais" : avgMax < 20 ? "doux" : avgMax < 27 ? "chaud" : "très chaud";
-    const press = !isNum(pAvg) ? "" : pAvg < 1005 ? "basse : temps dépressionnaire, souvent perturbé"
-      : pAvg < 1012 ? "plutôt basse : temps changeant" : pAvg <= 1020 ? "proche de la moyenne : temps variable" : "élevée : temps anticyclonique, plutôt stable";
-    const windWord = !wMax ? "" : wMax.wind.mean < 15 ? "faible" : wMax.wind.mean < 30 ? "modéré" : wMax.wind.mean < 50 ? "assez fort" : "fort";
-    const trend = Math.abs(pTrend) < 5 ? "reste globalement stable" : pTrend > 0 ? `est en hausse (+${fmt(pTrend, 0)} hPa sur la période)` : `est en baisse (${fmt(pTrend, 0)} hPa sur la période)`;
-
-    // accord des modèles (moyennes par modèle sur la période)
-    const cmp = compareModels(days);
-    let agree = "";
-    if (cmp.length > 1) {
-      const withT = cmp.filter((c) => isNum(c.tmax)), withR = cmp.filter((c) => isNum(c.rain));
-      const wm = withT.reduce((a, b) => (b.tmax > a.tmax ? b : a)), cm = withT.reduce((a, b) => (b.tmax < a.tmax ? b : a));
-      const dT = wm.tmax - cm.tmax;
-      const rh = withR.reduce((a, b) => (b.rain > a.rain ? b : a)), rl = withR.reduce((a, b) => (b.rain < a.rain ? b : a));
-      const bigR = rh.rain - rl.rain > 5 && rh.rain > 1.5 * Math.max(rl.rain, 0.1);
-      agree = `<p><b>Accord des modèles.</b> Les ${cmp.length} modèles s'écartent de <b>${fmt(dT, 1)} °C</b> sur la moyenne des maximales
-        (${dT <= 1 ? "très bon accord" : dT <= 2.5 ? "dispersion normale" : "désaccord marqué"}) : le plus chaud est ${esc(wm.m.short)}, le plus frais ${esc(cm.m.short)}.
-        Pour la pluie, ${esc(rh.m.short)} prévoit environ <b>${fmt(rh.rain, 1)} mm</b> contre <b>${fmt(rl.rain, 1)} mm</b> pour ${esc(rl.m.short)}${bigR
-          ? " : un écart important, à surveiller à l'approche de l'échéance." : " : des valeurs proches."}</p>`;
-    }
-    const tiles = [
-      [fmtT(avgMax), "moyenne des max."], [`${fmt(lo, 0)} à ${fmt(hi, 0)} °C`, "enveloppe"],
-      [`${fmt(rainTot, 1)} mm`, "pluie totale"], [`${dryLike}/${R.length}`, "jours secs"],
-      [wMax ? `${fmt(wMax.wind.mean, 0)} km/h` : "—", "vent max."], [String(members), "membres"], [level, "confiance"],
-    ];
-    return `<header><h2>Analyse écrite · ${nj(N)}</h2></header>
-      <div class="en-tiles">${tiles.map(([v, k]) => `<div><b>${v}</b><span>${k}</span></div>`).join("")}</div>
-      <div class="en-text">
-      <p><b>Aperçu général.</b> En regroupant les <b>${members} membres</b> de ${list(S.map((m) => esc(m.short)))}, les ${nj(N)} à venir
-        afficheront des maximales moyennes de <b>${fmtT(avgMax)}</b> et des minimales avoisinant <b>${fmtT(avgMin)}</b> : un temps globalement ${feel}.
-        La journée la plus chaude devrait être <b>${dayLabel(hot.iso)}</b> (${fmtT(hot.tmax.mean)}), la plus fraîche <b>${dayLabel(cold.iso)}</b> (${fmtT(cold.tmax.mean)}).
-        Pris un par un, les membres vont de <b>${fmtT(lo)}</b> à <b>${fmtT(hi)}</b>${maxMember > 0 ? `, et le jour le plus arrosé atteint <b>${fmt(maxMember, 1)} mm</b> pour l'un d'eux` : ""} :
-        ce sont des extrêmes, pas le scénario le plus probable.${press ? ` La pression moyenne (${fmt(pAvg, 0)} hPa) est ${press}.` : ""}</p>
-      <p><b>Pluie.</b> ${rainTot < 0.5 && wet === 0 ? `Période sèche : les membres prévoient en moyenne ${fmt(rainTot, 1)} mm au total.`
-        : `Les membres prévoient en moyenne <b>${fmt(rainTot, 1)} mm</b> sur la période. Une nette majorité (au moins 70 %) prévoit de la pluie
-        ${wet ? `sur <b>${nj(wet)}</b>` : "sur aucun jour"}, et ${dry ? `<b>${nj(dry)}</b> s'annonce${dry > 1 ? "nt" : ""} sec${dry > 1 ? "s" : ""} (moins de 30 % des membres)` : "aucun jour ne s'annonce franchement sec"}.`}
-        ${wettest && wettest.rain.mean >= 1 ? `Le signal le plus net concerne <b>${dayLabel(wettest.iso)}</b> : ${fmt(wettest.prob * 100, 0)} % des membres prévoient de la pluie
-        et ${fmt(wettest.heavyProb * 100, 0)} % au moins ${fmt(D.heavy, 0)} mm.` : ""}</p>
-      ${wMax ? `<p><b>Vent.</b> Le vent reste ${windWord}, avec un maximum moyen d'environ ${fmt(wMax.wind.mean, 0)} km/h ${dayLabel(wMax.iso).replace(/\.$/, "")}.
-        ${P.length > 1 ? `La pression ${trend}.` : ""}</p>` : ""}
-      ${agree}
-      <p><b>Prévisibilité : ${level}.</b> L'écart moyen entre les membres les plus chauds et les plus froids (10 % et 90 % des maximales)
-        est de ${fmt(spread, 1)} °C. Confiance élevée sur la température ${confT} jour${confT > 1 ? "s" : ""} sur ${T.length},
-        sur la pluie ${confR} jour${confR > 1 ? "s" : ""} sur ${R.length}.${N > 7 ? " Au-delà de 7 jours, considérez la prévision comme une tendance." : ""}</p>
-      </div>`;
-  }
 
   // moyennes par modèle sur la période
   function compareModels(days) {
@@ -428,7 +355,6 @@
     lineChart("en-press", "press", U.press, 0, w, { minRange: 10 });
     const days = daily(w);
     rainCharts(days, w);
-    $("en-analysis").innerHTML = analysis(days);
     $("en-compare").innerHTML = compareTable(days);
     $("en-days").innerHTML = dayTable(days);
   }

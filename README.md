@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.50.
+et n'a pas besoin d'être joignable depuis internet. Version 1.51.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -35,8 +35,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.50.
   lien vers le tableau de chaque mois). Cellules colorées.
 - **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`) : tous
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
-  groupée, pluie et probabilité par jour, analyse écrite, comparaison des modèles, tableau
-  jour après jour ; modèles configurables.
+  groupée, pluie et probabilité par jour, comparaison des modèles, tableau jour après jour ;
+  modèles configurables.
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -700,9 +700,6 @@ digitalurban) :
 - **Pluie — total du jour et probabilité** : moyenne groupée (barre bleue), 90e centile
   (barre grise), moyenne de chaque modèle (points), et pourcentage des membres prévoyant au
   moins `rain_threshold` mm ;
-- **Analyse écrite** : chiffres clés (moyenne des maximales, enveloppe des membres, pluie
-  totale, jours secs, vent maximal, nombre de membres, confiance) et texte généré : aperçu
-  général, pluie, vent et pression, accord des modèles, prévisibilité ;
 - **Comparaison des modèles** sur l'horizon (moyennes des max. / min., pluie, vent, pression,
   le plus chaud / le plus frais) et **jour après jour** (moyenne, intervalle 10–90 % et
   extrêmes, risque de pluie, confiance température et pluie, vent, pression ; « 3/5 » quand
@@ -725,7 +722,6 @@ modèles cochés et l'horizon.
         step = 3                  # heures entre deux points des courbes (1, 2, 3, 4 ou 6)
         cache = 10800             # secondes (minimum 1800)
         rain_threshold = 0.2      # mm : pluie « mesurable » (risque de pluie)
-        heavy_rain = 5            # mm : forte pluie (analyse écrite)
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
 ```
 

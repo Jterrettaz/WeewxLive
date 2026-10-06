@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.50"
+VERSION = "1.51"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -795,7 +795,7 @@ class LiveJSON(SearchList):
     # ------------------------------------------------------------------
     # Prévisions d'ensemble Open-Meteo (data/ensembles.json, page ensembles.html).
     # weewx publie les membres bruts (échantillonnés) et les valeurs journalières de chaque
-    # membre ; le navigateur calcule moyennes, percentiles, probabilités et analyse selon
+    # membre ; le navigateur calcule moyennes, percentiles et probabilités selon
     # les modèles cochés et l'horizon choisi.
     # ------------------------------------------------------------------
     def _ens_options(self):
@@ -818,9 +818,8 @@ class LiveJSON(SearchList):
             "timeout": _int(e.get("timeout"), 30, 5, 120),
             "horizons": horizons or [3, 7, 10, 16],
             "horizon": _int(e.get("default_horizon"), 3, 1, 35),
-            # mm : pluie « mesurable » (probabilité de pluie) et forte pluie (analyse)
+            # mm : pluie « mesurable » (risque de pluie)
             "threshold": max(0.0, _to_float(e.get("rain_threshold"), RAIN_DAY_MM)),
-            "heavy": max(0.1, _to_float(e.get("heavy_rain"), 5.0)),
         }
 
     def _ens_fetch(self, model, lat, lon, days, o):
@@ -1014,7 +1013,7 @@ class LiveJSON(SearchList):
             "version": VERSION, "generated": int(time.time()), "source": "open-meteo",
             "latitude": lat, "longitude": lon, "cache": o["cache"],
             "horizons": o["horizons"], "horizon": o["horizon"],
-            "threshold": o["threshold"], "heavy": o["heavy"],
+            "threshold": o["threshold"],
             "units": {"temp": "°C", "rain": "mm", "wind": "km/h", "press": "hPa"},
             "models": models,
         }
