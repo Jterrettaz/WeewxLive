@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.51.
+et n'a pas besoin d'être joignable depuis internet. Version 1.52.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -737,7 +737,10 @@ et affiché sous son identifiant. Plus de modèles = plus de membres à dessiner
 
 Chaque modèle est demandé au plus jusqu'à sa propre échéance (`days` est limité pour
 chacun) ; si Open-Meteo refuse quand même l'échéance (erreur 400), l'extension retient la
-limite indiquée dans la réponse et refait la demande. La raison des erreurs renvoyée par
+limite indiquée dans la réponse et refait la demande ; de même, une variable refusée pour
+un modèle (pression, par exemple) est retirée pour ce modèle. Le bas de la page indique la
+version de l'extension qui a calculé `data/ensembles.json` (après une mise à jour,
+redémarrer weewx ; le fichier est recalculé au plus toutes les 30 minutes). La raison des erreurs renvoyée par
 Open-Meteo est écrite dans le journal de weewx.
 
 Usage gratuit de l'API d'Open-Meteo réservé aux usages non commerciaux (une requête par

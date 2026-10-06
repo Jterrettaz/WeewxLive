@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.51"
+VERSION = "1.52"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -429,6 +429,7 @@ ENSEMBLE_MODEL_RE = re.compile(r"^[a-z0-9_]{2,40}$")
 _ENS_CACHE = {}      # modèle -> (clé de requête, horodatage, réponse)
 _ENS_FAIL = {}       # modèle -> horodatage du dernier échec
 _ENS_MAXDAYS = {}    # modèle -> échéance maximale annoncée par Open-Meteo (erreur 400)
+_ENS_SKIPVARS = {}   # modèle -> variables refusées par Open-Meteo pour ce modèle (erreur 400)
 
 
 def _as_list(v):
@@ -830,7 +831,7 @@ class LiveJSON(SearchList):
         fdays = max(1, min(days, int(math.ceil(mdays)), _ENS_MAXDAYS.get(model, 99)))
         params = {
             "latitude": lat, "longitude": lon, "models": model,
-            "hourly": ",".join(v for _k, v, _d in ENSEMBLE_VARS),
+            "hourly": ",".join(v for _k, v, _d in ENSEMBLE_VARS if v not in _ENS_SKIPVARS.get(model, ())),
             "timezone": "auto", "timeformat": "unixtime",
             "forecast_days": fdays,
         }
@@ -867,6 +868,13 @@ class LiveJSON(SearchList):
                 if e.code == 400 and m and int(m.group(1)) < fdays and model not in _ENS_MAXDAYS:
                     _ENS_MAXDAYS[model] = max(1, int(m.group(1)))
                     log.info("livejson: ensemble %s : échéance limitée à %s jours", model, _ENS_MAXDAYS[model])
+                    return self._ens_fetch(model, lat, lon, days, o)
+                # variable refusée pour ce modèle (nommée dans la raison) : retirée, nouvel essai
+                skip = _ENS_SKIPVARS.setdefault(model, set())
+                bad = [v for _k, v, _d in ENSEMBLE_VARS if v not in skip and re.search(r"\b%s\b" % v, reason)]
+                if e.code == 400 and bad and len(skip) + len(bad) < len(ENSEMBLE_VARS):
+                    skip.update(bad)
+                    log.warning("livejson: ensemble %s : variable(s) non disponible(s) : %s", model, ", ".join(bad))
                     return self._ens_fetch(model, lat, lon, days, o)
                 _ENS_FAIL[model] = now
                 log.error("livejson: échec du téléchargement de l'ensemble %s : %s", model, err)

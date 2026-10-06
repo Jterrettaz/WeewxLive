@@ -60,6 +60,8 @@
       root.innerHTML = `<p class="muted">Prévisions d'ensemble indisponibles (${esc(e.message)}).</p>`;
       return;
     }
+    // version de l'extension qui a produit les données (diagnostic)
+    if ($("gen") && D.version) $("gen").textContent = ` · calcul weewx-live ${D.version}`;
     MODELS = D.models.filter((m) => !m.error && m.daily && m.daily.dates && m.daily.dates.length);
     MODELS.forEach((m, i) => (m.color = PAL[i % PAL.length]));
     const saved = store.get("sel");
