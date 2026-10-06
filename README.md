@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.45.
+et n'a pas besoin d'être joignable depuis internet. Version 1.46.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -614,7 +614,7 @@ ces options), déclaré dans `[Generators]` de `skin.conf`.
 
 | Colonne | Valeur | Couleur |
 |---|---|---|
-| Jour | numéro ; l'icône ouvre la page d'archives du jour (si elle existe) | — |
+| Jour | numéro du jour, en lien (avec son icône) vers la page d'archives du jour quand elle existe ; sinon, une note sous le tableau indique à partir de quelle date les pages « jour » sont disponibles (option `days`) ou qu'elles sont désactivées | — |
 | Température min. / moy. / max. | résumés journaliers de weewx | paliers de 3 °C du site (`TEMP_STEPS`) |
 | Vent moyen (rafale max.) | vitesse moyenne du jour, plus forte rafale | gris, d'autant plus foncé que le vent est fort (relatif au mois) |
 | Secteur | direction du vent vectoriel moyen (8 secteurs) | — |
