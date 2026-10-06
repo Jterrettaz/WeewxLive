@@ -2,7 +2,8 @@
  * lune, durée du jour et écart avec la veille, phase de la lune, graphique de la hauteur du
  * soleil et de la lune sur la journée avec leur position actuelle.
  * Calculs : almanach de weewx (PyEphem), publiés dans data/astro.json à chaque archive
- * (hauteurs et azimuts toutes les 10 min ; position actuelle interpolée). */
+ * (hauteurs et azimuts toutes les 10 min ; position actuelle interpolée). Page « jour » :
+ * données de la journée intégrées à la page (window.WEEWX_DAY.astro). */
 (function () {
   "use strict";
 
@@ -117,6 +118,9 @@
       return;
     }
     box.hidden = false;
+    // légende « position actuelle » seulement si la journée affichée est aujourd'hui
+    const note = card.querySelector(".lg-note");
+    if (note) note.hidden = !cur.today;
     const { series: s, opts } = chartData(data, cur, now);
     if (!chart) {
       chart = new MiniChart($("astro-chart"), Object.assign({
@@ -153,6 +157,14 @@
     let cfg = window.WEEWX_CONFIG || null;
     if (!cfg && window.weewxConfig) cfg = await window.weewxConfig.catch(() => null);
     if (cfg && cfg.astro && cfg.astro.enable === false) { section.hidden = true; return; }
+    const day = window.WEEWX_DAY && window.WEEWX_DAY.astro;
+    if (day) {
+      if (day.error) { section.hidden = true; return; }
+      data = day;
+      section.hidden = false;
+      render();
+      return;
+    }
     await load();
     setInterval(load, REFRESH);
     setInterval(render, 60 * 1000);      // position actuelle

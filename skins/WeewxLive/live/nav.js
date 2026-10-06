@@ -26,23 +26,34 @@
   // pages supplémentaires du menu « Données », après les paramètres
   const EXTRA = [{ id: "extremes", label: "Extrêmes", page: "extremes.html" }];
 
+  // pages situées dans un sous-dossier (pages « jour » : days/) : préfixe des liens
+  const BASE = (document.body && document.body.dataset.base) || "";
+  const isDay = /\/days\/day-\d{4}-\d{2}-\d{2}\.html$/.test(location.pathname);
+
   const q = new URLSearchParams(location.search);
   const demo = q.has("demo");
   const isDetail = /detail\.html$/.test(location.pathname);
   const extra = EXTRA.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
-  let current = extra ? extra.id
+  let current = isDay ? "days" : extra ? extra.id
     : isDetail ? (q.get("period") ? "period:" + q.get("period") : q.get("p") || "outTemp") : "home";
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
   // Lien vers une page, en conservant le mode démo
   function href(id) {
-    if (id === "home") return "index.html" + (demo ? "?demo" : "");
+    if (id === "home") return BASE + "index.html" + (demo ? "?demo" : "");
     const e = EXTRA.find((x) => x.id === id);
-    if (e) return e.page + (demo ? "?demo" : "");
+    if (e) return BASE + e.page + (e.page.endsWith(".html") && demo ? "?demo" : "");
     const p = id.startsWith("period:") ? new URLSearchParams({ period: id.slice(7) }) : new URLSearchParams({ p: id });
     if (demo) p.set("demo", "");
-    return "detail.html?" + p.toString().replace(/demo=(&|$)/, "demo$1");
+    return BASE + "detail.html?" + p.toString().replace(/demo=(&|$)/, "demo$1");
+  }
+
+  // Pages « jour » (si générées) : entrée vers la page du jour en cours
+  function setDayPages(cfg) {
+    if (!cfg || !cfg.dayPages || !cfg.dayPages.enable || EXTRA.some((e) => e.id === "days")) return;
+    const d = new Date(), iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    EXTRA.push({ id: "days", label: "Pages par jour", page: `days/day-${iso}.html` });
   }
 
   const CHEVRON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg>';
@@ -132,12 +143,14 @@
 
   function apply(cfg) {
     if (!cfg) return;
+    setDayPages(cfg);
     setParams(cfg.parameters);
     setBrand(cfg);
   }
   if (window.WEEWX_CONFIG) {
     // tableau de bord généré par weewx : configuration intégrée à la page
     window.weewxConfig = Promise.resolve(window.WEEWX_CONFIG);
+    setDayPages(window.WEEWX_CONFIG);
     setParams(window.WEEWX_CONFIG.parameters);
   } else if (!demo) {
     // requête partagée avec les autres scripts de la page (window.weewxConfig)

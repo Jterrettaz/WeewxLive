@@ -5,6 +5,10 @@
   "use strict";
 
   const DEMO = new URLSearchParams(location.search).has("demo");
+  // page « jour » (days/day-AAAA-MM-JJ.html) : données de la journée intégrées à la page,
+  // ni MQTT ni relecture ; graphiques de minuit à minuit
+  const DAY = window.WEEWX_DAY || null;
+  const nowS = () => (DAY ? DAY.stop : Date.now() / 1000);
   const SPAN = 24 * 3600;
   const HISTORY_REFRESH = 5 * 60 * 1000;    // relecture de data/history.json avec MQTT (régénéré par weewx)
   const FETCH_TIMEOUT = 15000;              // ms : une requête bloquée ne fige pas la page
@@ -346,11 +350,11 @@
   function refreshCharts() {
     for (const p of GENERIC) {
       if (p.aggregate !== "sum") continue;
-      const { bars, cum } = genericSumSeries(p.key, Date.now() / 1000);
+      const { bars, cum } = genericSumSeries(p.key, nowS());
       const ch = charts["g:" + p.key];
       ch.series[0].data = bars; ch.series[1].data = cum;
     }
-    const now = Date.now() / 1000;
+    const now = nowS();
     if (charts.rain) {
       charts.rain.series[0].data = [...S.rainHourly.entries()].sort((a, b) => a[0] - b[0]);
       charts.rain.series[1].data = rainCumul(now);
@@ -505,7 +509,7 @@
       const c = p.cardId || p.id, k = (n) => (p.kPrefix || "") + n;
       if (p.aggregate === "sum") {
         set(c, k("value"), fmt(daySum[p.key], d));
-        set(c, k("sum24"), fmt(genericSumSeries(p.key, Date.now() / 1000).total, d));
+        set(c, k("sum24"), fmt(genericSumSeries(p.key, nowS()).total, d));
         continue;
       }
       set(c, k("value"), fmt(S.cur[p.key], d));
@@ -547,7 +551,7 @@
     set("rain", "rate", fmt(c.rainRate, 1));
     const rr = S.day.rainRate || {};
     set("rain", "max", fmt(rr.max, 1)); set("rain", "maxTime", rr.max ? hhmm(rr.maxTime) : "");
-    const t0 = Date.now() / 1000 - SPAN;
+    const t0 = nowS() - SPAN;
     // même calcul que la courbe de cumul du graphique (dernière valeur)
     const cum = rainCumul(t0 + SPAN), s24 = cum.length ? cum[cum.length - 1][1] : 0;
     set("rain", "sum24", fmt(s24, 1));
@@ -579,7 +583,7 @@
     let past = S.cur[pastKey], src = "";
     if (past === undefined || past === null) {
       // « ago » secondes avant l'horodatage de la valeur actuelle
-      const target = (S.tempTime || Date.now() / 1000) - ago;
+      const target = (S.tempTime || nowS()) - ago;
       let best = null;
       for (const p of S.series.outTemp) if (!best || Math.abs(p[0] - target) < Math.abs(best[0] - target)) best = p;
       if (!best || Math.abs(best[0] - target) > 900) return "--";
@@ -593,7 +597,7 @@
   function pressureTrend() {
     const a = S.series.barometer;
     if (a.length < 2 || !isNum(S.cur.barometer)) return "--";
-    const target = Date.now() / 1000 - 3 * 3600;
+    const target = nowS() - 3 * 3600;
     let best = null;
     for (const p of a) if (!best || Math.abs(p[0] - target) < Math.abs(best[0] - target)) best = p;
     if (!best || Math.abs(best[0] - target) > 1800) return "--";
@@ -690,6 +694,7 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
 
   function trim() {
+    if (DAY) return;
     const t0 = Date.now() / 1000 - SPAN - 3600;
     for (const arr of Object.values(S.series)) {
       let i = 0; while (i < arr.length && arr[i][0] < t0) i++;
@@ -947,6 +952,7 @@
   }
 
   function tick() {
+    if (DAY) return;
     const now = new Date();
     document.getElementById("clock").textContent = now.toLocaleTimeString("fr-FR");
     const age = document.getElementById("age");
@@ -1100,11 +1106,23 @@
   tick();
   setInterval(tick, 1000);
   setInterval(() => { trim(); refreshCharts(); render(); }, 30 * 1000);
-  historyTimer = setInterval(loadHistory, HISTORY_REFRESH);
+  if (!DAY) historyTimer = setInterval(loadHistory, HISTORY_REFRESH);
   (async () => {
     const cfg = await loadConfig();
     applyParams(cfg && cfg.parameters);
     setupLayout();
+    if (DAY) {
+      // page « jour » : la journée entière, de minuit à minuit
+      ARCHIVE_MODE = true;
+      for (const c of Object.values(charts)) if (c) c.setRange(DAY.midnight, DAY.nextMidnight);
+      applyHistory(DAY);
+      const last = S.tempTime || DAY.stop;
+      const el = document.getElementById("day-last");
+      // dernier enregistrement à minuit : il clôt la journée
+      if (el && last) el.textContent = last >= DAY.nextMidnight ? " (minuit)"
+        : ` (${new Date(last * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })})`;
+      return;
+    }
     render();
     await loadHistory();
     startMqtt(cfg).catch((e) => {

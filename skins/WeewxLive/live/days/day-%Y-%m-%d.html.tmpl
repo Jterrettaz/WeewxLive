@@ -1,0 +1,71 @@
+## weewx-live : page « jour » (SummaryByDay) — tous les panneaux du tableau de bord pour une
+## journée : days/day-AAAA-MM-JJ.html. Option [LiveJSON] [[day_pages]] (enable, days).
+#set global $day_page = True
+#set $i = $livejson_day_info
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$livejson_station — $i.label</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23eda100'/%3E%3C/svg%3E">
+</head>
+<body class="day-page" data-base="../">
+  <header class="top">
+    <div class="brand">
+#if $livejson_logo
+#set $src = $livejson_logo.src if $livejson_logo.src.startswith(('http://', 'https://', '/')) else '../' + $livejson_logo.src
+      <img class="brand-logo" src="$src" alt="$livejson_logo.alt" height="$livejson_logo.height" style="height:${livejson_logo.height}px">
+#end if
+      <div class="brand-text">
+        <h1 id="station-name">$livejson_station</h1>
+        <p class="subtitle">$livejson_hardware</p>
+      </div>
+    </div>
+    <div class="status">
+      <span id="conn" class="pill pill-arch" role="status"><span class="dot"></span><span class="txt">Journée archivée</span></span>
+    </div>
+  </header>
+  <nav id="menu" class="menu" aria-label="Pages"></nav>
+
+  <nav class="day-nav" aria-label="Journées">
+#if $i.prev
+    <a class="day-prev" href="$i.prev" rel="prev">‹ Veille</a>
+#else
+    <span class="day-prev" aria-hidden="true"></span>
+#end if
+    <h2 class="day-title">$i.label</h2>
+#if $i.next
+    <a class="day-next" href="$i.next" rel="next">Lendemain ›</a>
+#else
+    <span class="day-next" aria-hidden="true"></span>
+#end if
+  </nav>
+  <p class="day-note">Valeurs du jour : minimum et maximum (avec l'heure), graphiques de 0 h à 24 h ; grande valeur : dernière mesure de la journée<span id="day-last"></span>.</p>
+
+  <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+  <div class="grid-tools" role="group" aria-label="Affichage des panneaux">
+    <button type="button" data-all="compact">Tout réduire</button>
+    <button type="button" data-all="full">Tout développer</button>
+  </div>
+  <main class="grid">
+#include "live/panels.inc"
+  </main>
+
+#include "live/astro.inc"
+
+  <footer class="foot"><span id="src">Archive weewx du $i.label</span><span id="gen"></span><span id="mode"></span></footer>
+
+  <div id="tip" class="tip" hidden></div>
+
+  <!-- configuration et données de la journée, générées par weewx -->
+  <script>window.WEEWX_CONFIG = $livejson_config_inline;</script>
+  <script>window.WEEWX_DAY = $livejson_day;</script>
+  <script src="../nav.js"></script>
+  <script src="../minichart.js"></script>
+  <script src="../app.js"></script>
+  <script src="../astro.js"></script>
+</body>
+</html>

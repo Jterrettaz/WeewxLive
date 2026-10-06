@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.40.
+et n'a pas besoin d'être joignable depuis internet. Version 1.41.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -25,6 +25,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.40.
   l'un sous l'autre.
 - **Une page par période** (en haut du menu « Données ») : 24 dernières heures, 7, 30 et
   365 derniers jours, avec une section par paramètre (statistiques et graphique).
+- **Pages « jour »** (`days/day-AAAA-MM-JJ.html`) : tous les panneaux du tableau de bord
+  pour une journée donnée, avec navigation de jour en jour (désactivables).
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -52,6 +54,8 @@ aucun port à ouvrir sur votre box.
 | `install.py` | installeur pour `weectl extension install` |
 | `bin/user/livejson.py` | extension weewx (SearchList) : calcule tous les fichiers JSON et les valeurs du gabarit |
 | `skins/WeewxLive/skin.conf` | configuration du rapport : paramètres affichés, MQTT, prévisions, cartes, extrêmes |
+| `skins/WeewxLive/live/panels.inc`, `astro.inc` | panneaux des paramètres et « Soleil et Lune », partagés par le tableau de bord et les pages « jour » |
+| `skins/WeewxLive/live/days/day-%Y-%m-%d.html.tmpl` | page « jour » (une par journée) |
 | `skins/WeewxLive/live/index.html.tmpl`, `app.js` | tableau de bord : gabarit Cheetah (un panneau par paramètre de `[[parameters]]`, configuration intégrée à la page) et script temps réel |
 | `skins/WeewxLive/live/extras.js` | prévisions, radar et satellite du tableau de bord |
 | `skins/WeewxLive/live/climate.js` | « Ce jour et ce mois au fil des ans » |
@@ -78,6 +82,7 @@ weewx produit dans `HTML_ROOT/live/` :
 | `data/extremes.json` | records | 1 h max. |
 | `data/forecast.json` | prévisions Open-Meteo (cache) | à chaque archive, téléchargement 1 fois par heure |
 | `data/astro.json` | soleil et lune du jour (almanach weewx) | à chaque archive |
+| `days/day-AAAA-MM-JJ.html` | pages « jour » | page du jour à chaque archive ; journées passées une fois |
 | `detail.html`, `extremes.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
 Les extrêmes du jour viennent des résumés journaliers de weewx (ils incluent les pics
@@ -546,6 +551,35 @@ paramètres ») : une section par paramètre, identique à celle de la page de d
 période (statistiques puis graphique), avec des liens rapides vers chaque section en haut de
 page. Le titre de chaque section mène à la page de détail du paramètre. Les données viennent
 des mêmes fichiers `data/p24h.json`… (un seul fichier lu par page).
+
+### Pages « jour »
+
+`days/day-AAAA-MM-JJ.html` (gabarit `live/days/day-%Y-%m-%d.html.tmpl`, section
+`[[SummaryByDay]]` de `skin.conf`) : une page par journée, avec tous les panneaux du tableau de
+bord pour ce jour-là :
+
+- chaque paramètre (panneaux standard, génériques et groupés) : minimum et maximum du jour
+  avec l'heure, cumuls, graphique de 0 h à 24 h, rose des vents de la journée ; la grande
+  valeur est la dernière mesure de la journée ;
+- « Soleil et Lune » de ce jour (almanach weewx) ;
+- liens « Veille » / « Lendemain », menu « Données » (entrée « Pages par jour » : page du
+  jour en cours). Pas de temps réel, ni prévisions, ni cartes.
+
+Les données de la journée sont intégrées à la page (aucun fichier JSON à lire). La page du
+jour en cours est régénérée à chaque archive ; celles des journées passées ne sont produites
+qu'une fois (si le fichier n'existe pas déjà).
+
+```ini
+    [[day_pages]]
+        enable = true     # false : aucune page « jour » générée
+        days = 365        # journées produites en remontant depuis aujourd'hui (0 = toutes)
+```
+
+Avec `days = 0`, la première génération produit une page pour chaque journée de la base
+(plusieurs milliers sur une base de plusieurs années, environ 40 à 90 Ko chacune) : elle peut
+prendre du temps et le premier envoi FTP sera volumineux. Le skin utilise pour cela son
+propre générateur (`user.livejson.LiveCheetahGenerator`, le générateur Cheetah de weewx avec
+cette option), déclaré dans `[Generators]` de `skin.conf`.
 
 ## 9. Page « Extrêmes » (records de la station)
 

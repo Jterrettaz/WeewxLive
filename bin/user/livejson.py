@@ -11,6 +11,7 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
   $livejson_climate        JSON : « ce jour / ce mois au fil des ans »
   $livejson_extremes       JSON : records de la station (page « Extrêmes »)
   $livejson_astro          JSON : soleil et lune du jour (almanach weewx)
+  $livejson_day, $livejson_day_info : pages « jour » (days/day-AAAA-MM-JJ.html, SummaryByDay)
   $livejson_period.p24h …  JSON : pages de détail (24 h, 7, 30, 365 et 730 jours)
   $livejson_params, $livejson_station, $livejson_logo, $livejson_hardware,
   $livejson_refresh, $livejson_fc_days : valeurs pour le gabarit index.html.tmpl
@@ -37,12 +38,12 @@ import weewx
 import weewx.almanac
 import weewx.units
 import weewx.xtypes
-from weewx.cheetahgenerator import SearchList
+from weewx.cheetahgenerator import CheetahGenerator, SearchList
 from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.40"
+VERSION = "1.41"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -128,6 +129,10 @@ BUILTIN_PARAMS = {
     "barometer": ("Pression", "barometer", "barometer", "min-max", "barometer"),
 }
 AGGREGATES = ("min-max", "max", "sum")
+
+WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
+          "octobre", "novembre", "décembre")
 
 # Phases de la lune (index weewx 0 à 7)
 MOON_PHASES = ("Nouvelle lune", "Premier croissant", "Premier quartier", "Gibbeuse croissante",
@@ -401,6 +406,9 @@ class LiveJSON(SearchList):
         self.radar = dict(opts.get("radar", {}))
         self.satellite = dict(opts.get("satellite", {}))
         self.astro = dict(opts.get("astro", {}))
+        dp = opts.get("day_pages", {})
+        self.day_pages = to_bool(dp.get("enable", True))
+        self.day_pages_days = _int(dp.get("days"), 365, 0, 100000)    # 0 = depuis le début
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
         # mm : pluie journalière minimale d'un jour de « période de pluie »
@@ -479,6 +487,9 @@ class LiveJSON(SearchList):
             "livejson_climate": _Lazy(lambda: self._dump(self.climate(stop, db_lookup))),
             "livejson_extremes": _Lazy(lambda: self._dump(self.extremes(stop, db_lookup))),
             "livejson_astro": _Lazy(lambda: self._dump(self.astro_data(stop, db_lookup))),
+            # pages « jour » (gabarit days/day-%Y-%m-%d.html.tmpl, timespan = la journée)
+            "livejson_day": _Lazy(lambda: self._dump(self.day_data(timespan, db_lookup)).replace("</", "<\\/")),
+            "livejson_day_info": self.day_info(timespan),
             # gabarit index.html.tmpl : paramètres (chaînes déjà échappées pour le HTML),
             # nom de la station et configuration à intégrer dans la page
             "livejson_params": self.template_params(),
@@ -550,6 +561,8 @@ class LiveJSON(SearchList):
             "logo": self.logo,
             "latitude": lat,
             "longitude": lon,
+            # pages « jour » : days/day-AAAA-MM-JJ.html
+            "dayPages": {"enable": self.day_pages, "days": self.day_pages_days},
             # « Soleil et Lune » : almanach weewx (data/astro.json)
             "astro": {"enable": to_bool(self.astro.get("enable", True))},
             "forecast": {
@@ -685,8 +698,27 @@ class LiveJSON(SearchList):
         span = TimeSpan(start, stop)
 
         series = self._raw_series(span, dbm)
-
         day_span = archiveDaySpan(stop)
+        day = self._day_aggregates(day_span, dbm)
+
+        out = {
+            "version": VERSION,
+            "generated": int(time.time()),
+            "stop": int(stop),
+            "midnight": int(day_span.start),
+            # fin du jour de la station (minuit suivant, heure d'été comprise) : le navigateur
+            # change de jour à cette heure-là, quel que soit son propre fuseau horaire
+            "nextMidnight": int(day_span.stop),
+            "hours": self.hours,
+            "units": self.units,
+            "series": series,
+            "day": day,
+        }
+        log.debug("livejson: historique généré en %.2f s", time.time() - t1)
+        return out
+
+    def _day_aggregates(self, day_span, dbm):
+        """Extrêmes (avec l'heure) et cumuls d'une journée, d'après les résumés journaliers."""
         day = {}
         for obs, aggs in self.day_aggs.items():
             d = {}
@@ -711,22 +743,51 @@ class LiveJSON(SearchList):
                 day.setdefault(key, {})["sum"] = _round(vt.value) if vt.value is not None else 0.0
             except Exception as e:
                 log.debug("livejson: cumul %s indisponible : %s", key, e)
+        return day
 
+    # ------------------------------------------------------------------
+    # Pages « jour » (SummaryByDay) : tous les panneaux pour une journée
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _day_span_of(timespan):
+        return archiveDaySpan(timespan.start + 1)
+
+    def day_data(self, timespan, db_lookup):
+        """Même structure que history.json, pour la journée de « timespan » (minuit à minuit,
+        ou jusqu'à la dernière archive pour le jour en cours) + soleil et lune du jour."""
+        t1 = time.time()
+        dbm = db_lookup(self.binding)
+        day_span = self._day_span_of(timespan)
+        stop = min(int(day_span.stop), int(timespan.stop))
+        series = self._raw_series(TimeSpan(day_span.start, stop), dbm)
         out = {
-            "version": VERSION,
-            "generated": int(time.time()),
-            "stop": int(stop),
-            "midnight": int(day_span.start),
-            # fin du jour de la station (minuit suivant, heure d'été comprise) : le navigateur
-            # change de jour à cette heure-là, quel que soit son propre fuseau horaire
-            "nextMidnight": int(day_span.stop),
-            "hours": self.hours,
-            "units": self.units,
-            "series": series,
-            "day": day,
+            "version": VERSION, "generated": int(time.time()), "stop": stop,
+            "midnight": int(day_span.start), "nextMidnight": int(day_span.stop),
+            "units": self.units, "series": series,
+            "day": self._day_aggregates(day_span, dbm),
         }
-        log.debug("livejson: historique généré en %.2f s", time.time() - t1)
+        if to_bool(self.astro.get("enable", True)):
+            out["astro"] = self.astro_data(int(day_span.start) + 43200, db_lookup)
+        log.debug("livejson: page jour générée en %.2f s", time.time() - t1)
         return out
+
+    def day_info(self, timespan):
+        """Date de la page « jour » et liens vers la veille / le lendemain."""
+        day_span = self._day_span_of(timespan)
+        d = datetime.date.fromtimestamp(day_span.start + 43200)
+        name = lambda x: "day-%s.html" % x.strftime("%Y-%m-%d")
+        prev_d, next_d = d - datetime.timedelta(days=1), d + datetime.timedelta(days=1)
+        today = datetime.date.fromtimestamp(getattr(self.generator, "gen_ts", None) or time.time())
+        first = None
+        if self.day_pages_days:
+            first = today - datetime.timedelta(days=self.day_pages_days - 1)
+        return {
+            "label": "%s %d %s %d" % (WEEKDAYS[d.weekday()], d.day, MONTHS[d.month - 1], d.year),
+            "iso": d.isoformat(),
+            "prev": name(prev_d) if first is None or prev_d >= first else "",
+            "next": name(next_d) if next_d <= today else "",
+            "today": name(today),
+        }
 
     # ------------------------------------------------------------------
     # Pages de détail
@@ -1321,3 +1382,32 @@ class LiveJSON(SearchList):
         except Exception as e:
             log.debug("livejson: direction dominante indisponible : %s", e)
         return stats
+
+
+# ----------------------------------------------------------------------
+# Générateur Cheetah du skin : celui de weewx, avec l'option [LiveJSON] [[day_pages]] pour
+# les pages « jour » (section [[SummaryByDay]]) : désactivation (enable = false) ou limite
+# aux N derniers jours (days = N ; 0 = depuis le début des données).
+# ----------------------------------------------------------------------
+class LiveCheetahGenerator(CheetahGenerator):
+
+    def generate(self, section, section_name, gen_ts):
+        if section_name != "SummaryByDay":
+            return CheetahGenerator.generate(self, section, section_name, gen_ts)
+        opts = self.skin_dict.get("LiveJSON", {}).get("day_pages", {})
+        if not to_bool(opts.get("enable", True)):
+            return 0
+        days = _int(opts.get("days"), 365, 0, 100000)
+        if not days:
+            return CheetahGenerator.generate(self, section, section_name, gen_ts)
+        ref = gen_ts or time.time()
+        first = datetime.date.fromtimestamp(ref) - datetime.timedelta(days=days - 1)
+        first_ts = int(time.mktime(first.timetuple()))
+        gd = CheetahGenerator.generator_dict
+        orig = gd["SummaryByDay"]
+        # seules les journées récentes sont produites (la fonction est rétablie ensuite)
+        gd["SummaryByDay"] = lambda start_ts, stop_ts: orig(max(start_ts, first_ts), stop_ts)
+        try:
+            return CheetahGenerator.generate(self, section, section_name, gen_ts)
+        finally:
+            gd["SummaryByDay"] = orig
