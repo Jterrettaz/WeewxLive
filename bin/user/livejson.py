@@ -34,6 +34,7 @@ import logging
 import math
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -46,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.49"
+VERSION = "1.50"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -427,6 +428,7 @@ ENSEMBLE_VARS = (("temp", "temperature_2m", 1), ("rain", "precipitation", 1),
 ENSEMBLE_MODEL_RE = re.compile(r"^[a-z0-9_]{2,40}$")
 _ENS_CACHE = {}      # modèle -> (clé de requête, horodatage, réponse)
 _ENS_FAIL = {}       # modèle -> horodatage du dernier échec
+_ENS_MAXDAYS = {}    # modèle -> échéance maximale annoncée par Open-Meteo (erreur 400)
 
 
 def _as_list(v):
@@ -824,12 +826,14 @@ class LiveJSON(SearchList):
     def _ens_fetch(self, model, lat, lon, days, o):
         """Réponse Open-Meteo d'un modèle (cache de o['cache'] secondes). -> (données,
         horodatage, erreur)."""
+        # forecast_days ne doit pas dépasser l'échéance du modèle (sinon : erreur 400)
         mdays = ENSEMBLE_MODELS.get(model, (0, 0, 0, days))[3]
+        fdays = max(1, min(days, int(math.ceil(mdays)), _ENS_MAXDAYS.get(model, 99)))
         params = {
             "latitude": lat, "longitude": lon, "models": model,
             "hourly": ",".join(v for _k, v, _d in ENSEMBLE_VARS),
             "timezone": "auto", "timeformat": "unixtime",
-            "forecast_days": max(1, min(days, int(math.ceil(mdays)) + 1)),
+            "forecast_days": fdays,
         }
         key = urllib.parse.urlencode(params)
         now = time.time()
@@ -850,6 +854,23 @@ class LiveJSON(SearchList):
                 _ENS_FAIL.pop(model, None)
                 log.debug("livejson: ensemble %s téléchargé", model)
                 return data, now, None
+            except urllib.error.HTTPError as e:
+                # raison donnée par Open-Meteo ({"error": true, "reason": "…"})
+                reason = ""
+                try:
+                    reason = json.loads(e.read().decode("utf-8")).get("reason", "")
+                except Exception:
+                    pass
+                err = "HTTP %s%s" % (e.code, " : " + reason if reason else "")
+                # échéance refusée (« … allowed range 0 to 15 … ») : limite retenue et nouvel
+                # essai immédiat
+                m = re.search(r"(?i)forecast.?days.*?\b0\s*(?:to|-|…|\.\.)\s*(\d+)", reason)
+                if e.code == 400 and m and int(m.group(1)) < fdays and model not in _ENS_MAXDAYS:
+                    _ENS_MAXDAYS[model] = max(1, int(m.group(1)))
+                    log.info("livejson: ensemble %s : échéance limitée à %s jours", model, _ENS_MAXDAYS[model])
+                    return self._ens_fetch(model, lat, lon, days, o)
+                _ENS_FAIL[model] = now
+                log.error("livejson: échec du téléchargement de l'ensemble %s : %s", model, err)
             except Exception as e:
                 err = str(e)
                 _ENS_FAIL[model] = now
