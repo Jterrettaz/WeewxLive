@@ -1,0 +1,317 @@
+## weewx-live : gabarit Cheetah du tableau de bord (généré par weewx à chaque archive)
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+#if $livejson_refresh
+  <!-- rechargement complet de la page ([LiveJSON] page_refresh, secondes) -->
+  <meta http-equiv="refresh" content="$livejson_refresh">
+#end if
+  <title>$livejson_station — en direct</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23eda100'/%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+#if $livejson_logo
+      <img class="brand-logo" src="$livejson_logo.src" alt="$livejson_logo.alt" height="$livejson_logo.height" style="height:${livejson_logo.height}px">
+#end if
+      <div class="brand-text">
+        <h1 id="station-name">$livejson_station</h1>
+        <p class="subtitle">$livejson_hardware</p>
+      </div>
+    </div>
+    <div class="status">
+      <span id="clock" class="clock">--:--:--</span>
+      <span id="conn" class="pill pill-off" role="status"><span class="dot"></span><span class="txt">Connexion…</span></span>
+      <span id="age" class="age"></span>
+    </div>
+  </header>
+  <nav id="menu" class="menu" aria-label="Pages"></nav>
+
+  <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+
+  <div class="grid-tools" role="group" aria-label="Affichage des panneaux">
+    <button type="button" data-all="compact">Tout réduire</button>
+    <button type="button" data-all="full">Tout développer</button>
+  </div>
+  <main class="grid">
+## Panneaux : un par paramètre de skin.conf [[parameters]], dans l'ordre configuré.
+## Paramètres standard : panneau spécialisé ; autres : panneau générique (min-max, max, sum).
+#for $p in $livejson_params
+#if $p.builtin and $p.id == "outTemp"
+    <!-- Température -->
+    <article class="card" data-param="outTemp" style="--c: var(--temp)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="outTemp" href="detail.html?p=outTemp">$p.title</a></h2><span class="hint">extérieure</span></header>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit">°C</span></div>
+        <p class="aux" title="Écart avec la température d'il y a 1 h et 24 h (* : estimé d'après l'historique)">Sur 1 h <b data-k="d1h">--</b><span class="aux-sep">·</span>Sur 24 h <b data-k="d24h">--</b></p>
+        <dl class="ext">
+          <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
+          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+        </dl>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="outTemp" role="img" aria-label="Température sur 24 heures"></div>
+      </div>
+    </article>
+#elif $p.builtin and $p.id == "wind"
+    <!-- Vent -->
+    <article class="card" data-param="wind" style="--c: var(--wind)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="wind" href="detail.html?p=wind">$p.title</a></h2><span class="hint">moyen · rafales</span></header>
+        <div class="now">
+          <span class="val" data-k="value">--</span><span class="unit">km/h</span>
+          <span class="side">
+            <svg class="compass" viewBox="0 0 40 40" aria-hidden="true">
+              <circle cx="20" cy="20" r="18" class="ring"/>
+              <text x="20" y="8.5" class="cardinal">N</text>
+              <g class="needle" data-k="needle"><path d="M20 6 L25 26 L20 22 L15 26 Z"/></g>
+            </svg>
+            <span class="dir"><b data-k="dirTxt">--</b><small data-k="dirDeg"></small></span>
+          </span>
+        </div>
+        <p class="aux">Rafale <b data-k="gust">--</b> km/h</p>
+        <dl class="ext">
+          <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
+          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+          <div><dt>Rafale max</dt><dd><b data-k="gustMax">--</b><small data-k="gustMaxTime"></small></dd></div>
+        </dl>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="wind" role="img" aria-label="Vent sur 24 heures"></div>
+        <ul class="legend"><li><i style="background:var(--wind)"></i>Vent moyen</li><li><i style="background:var(--gust)"></i>Rafales</li></ul>
+      </div>
+    </article>
+#elif $p.builtin and $p.id == "windDir"
+    <!-- Direction du vent -->
+    <article class="card" data-param="windDir" style="--c: var(--wind)">
+      <div class="card-main">
+        <header><h2>$p.title</h2><span class="hint">24 dernières heures</span></header>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-k="deg"></span></div>
+        <p class="aux">Dominante <b data-k="dominant">--</b><span class="aux-sep">·</span>Calme <b data-k="calm">--</b></p>
+        <div class="rose-row">
+          <svg class="rose" id="rose" viewBox="-110 -110 220 220" role="img" aria-label="Rose des vents sur 24 heures"></svg>
+          <ul class="rose-legend" aria-label="Classes de vitesse de la rose des vents">
+            <li><i style="background:var(--ws4)"></i>≥ 30 km/h</li>
+            <li><i style="background:var(--ws3)"></i>20–30</li>
+            <li><i style="background:var(--ws2)"></i>10–20</li>
+            <li><i style="background:var(--ws1)"></i>&lt; 10</li>
+            <li class="note">Part du temps par direction ; calme : &lt; 1 km/h</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card-side">
+        <div class="mini-label">Direction relevée (un point par mesure)</div>
+        <div class="chart dir-chart" data-chart="windDir" role="img" aria-label="Direction du vent sur 24 heures"></div>
+      </div>
+    </article>
+#elif $p.builtin and $p.id == "rain"
+    <!-- Pluie -->
+    <article class="card" data-param="rain" style="--c: var(--rain)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="rain" href="detail.html?p=rain">$p.title</a></h2><span class="hint">cumul du jour</span></header>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit">mm</span></div>
+        <p class="aux">Intensité <b data-k="rate">--</b> mm/h</p>
+        <dl class="ext">
+          <div><dt>Intensité max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+          <div><dt>Cumul 24 h</dt><dd><b data-k="sum24">--</b><small>mm</small></dd></div>
+        </dl>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="rain" role="img" aria-label="Pluie horaire et cumul sur 24 heures"></div>
+        <ul class="legend"><li><i style="background:var(--rain)"></i>Pluie horaire</li><li><i style="background:var(--rainsum)"></i>Cumul 24 h</li></ul>
+      </div>
+    </article>
+#elif $p.builtin and $p.id == "radiation"
+    <!-- Rayonnement solaire -->
+    <article class="card" data-param="radiation" style="--c: var(--sun)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="radiation" href="detail.html?p=radiation">$p.title</a></h2><span class="hint">global</span></header>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit">W/m²</span></div>
+        <dl class="ext">
+          <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
+          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+        </dl>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="radiation" role="img" aria-label="Rayonnement solaire sur 24 heures"></div>
+      </div>
+    </article>
+#elif $p.builtin and $p.id == "outHumidity"
+    <!-- Humidité -->
+    <article class="card" data-param="outHumidity" style="--c: var(--hum)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="outHumidity" href="detail.html?p=outHumidity">$p.title</a></h2><span class="hint">extérieure</span></header>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit">%</span></div>
+        <dl class="ext">
+          <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
+          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+        </dl>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="outHumidity" role="img" aria-label="Humidité sur 24 heures"></div>
+      </div>
+    </article>
+#elif $p.builtin and $p.id == "barometer"
+    <!-- Pression -->
+    <article class="card" data-param="barometer" style="--c: var(--press)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="barometer" href="detail.html?p=barometer">$p.title</a></h2><span class="hint">niveau de la mer</span></header>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit">hPa</span></div>
+        <p class="aux">Tendance 3 h <b data-k="trend">--</b></p>
+        <dl class="ext">
+          <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
+          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+        </dl>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="barometer" role="img" aria-label="Pression sur 24 heures"></div>
+      </div>
+    </article>
+#elif $p.type == "group"
+    <!-- $p.title (panneau groupé : $len($p.members) mesures, agrégat $p.aggregate) -->
+    <article class="card group-card" data-param="$p.id" data-generic="1" data-group="1" style="--c: var($p.members[0].color)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="$p.id" href="detail.html?p=$p.id_url">$p.title</a></h2><span class="hint">$p.hint</span></header>
+        <table class="gtab">
+          <thead><tr><th scope="col"><span class="sr">Mesure</span></th><th scope="col">Actuel</th>#if $p.aggregate == "min-max"#<th scope="col">Min</th><th scope="col">Max</th>#else#<th scope="col">Max du jour</th>#end if#</tr></thead>
+          <tbody>
+#for $m in $p.members
+            <tr>
+              <th scope="row"><i class="sw" style="background:var($m.color)"></i>$m.title</th>
+              <td class="gnow"><b data-k="$m.id:value">--</b><small>$m.unit</small></td>
+#if $p.aggregate == "min-max"
+              <td><b data-k="$m.id:min">--</b><small data-k="$m.id:minTime"></small></td>
+#end if
+              <td><b data-k="$m.id:max">--</b><small data-k="$m.id:maxTime"></small></td>
+            </tr>
+#end for
+          </tbody>
+        </table>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="$p.key" role="img" aria-label="$p.title sur 24 heures"></div>
+        <ul class="legend">#for $m in $p.members#<li><i style="background:var($m.color)"></i>$m.title</li>#end for#</ul>
+      </div>
+    </article>
+#else
+    <!-- $p.title (paramètre ajouté : agrégat $p.aggregate) -->
+    <article class="card" data-param="$p.id" data-generic="1" style="--c: var($p.color)">
+      <div class="card-main">
+        <header><h2><a class="more" data-detail="$p.id" href="detail.html?p=$p.id_url">$p.title</a></h2><span class="hint">$p.hint</span></header>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit">$p.unit</span></div>
+        <dl class="ext">
+#if $p.aggregate == "min-max"
+          <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
+          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+#elif $p.aggregate == "max"
+          <div><dt>Max du jour</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
+#else
+          <div><dt>Cumul 24 h</dt><dd><b data-k="sum24">--</b><small>$p.unit</small></dd></div>
+#end if
+        </dl>
+      </div>
+      <div class="card-side">
+        <div class="chart" data-chart="$p.key" role="img" aria-label="$p.title sur 24 heures"></div>
+#if $p.aggregate == "sum"
+        <ul class="legend"><li><i style="background:var($p.color)"></i>Cumul horaire</li><li><i style="background:var(--text-2)"></i>Cumul 24 h</li></ul>
+#end if
+      </div>
+    </article>
+#end if
+
+#end for
+  </main>
+
+  <!-- Soleil et Lune (calculs astronomiques dans le navigateur, astro.js) -->
+  <section class="wide" hidden>
+    <article class="card astro-card" id="astro-card" style="--c: var(--sun)">
+      <header><h2>Soleil et Lune</h2><span class="hint">aujourd'hui</span></header>
+      <div class="astro">
+        <div class="astro-info">
+          <div class="astro-col"><h3><i class="as-dot" style="background:var(--sun)"></i>Soleil</h3><div id="astro-sun"></div></div>
+          <div class="astro-col"><h3><i class="as-dot" style="background:var(--moon)"></i>Lune</h3><div id="astro-moon"></div></div>
+        </div>
+        <div class="astro-side">
+          <div class="chart astro-chart" id="astro-chart" role="img" aria-label="Hauteur du soleil et de la lune aujourd'hui"></div>
+          <ul class="legend"><li><i style="background:var(--sun)"></i>Hauteur du soleil</li><li><i style="background:var(--moon)"></i>Hauteur de la lune</li><li><i class="band" style="background:color-mix(in srgb, var(--sun) 18%, transparent)"></i>Jour</li><li class="lg-note">● position actuelle · trait gris : horizon</li></ul>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- Prévisions -->
+  <section class="wide">
+    <article class="card fc-card" id="fc-card" style="--c: var(--sun)">
+      <header><h2>Prévisions $livejson_fc_days jours</h2><span class="hint" id="fc-model">Open-Meteo</span><span class="hint fc-sun" id="fc-sun"></span></header>
+      <div id="forecast"><p class="muted">Chargement des prévisions…</p></div>
+      <div class="fc-hours" id="fc-hours" hidden>
+        <div class="fh-head"><h3 id="fh-title">--</h3><button type="button" class="fh-close" id="fh-close" aria-label="Fermer le détail horaire">×</button></div>
+        <div class="fh-charts">
+          <div><div class="fh-label">Température (°C)</div><div class="chart fh-chart" id="fh-temp"></div></div>
+          <div class="fh-rainbox" id="fh-rainbox"><div class="fh-label">Précipitations (mm par heure)</div><div class="chart fh-chart" id="fh-rain"></div><p class="fh-dry">Pas de précipitations prévues ce jour-là.</p></div>
+        </div>
+        <ol class="fh-strip" id="fh-strip" aria-label="Prévisions heure par heure"></ol>
+        <p class="fh-legend">Par heure : température · précipitations et probabilité · vent moyen et rafales (km/h) · humidité</p>
+      </div>
+      <p class="credit">Prévisions <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> (CC BY 4.0)</p>
+    </article>
+  </section>
+
+  <!-- Radar et satellite -->
+  <section class="wide maps">
+    <article class="card map-card" id="radar-card" style="--c: var(--rain)">
+      <header><h2>Radar précipitations</h2><span class="hint" id="radar-hint">2 dernières heures</span></header>
+      <div class="map" id="radar-map"><p class="map-msg" id="radar-msg" hidden></p></div>
+      <div class="player" id="radar-player"></div>
+      <p class="credit" id="radar-credit">Radar <a href="https://www.rainviewer.com/" rel="noopener">RainViewer</a></p>
+    </article>
+    <article class="card map-card" id="sat-card" style="--c: var(--press)">
+      <header><h2>Satellite</h2><span class="hint" id="sat-hint">Meteosat</span><div class="seg" id="sat-layers" role="group" aria-label="Type d'image"></div></header>
+      <div class="map" id="sat-map"><p class="map-msg" id="sat-msg" hidden></p></div>
+      <div class="player" id="sat-player"></div>
+      <p class="credit" id="sat-credit">Images <a href="https://view.eumetsat.int/" rel="noopener">EUMETSAT EUMETView</a> (CC BY 4.0)</p>
+    </article>
+  </section>
+
+  <!-- Ce jour et ce mois au fil des ans -->
+  <section class="wide climate" id="climate" hidden aria-label="Ce jour et ce mois au fil des ans">
+    <article class="card cl-card" id="cl-day">
+      <header><h2 id="cl-day-title">Ce jour au fil des ans</h2></header>
+      <p class="cl-since"></p>
+      <div class="cl-text" id="cl-day-text"></div>
+      <h3 class="cl-h" id="cl-day-th">Températures</h3>
+      <div class="chart cl-chart" id="cl-day-temp" role="img" aria-label="Températures au fil des ans"></div>
+      <ul class="legend"><li><i class="hilo"></i>Min. – max.</li><li><i class="midmark"></i>Moyenne</li><li class="cl-scale"></li></ul>
+      <h3 class="cl-h" id="cl-day-rh">Précipitations</h3>
+      <div class="chart cl-chart cl-chart-rain" id="cl-day-rain" role="img" aria-label="Précipitations au fil des ans"></div>
+    </article>
+    <article class="card cl-card" id="cl-month">
+      <header><h2 id="cl-month-title">Ce mois au fil des ans</h2></header>
+      <p class="cl-since"></p>
+      <div class="cl-text" id="cl-month-text"></div>
+      <h3 class="cl-h" id="cl-month-th">Températures</h3>
+      <div class="chart cl-chart" id="cl-month-temp" role="img" aria-label="Températures au fil des ans"></div>
+      <ul class="legend"><li><i class="hilo"></i>Min. – max.</li><li><i class="midmark"></i>Moyenne</li><li class="cl-scale"></li></ul>
+      <h3 class="cl-h" id="cl-month-rh">Précipitations</h3>
+      <div class="chart cl-chart cl-chart-rain" id="cl-month-rain" role="img" aria-label="Précipitations au fil des ans"></div>
+    </article>
+  </section>
+
+  <footer class="foot"><span id="src">Temps réel via MQTT · historique weewx</span><span id="gen"></span><span id="mode"></span></footer>
+
+  <div id="tip" class="tip" hidden></div>
+
+  <!-- configuration générée par weewx (évite une requête config.json au chargement) -->
+  <script>window.WEEWX_CONFIG = $livejson_config_inline;</script>
+  <script src="nav.js"></script>
+  <script src="minichart.js"></script>
+  <script src="app.js"></script>
+  <script src="astro.js"></script>
+  <script src="extras.js"></script>
+  <script src="climate.js"></script>
+</body>
+</html>
