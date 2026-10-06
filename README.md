@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.55.
+et n'a pas besoin d'être joignable depuis internet. Version 1.56.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -33,6 +33,10 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.55.
   page d'archives de chaque jour) et **annuel** (`archive/climato-AAAA.html`, une ligne par
   mois : températures et nombres de jours de gel / sans dégel / forte chaleur, pluie, vent ;
   lien vers le tableau de chaque mois). Cellules colorées.
+- **Météogramme** (menu « Prévisions » → « Météogramme », `meteogram.html`) : prévision
+  horaire d'un modèle Open-Meteo (ICON-D2 / EU par défaut) au sol et en altitude : temps,
+  température, humidité et nuages selon l'altitude, précipitations, neige, température et
+  vent en altitude (isotherme 0 °C), vent et rafales.
 - **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`) : tous
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
   groupée, pluie et probabilité par jour, comparaison des modèles, tableau jour après jour ;
@@ -77,7 +81,9 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/astro.js` | « Soleil et Lune » (affichage des données de l'almanach weewx) |
 | `skins/WeewxLive/detail.html`, `detail.js` | pages de détail par paramètre |
 | `skins/WeewxLive/extremes.html`, `extremes.js` | page « Extrêmes » |
-| `skins/WeewxLive/ensembles.html`, `ensembles.js` | page « Prévisions — Ensembles » |
+| `skins/WeewxLive/ensembles.html`, `ensembles.js` | page « Prévisions - Ensembles » |
+| `skins/WeewxLive/meteogram.html`, `meteogram.js` | page « Météogramme » |
+| `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
 | `skins/WeewxLive/nav.js` | menu commun ; nom, sous-titre et logo des pages statiques |
 | `skins/WeewxLive/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
 | `skins/WeewxLive/style.css` | thème (clair / sombre) |
@@ -99,9 +105,10 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/extremes.json` | records | 1 h max. |
 | `data/forecast.json` | prévisions Open-Meteo (cache) | à chaque archive, téléchargement 1 fois par heure |
 | `data/astro.json` | soleil et lune du jour (almanach weewx) | à chaque archive |
+| `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression) | toutes les 30 min, téléchargement au plus une fois par heure |
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
-| `detail.html`, `extremes.html`, `ensembles.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
 Les extrêmes du jour viennent des résumés journaliers de weewx (ils incluent les pics
 mesurés entre deux archives). Les unités sont converties par weewx lui-même, quel que soit
@@ -785,7 +792,46 @@ Usage gratuit de l'API d'Open-Meteo réservé aux usages non commerciaux (une re
 modèle et par période de cache). Pour les modèles au pas de 6 h, les min. / max. journaliers
 sont calculés sur 4 valeurs et sont donc moins précis.
 
-## 11. Couleurs des températures
+## 11. Météogramme (`meteogram.html`)
+
+Menu **« Prévisions » → « Météogramme »** : prévision horaire d'un modèle de l'API de
+prévision d'Open-Meteo, du moment présent jusqu'à `days` jours, en panneaux alignés sur le
+même axe du temps (un réticule et une infobulle communs) :
+
+| Panneau | Contenu |
+|---|---|
+| Pictogrammes | temps prévu (codes WMO), toutes les 1 à 6 h selon la largeur |
+| Température à 2 m | courbe colorée selon la température (paliers de 3 °C), min. et max. de chaque jour |
+| Humidité et nébulosité selon l'altitude | humidité relative ≥ 70 % (bleus), nuages (gris, plus foncé = plus couvert), altitude de l'isotherme 0 °C (tirets), jusqu'à `top_humidity` m |
+| Précipitations | quantité par heure, dont averses ; cumul sur la période dans le titre et dans l'infobulle |
+| Neige | chute de neige par heure et épaisseur au sol (sinon « pas de neige prévue ») |
+| Température et vent en altitude | température (bleus sous 0 °C, du jaune au rouge au-dessus), isothermes tous les 2 °C, isotherme 0 °C en trait épais, flèches de vent (vers où il souffle, longueur selon la force), jusqu'à `top_temperature` m |
+| Vent à 10 m | vent moyen, rafales (plus forte rafale de chaque jour), direction |
+
+Les coupes en altitude sont interpolées, heure par heure, entre la valeur au sol et les
+niveaux de pression du modèle (1000 à 200 hPa, altitude géopotentielle) ; dans ces panneaux,
+l'infobulle donne aussi la température, l'humidité, la nébulosité et le vent à l'altitude
+pointée. Sur petit écran, le météogramme défile horizontalement.
+
+```ini
+    [[meteogram]]
+        enable = true
+        model = icon_seamless     # ICON-D2 (2 j), puis ICON-EU (5 j), puis ICON global
+        days = 4                  # 1 à 16 jours
+        cache = 3600              # secondes
+        top_humidity = 12000      # m, sommet du panneau humidité / nuages
+        top_temperature = 4500    # m, sommet du panneau température / vent
+        # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
+```
+
+Autres modèles possibles (identifiants Open-Meteo) : `meteofrance_seamless` (AROME puis
+ARPEGE), `best_match`, `ecmwf_ifs025`, `gfs_seamless`, `gem_seamless`, `ukmo_seamless`,
+`meteoswiss_icon_ch1`… Tous les modèles ne fournissent pas toutes les variables en altitude
+(nébulosité par niveau, par exemple) : les valeurs absentes laissent la zone vide. Une
+requête compte pour une dizaine d'appels dans le quota gratuit d'Open-Meteo (environ 90
+variables) : avec le cache d'une heure, environ 240 par jour.
+
+## 12. Couleurs des températures
 
 Les échelles sont définies une seule fois dans **`minichart.js`** (`window.TempScale`) :
 

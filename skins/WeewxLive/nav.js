@@ -2,7 +2,7 @@
  * période (tous les paramètres), une page de détail par paramètre de skin.conf, puis les
  * pages supplémentaires comme « Extrêmes » et « Archives » ; menu déroulant
  * « Climatologie » : tableaux climatologiques (« Climatologie mensuelle », « Climatologie
- * année ») ; menu déroulant « Prévisions » (« Ensembles »).
+ * année ») ; menu déroulant « Prévisions » (« Météogramme », « Ensembles »).
  * Sur les pages statiques (detail.html, extremes.html), applique aussi le nom de la
  * station, le sous-titre et le logo lus dans la configuration. */
 (function () {
@@ -32,7 +32,8 @@
   const CLIMATO = [];
   // menu « Prévisions » (rempli d'après la configuration : [[ensembles]] enable)
   const FORECAST = [];
-  const FC_PAGES = [{ id: "fc:ensembles", label: "Ensembles", page: "ensembles.html" }];
+  const FC_PAGES = [{ id: "fc:meteogram", label: "Météogramme", page: "meteogram.html", key: "meteogram" },
+                    { id: "fc:ensembles", label: "Ensembles", page: "ensembles.html", key: "ensembles" }];
   const fcPage = FC_PAGES.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
 
   // pages situées dans un sous-dossier (pages d'archives : archive/) : préfixe des liens
@@ -65,7 +66,7 @@
   // Archives (pages jour / mois / année, si générées) : page la plus fine disponible
   // pour la date du jour
   function setArchives(cfg) {
-    if (cfg && cfg.ensembles && cfg.ensembles.enable && !FORECAST.length) FORECAST.push(FC_PAGES[0]);
+    if (cfg && !FORECAST.length) FC_PAGES.forEach((p) => { if (cfg[p.key] && cfg[p.key].enable) FORECAST.push(p); });
     const a = cfg && cfg.archives;
     if (!a || EXTRA.some((e) => e.id === "archives")) return;
     const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");

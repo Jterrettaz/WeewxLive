@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.55"
+VERSION = "1.56"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -446,6 +446,32 @@ _ENS_MAXDAYS = {}    # modèle -> échéance maximale annoncée par Open-Meteo (
 _ENS_SKIPVARS = {}   # modèle -> variables refusées par Open-Meteo pour ce modèle (erreur 400)
 
 
+# ----------------------------------------------------------------------
+# Météogramme (page meteogram.html) : prévision horaire Open-Meteo au sol et en altitude
+# (niveaux de pression), téléchargée au plus une fois par période de cache.
+# ----------------------------------------------------------------------
+METEOGRAM_SURFACE = ("temperature_2m", "relative_humidity_2m", "precipitation", "showers", "snowfall",
+                     "snow_depth", "weather_code", "cloud_cover", "wind_speed_10m", "wind_direction_10m",
+                     "wind_gusts_10m", "is_day", "freezing_level_height")
+# niveaux de pression (hPa) : du sol à environ 12 km
+METEOGRAM_LEVELS = (1000, 975, 950, 925, 900, 850, 800, 700, 600, 500, 400, 300, 250, 200)
+# variable par niveau : (clé publiée, préfixe Open-Meteo, décimales)
+METEOGRAM_LVARS = (("z", "geopotential_height", 0), ("t", "temperature", 1), ("rh", "relative_humidity", 0),
+                   ("cc", "cloud_cover", 0), ("ws", "wind_speed", 0), ("wd", "wind_direction", 0))
+METEOGRAM_MODELS = {
+    "icon_seamless": "DWD ICON (D2, puis EU, puis global)",
+    "icon_d2": "DWD ICON-D2", "icon_eu": "DWD ICON-EU", "icon_global": "DWD ICON global",
+    "best_match": "meilleur modèle Open-Meteo pour le lieu",
+    "meteofrance_seamless": "Météo-France (AROME, puis ARPEGE)",
+    "meteofrance_arome_france": "Météo-France AROME", "meteofrance_arpege_europe": "Météo-France ARPEGE",
+    "ecmwf_ifs025": "ECMWF IFS", "gfs_seamless": "NOAA GFS", "gem_seamless": "ECCC GEM",
+    "meteoswiss_icon_ch1": "MeteoSuisse ICON-CH1", "meteoswiss_icon_ch2": "MeteoSuisse ICON-CH2",
+    "ukmo_seamless": "Met Office UKMO",
+}
+_MG_CACHE = {}       # clé de requête -> (horodatage, réponse)
+_MG_FAIL = {}        # clé de requête -> horodatage du dernier échec
+
+
 def _as_list(v):
     """Liste d'une option configobj (« a, b » -> ['a', 'b'])."""
     if v is None:
@@ -513,6 +539,7 @@ class LiveJSON(SearchList):
         self.satellite = dict(opts.get("satellite", {}))
         self.astro = dict(opts.get("astro", {}))
         self.ensembles = dict(opts.get("ensembles", {}))
+        self.meteogram = dict(opts.get("meteogram", {}))
         self.arch = _archive_options(opts)
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
@@ -594,6 +621,8 @@ class LiveJSON(SearchList):
             "livejson_astro": _Lazy(lambda: self._dump(self.astro_data(stop, db_lookup))),
             # prévisions d'ensemble Open-Meteo (data/ensembles.json)
             "livejson_ensembles": _Lazy(lambda: self._dump(self.ensembles_data())),
+            # météogramme Open-Meteo (data/meteogram.json)
+            "livejson_meteogram": _Lazy(lambda: self._dump(self.meteogram_data())),
             # pages « jour » (gabarit archive/day-%Y-%m-%d.html.tmpl, timespan = la journée)
             "livejson_day": _Lazy(lambda: self._dump(self.day_data(timespan, db_lookup)).replace("</", "<\\/")),
             # pages « mois » et « année » : statistiques et séries journalières de la période
@@ -681,6 +710,7 @@ class LiveJSON(SearchList):
             "astro": {"enable": to_bool(self.astro.get("enable", True))},
             # prévisions d'ensemble (menu « Prévisions », page ensembles.html)
             "ensembles": {"enable": to_bool(self.ensembles.get("enable", True))},
+            "meteogram": {"enable": to_bool(self.meteogram.get("enable", True))},
             "forecast": {
                 "enable": to_bool(f.get("enable", True)),
                 "model": f.get("model", "best_match"),
@@ -1004,6 +1034,100 @@ class LiveJSON(SearchList):
             "series": series,
             "daily": dict(daily, dates=[d.isoformat() for d in order[:nd]]),
         }
+
+    # ------------------------------------------------------------------
+    # Météogramme (data/meteogram.json, page meteogram.html)
+    # ------------------------------------------------------------------
+    def meteogram_data(self):
+        """Prévision horaire d'un modèle Open-Meteo depuis l'heure en cours : valeurs au sol
+        et, pour chaque niveau de pression, altitude, température, humidité, nébulosité et
+        vent ; le navigateur dessine les coupes en altitude."""
+        g, f = self.meteogram, self.forecast
+        if not to_bool(g.get("enable", True)):
+            return {"error": "météogramme désactivé"}
+        stn = self.generator.stn_info
+        lat = _to_float(g.get("latitude"), _to_float(f.get("latitude"), getattr(stn, "latitude_f", None)))
+        lon = _to_float(g.get("longitude"), _to_float(f.get("longitude"), getattr(stn, "longitude_f", None)))
+        if lat is None or lon is None:
+            return {"error": "coordonnées de la station inconnues"}
+        model = str(g.get("model", "icon_seamless")).strip().lower()
+        if not ENSEMBLE_MODEL_RE.match(model):
+            log.error("livejson: météogramme : modèle « %s » invalide, icon_seamless utilisé", model)
+            model = "icon_seamless"
+        days = _int(g.get("days"), 4, 1, 16)
+        ttl = _int(g.get("cache"), 3600, 600, 86400)
+        hourly = list(METEOGRAM_SURFACE) + ["%s_%dhPa" % (v, p) for p in METEOGRAM_LEVELS for _k, v, _d in METEOGRAM_LVARS]
+        params = {"latitude": lat, "longitude": lon, "models": model, "hourly": ",".join(hourly),
+                  "timezone": "auto", "timeformat": "unixtime", "forecast_days": days}
+        key = urllib.parse.urlencode(params)
+        now = time.time()
+        cached = _MG_CACHE.get(key)
+        err = None
+        if cached is None or now - cached[0] >= ttl:
+            if now - _MG_FAIL.get(key, 0) < min(ttl, FORECAST_RETRY):
+                err = "nouvel essai après un échec récent"
+            else:
+                try:
+                    req = urllib.request.Request(OPEN_METEO_URL + "?" + key,
+                                                 headers={"User-Agent": "weewx-live/%s" % VERSION})
+                    with urllib.request.urlopen(req, timeout=_int(g.get("timeout"), 30, 5, 120)) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("error"):
+                        raise ValueError(data.get("reason", "erreur Open-Meteo"))
+                    cached = (now, data)
+                    _MG_CACHE.clear()
+                    _MG_CACHE[key] = cached
+                    _MG_FAIL.pop(key, None)
+                except urllib.error.HTTPError as e:
+                    reason = ""
+                    try:
+                        reason = json.loads(e.read().decode("utf-8")).get("reason", "")
+                    except Exception:
+                        pass
+                    err = "HTTP %s%s" % (e.code, " : " + reason if reason else "")
+                    _MG_FAIL[key] = now
+                    log.error("livejson: échec du téléchargement du météogramme (%s) : %s", model, err)
+                except Exception as e:
+                    err = str(e)
+                    _MG_FAIL[key] = now
+                    log.error("livejson: échec du téléchargement du météogramme (%s) : %s", model, e)
+        if cached is None:
+            return {"error": err or "prévision indisponible", "model": model}
+        fetched, data = cached
+        h = data.get("hourly") or {}
+        times = h.get("time") or []
+        i0 = next((i for i, t in enumerate(times) if t >= now - now % 3600), len(times))
+        n = len(times) - i0
+
+        def col(name, dec):
+            a = (h.get(name) or [])[i0:]
+            a = a + [None] * (n - len(a))
+            return [None if v is None else (round(v, dec) if dec else int(round(v))) for v in a]
+
+        sdec = {"temperature_2m": 1, "relative_humidity_2m": 0, "precipitation": 1, "showers": 1,
+                "snowfall": 1, "snow_depth": 2, "weather_code": 0, "cloud_cover": 0, "wind_speed_10m": 0,
+                "wind_direction_10m": 0, "wind_gusts_10m": 0, "is_day": 0, "freezing_level_height": 0}
+        surface = {k: col(k, d) for k, d in sdec.items()}
+        levels = []
+        for p in METEOGRAM_LEVELS:
+            lv = {k: col("%s_%dhPa" % (v, p), d) for k, v, d in METEOGRAM_LVARS}
+            if any(x is not None for x in lv["z"]) and any(x is not None for x in lv["t"]):
+                lv["p"] = p
+                levels.append(lv)
+        out = {
+            "version": VERSION, "generated": int(time.time()), "source": "open-meteo",
+            "model": model, "modelLabel": METEOGRAM_MODELS.get(model, model),
+            "latitude": lat, "longitude": lon, "elevation": data.get("elevation"),
+            "fetched": int(fetched), "cache": ttl, "t0": int(times[i0]) if n > 0 else None, "n": n,
+            "units": {"temp": "°C", "rain": "mm", "snow": "cm", "wind": "km/h", "z": "m"},
+            "surface": surface, "levels": levels,
+            "top": {"humidity": _int(g.get("top_humidity"), 12000, 3000, 16000),
+                    "temperature": _int(g.get("top_temperature"), 4500, 1500, 12000)},
+        }
+        if err:
+            out["stale"] = True
+            out["warning"] = err
+        return out
 
     def ensembles_data(self):
         """Prévisions d'ensemble de chaque modèle configuré ([LiveJSON] [[ensembles]])."""
