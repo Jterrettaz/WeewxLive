@@ -657,3 +657,54 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 .cm-table th.cm-sub2 small { font-weight: 400; font-size: 12px; color: var(--text-3); }
 .cm-year th.cm-sub2 { min-width: 6.5em; }
 .cm-table th.cm-sub2 small { display: block; white-space: nowrap; }
+
+/* ---------- Prévisions d'ensemble (ensembles.html) ---------- */
+:root { --m1: #2a78d6; --m2: #d03b3b; --m3: #e08a00; --m4: #12a08a; --m5: #7cb31a; --m6: #8a5cd6; --m7: #d6589c; --m8: #6b7a8a; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --m1: #4b93f0; --m2: #ff5a5a; --m3: #ffa31a; --m4: #2cc7ad; --m5: #a5d93a; --m6: #a985f5; --m7: #f07ab8; --m8: #9aa9b8; }
+}
+:root[data-theme="dark"] { --m1: #4b93f0; --m2: #ff5a5a; --m3: #ffa31a; --m4: #2cc7ad; --m5: #a5d93a; --m6: #a985f5; --m7: #f07ab8; --m8: #9aa9b8; }
+.en-bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin: 4px 0 8px; }
+.en-chips, .en-hz { display: flex; flex-wrap: wrap; gap: 6px; }
+.en-chip, .en-hz button { font: inherit; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: var(--surface); color: var(--text-2); cursor: pointer; }
+.en-chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--mc); }
+.en-chip span { font-size: 11px; color: var(--text-3); }
+.en-chip[aria-pressed="true"] { border-color: var(--mc); color: var(--text); background: color-mix(in srgb, var(--mc) 9%, var(--surface)); }
+.en-chip[aria-pressed="false"] { opacity: .55; }
+.en-chip[aria-pressed="false"] i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--mc); }
+.en-hz button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+.en-chip:focus-visible, .en-hz button:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+.en-sum { margin: 0 0 12px; font-size: 13px; color: var(--text-3); }
+.en-warn { margin: 0 0 10px; font-size: 13px; color: var(--warn); }
+.en-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 860px) { .en-grid { grid-template-columns: minmax(0, 1fr); } }
+.en-card { display: flex; flex-direction: column; }
+.en-chart { height: 260px; margin-top: 6px; }
+.en-chart-rain { height: 190px; }
+.en-chart-prob { position: relative; height: 80px; margin-top: 4px; }
+.en-chart-prob canvas { display: block; width: 100%; height: 100%; }
+.legend i.dot { width: 8px; height: 8px; border-radius: 50%; }
+.en-block { margin-top: 14px; }
+.en-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.en-tiles div { border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; background: var(--bg); }
+.en-tiles b { display: block; font-size: 19px; font-weight: 650; }
+.en-tiles span { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.en-text p { margin: 0 0 10px; line-height: 1.55; color: var(--text-2); }
+.en-text b { color: var(--text); }
+.en-table { border-collapse: collapse; width: 100%; font-size: 14px; white-space: nowrap; }
+.en-table th, .en-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+.en-table thead th { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid var(--border); }
+.en-table tbody th { text-align: left; font-weight: 600; }
+.en-table small { display: block; font-size: 11.5px; color: var(--text-3); font-weight: 400; }
+.en-table .en-sq { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; }
+.en-table td .en-t { font-weight: 650; font-size: 15px; }
+.en-hot { color: var(--bad) !important; }
+.en-cold { color: var(--wind) !important; }
+.en-cov { display: inline !important; color: var(--warn) !important; font-weight: 600 !important; margin-left: 4px; }
+.en-high { color: var(--ok); font-weight: 650; }
+.en-mid { color: var(--warn); font-weight: 650; }
+.en-low { color: var(--bad); font-weight: 650; }
+.en-pbar { display: block; width: 64px; height: 6px; margin: 2px auto 3px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+.en-pbar i { display: block; height: 100%; background: var(--rain); }
+.en-foot { margin: 14px 0 0; font-size: 12px; color: var(--text-3); }

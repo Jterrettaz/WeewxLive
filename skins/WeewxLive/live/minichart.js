@@ -9,6 +9,8 @@
  *   { type: "range", data: [[t, lo, hi, moy], …], bucket, pointColor(p), midTick, valueLabels }
  *                                                            // barres « Hi-Low » flottantes
  *   noTip: true : série décorative, ignorée par le réticule et l'infobulle
+ *   ghost: true : série non dessinée, présente seulement dans l'infobulle
+ *   alpha (line) : opacité de la courbe ; tipRank : ordre dans l'infobulle (croissant)
  *   tempScale: true colore la courbe selon la valeur, par paliers de 3 °C (TempScale,
  *   TEMP_STEPS) — dégradé vertical sur l'axe Y. Une valeur null interrompt la courbe.
  * Options : unit, decimals, floor, ceil, minRange, maxGap, padLeft, yTicks,
@@ -247,6 +249,7 @@
       ctx.beginPath(); ctx.rect(g.l, 0, pw + 1, g.h); ctx.clip();
 
       for (const s of this.series) {
+        if (s.ghost) continue;          // infobulle seulement
         const col = css(s.color);
 
         if (s.type === "bar") {
@@ -345,7 +348,9 @@
           seg.forEach(([t, v], i) => (i ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v))));
           ctx.strokeStyle = tg ? tg.stroke : col; ctx.lineWidth = s.width || 2;
           ctx.lineJoin = "round"; ctx.lineCap = "round";
+          if (s.alpha) ctx.globalAlpha = s.alpha;
           ctx.stroke();
+          ctx.globalAlpha = 1;
         }
 
         if (s.endDot !== false) {
@@ -365,13 +370,16 @@
           const p = nearest(s, ht, Math.max(this.o.maxGap || 0, s.bucket || 0));
           if (p) this._hits.push({ s, p });
         }
+        if (this._hits.some((h) => h.s.tipRank !== undefined)) {
+          this._hits.sort((a, b) => (a.s.tipRank || 0) - (b.s.tipRank || 0));
+        }
         const ref = this._hits[0];
         if (ref) {
           const x = Math.round(X(center(ref.s, ref.p))) + 0.5;
           ctx.strokeStyle = muted; ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(x, g.t); ctx.lineTo(x, g.t + ph); ctx.stroke();
           for (const { s, p } of this._hits) {
-            if (!isNum(p[1])) continue;
+            if (!isNum(p[1]) || s.ghost) continue;
             const ts = s.tempScale && window.TempScale;
             const col = (v) => (ts ? TempScale.lineColor(v) : css(s.color));
             if (s.type === "line" || s.type === "dots") dot(ctx, X(p[0]), Y(p[1]), col(p[1]), surface);

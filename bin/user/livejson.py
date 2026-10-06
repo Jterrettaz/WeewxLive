@@ -46,7 +46,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.48"
+VERSION = "1.49"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -393,6 +393,51 @@ _FORECAST_FAIL = {}
 FORECAST_RETRY = 900
 
 
+# ----------------------------------------------------------------------
+# Prévisions d'ensemble Open-Meteo (page « Prévisions — Ensembles ») : un téléchargement
+# par modèle, au plus une fois par période de cache, en mémoire du processus weewxd.
+# ----------------------------------------------------------------------
+ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
+# identifiant Open-Meteo -> (nom court, nom complet, origine, échéance maximale en jours)
+ENSEMBLE_MODELS = {
+    "ecmwf_ifs_025": ("ECMWF", "ECMWF ENS", "Reading", 15),
+    "ecmwf_ifs_europe": ("ECMWF-EU", "ECMWF ENS Europe", "Reading", 15),
+    "ecmwf_aifs_025": ("AIFS", "ECMWF AIFS ENS (IA)", "Reading", 15),
+    "ecmwf_aifs_europe": ("AIFS-EU", "ECMWF AIFS ENS Europe (IA)", "Reading", 15),
+    "gfs_seamless": ("GFS", "NOAA GEFS", "États-Unis", 35),
+    "gfs_025": ("GFS", "NOAA GEFS 0,25°", "États-Unis", 10),
+    "gfs_05": ("GFS", "NOAA GEFS 0,5°", "États-Unis", 35),
+    "aigefs_025": ("AIGEFS", "NOAA AIGEFS (IA)", "États-Unis", 16),
+    "icon_seamless_eps": ("ICON", "DWD ICON EPS", "Allemagne", 7.5),
+    "icon_global_eps": ("ICON", "DWD ICON EPS Global", "Allemagne", 7.5),
+    "icon_eu_eps": ("ICON-EU", "DWD ICON EPS Europe", "Allemagne", 5),
+    "icon_d2_eps": ("ICON-D2", "DWD ICON EPS D2", "Allemagne", 2),
+    "gem_global": ("GEM", "ECCC GEPS", "Canada", 16),
+    "weathernext_ensemble_2": ("GWE", "Google WeatherNext 2", "États-Unis", 15),
+    "ukmo_mogreps_global": ("UKMO", "Met Office MOGREPS-G", "Royaume-Uni", 8),
+    "ukmo_mogreps_uk": ("UKMO-UK", "Met Office MOGREPS-UK", "Royaume-Uni", 5),
+    "meteoswiss_icon_ch1": ("CH1", "MeteoSuisse ICON-CH1", "Suisse", 1.5),
+    "meteoswiss_icon_ch2": ("CH2", "MeteoSuisse ICON-CH2", "Suisse", 5),
+    "bom_access_ge": ("ACCESS", "BOM ACCESS-GE", "Australie", 10),
+}
+ENSEMBLE_DEFAULT_MODELS = "ecmwf_ifs_025, gfs_seamless, icon_seamless_eps, gem_global, weathernext_ensemble_2"
+# variables horaires téléchargées : (clé publiée, variable Open-Meteo, décimales)
+ENSEMBLE_VARS = (("temp", "temperature_2m", 1), ("rain", "precipitation", 1),
+                 ("wind", "wind_speed_10m", 1), ("press", "pressure_msl", 1))
+ENSEMBLE_MODEL_RE = re.compile(r"^[a-z0-9_]{2,40}$")
+_ENS_CACHE = {}      # modèle -> (clé de requête, horodatage, réponse)
+_ENS_FAIL = {}       # modèle -> horodatage du dernier échec
+
+
+def _as_list(v):
+    """Liste d'une option configobj (« a, b » -> ['a', 'b'])."""
+    if v is None:
+        return []
+    if isinstance(v, (list, tuple)):
+        return [str(x).strip() for x in v if str(x).strip()]
+    return [x.strip() for x in str(v).split(",") if x.strip()]
+
+
 class _Lazy(object):
     """Calcul différé : Cheetah n'appelle __str__ que si le gabarit utilise la variable."""
 
@@ -450,6 +495,7 @@ class LiveJSON(SearchList):
         self.radar = dict(opts.get("radar", {}))
         self.satellite = dict(opts.get("satellite", {}))
         self.astro = dict(opts.get("astro", {}))
+        self.ensembles = dict(opts.get("ensembles", {}))
         self.arch = _archive_options(opts)
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
@@ -529,6 +575,8 @@ class LiveJSON(SearchList):
             "livejson_climate": _Lazy(lambda: self._dump(self.climate(stop, db_lookup))),
             "livejson_extremes": _Lazy(lambda: self._dump(self.extremes(stop, db_lookup))),
             "livejson_astro": _Lazy(lambda: self._dump(self.astro_data(stop, db_lookup))),
+            # prévisions d'ensemble Open-Meteo (data/ensembles.json)
+            "livejson_ensembles": _Lazy(lambda: self._dump(self.ensembles_data())),
             # pages « jour » (gabarit archive/day-%Y-%m-%d.html.tmpl, timespan = la journée)
             "livejson_day": _Lazy(lambda: self._dump(self.day_data(timespan, db_lookup)).replace("</", "<\\/")),
             # pages « mois » et « année » : statistiques et séries journalières de la période
@@ -614,6 +662,8 @@ class LiveJSON(SearchList):
             "archives": {k: self.arch[k] for k in ("day", "days", "month", "year", "climato")},
             # « Soleil et Lune » : almanach weewx (data/astro.json)
             "astro": {"enable": to_bool(self.astro.get("enable", True))},
+            # prévisions d'ensemble (menu « Prévisions », page ensembles.html)
+            "ensembles": {"enable": to_bool(self.ensembles.get("enable", True))},
             "forecast": {
                 "enable": to_bool(f.get("enable", True)),
                 "model": f.get("model", "best_match"),
@@ -740,6 +790,214 @@ class LiveJSON(SearchList):
         return out
 
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Prévisions d'ensemble Open-Meteo (data/ensembles.json, page ensembles.html).
+    # weewx publie les membres bruts (échantillonnés) et les valeurs journalières de chaque
+    # membre ; le navigateur calcule moyennes, percentiles, probabilités et analyse selon
+    # les modèles cochés et l'horizon choisi.
+    # ------------------------------------------------------------------
+    def _ens_options(self):
+        e = self.ensembles
+        models = [m.lower() for m in _as_list(e.get("models", ENSEMBLE_DEFAULT_MODELS))]
+        bad = [m for m in models if not ENSEMBLE_MODEL_RE.match(m)]
+        if bad:
+            log.error("livejson: ensembles : modèle(s) ignoré(s) : %s", ", ".join(bad))
+        models = [m for i, m in enumerate(models) if ENSEMBLE_MODEL_RE.match(m) and m not in models[:i]]
+        step = _int(e.get("step"), 3, 1, 6)
+        if 24 % step:
+            step = 3
+        horizons = sorted({_int(h, 0, 1, 35) for h in _as_list(e.get("horizons", "3, 7, 10, 16"))} - {0})
+        return {
+            "enable": to_bool(e.get("enable", True)),
+            "models": models,
+            "days": _int(e.get("days"), 16, 1, 35),
+            "step": step,                                   # heures entre deux points
+            "cache": _int(e.get("cache"), 10800, 1800, 86400),
+            "timeout": _int(e.get("timeout"), 30, 5, 120),
+            "horizons": horizons or [3, 7, 10, 16],
+            "horizon": _int(e.get("default_horizon"), 3, 1, 35),
+            # mm : pluie « mesurable » (probabilité de pluie) et forte pluie (analyse)
+            "threshold": max(0.0, _to_float(e.get("rain_threshold"), RAIN_DAY_MM)),
+            "heavy": max(0.1, _to_float(e.get("heavy_rain"), 5.0)),
+        }
+
+    def _ens_fetch(self, model, lat, lon, days, o):
+        """Réponse Open-Meteo d'un modèle (cache de o['cache'] secondes). -> (données,
+        horodatage, erreur)."""
+        mdays = ENSEMBLE_MODELS.get(model, (0, 0, 0, days))[3]
+        params = {
+            "latitude": lat, "longitude": lon, "models": model,
+            "hourly": ",".join(v for _k, v, _d in ENSEMBLE_VARS),
+            "timezone": "auto", "timeformat": "unixtime",
+            "forecast_days": max(1, min(days, int(math.ceil(mdays)) + 1)),
+        }
+        key = urllib.parse.urlencode(params)
+        now = time.time()
+        cached = _ENS_CACHE.get(model)
+        if cached and cached[0] == key and now - cached[1] < o["cache"]:
+            return cached[2], cached[1], None
+        if now - _ENS_FAIL.get(model, 0) < min(o["cache"], FORECAST_RETRY):
+            err = "nouvel essai après un échec récent"
+        else:
+            try:
+                req = urllib.request.Request(ENSEMBLE_URL + "?" + key,
+                                             headers={"User-Agent": "weewx-live/%s" % VERSION})
+                with urllib.request.urlopen(req, timeout=o["timeout"]) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                if data.get("error"):
+                    raise ValueError(data.get("reason", "erreur Open-Meteo"))
+                _ENS_CACHE[model] = (key, now, data)
+                _ENS_FAIL.pop(model, None)
+                log.debug("livejson: ensemble %s téléchargé", model)
+                return data, now, None
+            except Exception as e:
+                err = str(e)
+                _ENS_FAIL[model] = now
+                log.error("livejson: échec du téléchargement de l'ensemble %s : %s", model, e)
+        if cached and cached[0] == key:
+            return cached[2], cached[1], err            # données précédentes conservées
+        return None, None, err
+
+    @staticmethod
+    def _ens_members(hourly, var, model):
+        """Membres d'une variable : [contrôle, membre 1, …] (listes horaires)."""
+        rx = re.compile(r"^%s(?:_member(\d+))?(?:_%s)?$" % (re.escape(var), re.escape(model)))
+        found = []
+        for k, v in hourly.items():
+            m = rx.match(k)
+            if m and isinstance(v, list):
+                found.append((int(m.group(1) or 0), v))
+        found.sort(key=lambda x: x[0])
+        # membres entièrement vides (variable non fournie par ce modèle) : ignorés
+        return [v for _, v in found if any(x is not None for x in v)]
+
+    def _ens_process(self, data, model, o):
+        hourly = data.get("hourly") or {}
+        times = hourly.get("time") or []
+        if not times:
+            return {"error": "réponse vide"}
+        now = time.time()
+        i0 = next((i for i, t in enumerate(times) if t >= now - now % 3600), None)
+        if i0 is None:
+            return {"error": "prévision périmée"}
+        st = o["step"]
+        mem = {k: self._ens_members(hourly, var, model) for k, var, _d in ENSEMBLE_VARS}
+        dec = {k: d for k, _v, d in ENSEMBLE_VARS}
+
+        def rnd(v, d):
+            return None if v is None else round(v, d)
+
+        # séries échantillonnées (température, vent, pression) à partir de l'heure en cours
+        series, nmax = {}, 0
+        for k in ("temp", "wind", "press"):
+            rows = []
+            for arr in mem[k]:
+                row = []
+                for a in range(i0, len(times), st):
+                    v = arr[a] if a < len(arr) else None
+                    if v is None:            # pas du modèle > 1 h : valeur voisine
+                        v = next((arr[j] for j in range(a, min(a + st, len(arr))) if arr[j] is not None), None)
+                    row.append(rnd(v, dec[k]))
+                while row and row[-1] is None:
+                    row.pop()
+                rows.append(row)
+            if rows and any(rows):
+                n = max(len(r) for r in rows)
+                series[k] = rows
+                nmax = max(nmax, n)
+
+        # valeurs journalières de chaque membre (jour local de la station, dès aujourd'hui)
+        days, order = {}, []
+        today = datetime.date.today()
+        for i, t in enumerate(times):
+            d = datetime.date.fromtimestamp(t)
+            if d < today:
+                continue
+            if d not in days:
+                days[d] = []
+                order.append(d)
+            days[d].append(i)
+
+        def covered(arr, idx):
+            """Indices utiles si la journée est couverte : au moins 4 valeurs, dont une avant
+            6 h et une après 18 h (modèles au pas de 6 h compris)."""
+            ok = [i for i in idx if i < len(arr) and arr[i] is not None]
+            if len(ok) < 4:
+                return None
+            h0 = time.localtime(times[ok[0]]).tm_hour
+            h1 = time.localtime(times[ok[-1]]).tm_hour
+            return ok if h0 < 6 and h1 >= 18 else None
+
+        daily = {"tmax": [], "tmin": [], "rain": [], "wind": [], "press": []}
+        for arr in mem["temp"]:
+            mx, mn = [], []
+            for d in order:
+                ok = covered(arr, days[d])
+                mx.append(rnd(max(arr[i] for i in ok), 1) if ok else None)
+                mn.append(rnd(min(arr[i] for i in ok), 1) if ok else None)
+            daily["tmax"].append(mx)
+            daily["tmin"].append(mn)
+        for key, fn in (("rain", sum), ("wind", max), ("press", lambda v: sum(v) / len(v))):
+            for arr in mem[key]:
+                row = []
+                for d in order:
+                    ok = covered(arr, days[d])
+                    row.append(rnd(fn([arr[i] for i in ok]), 1) if ok else None)
+                daily[key].append(row)
+        # jours sans aucune valeur en fin de prévision : retirés
+        nd = len(order)
+        while nd and not any(r[nd - 1] is not None for rows in daily.values() for r in rows if len(r) >= nd):
+            nd -= 1
+        daily = {k: [r[:nd] for r in rows] for k, rows in daily.items()}
+        return {
+            "t0": int(times[i0]), "step": st * 3600, "n": nmax,
+            "members": max([len(v) for v in mem.values()] or [0]),
+            "series": series,
+            "daily": dict(daily, dates=[d.isoformat() for d in order[:nd]]),
+        }
+
+    def ensembles_data(self):
+        """Prévisions d'ensemble de chaque modèle configuré ([LiveJSON] [[ensembles]])."""
+        t1 = time.time()
+        o = self._ens_options()
+        if not o["enable"]:
+            return {"error": "prévisions d'ensemble désactivées"}
+        f, e = self.forecast, self.ensembles
+        stn = self.generator.stn_info
+        lat = _to_float(e.get("latitude"), _to_float(f.get("latitude"), getattr(stn, "latitude_f", None)))
+        lon = _to_float(e.get("longitude"), _to_float(f.get("longitude"), getattr(stn, "longitude_f", None)))
+        if lat is None or lon is None:
+            return {"error": "coordonnées de la station inconnues"}
+        if not o["models"]:
+            return {"error": "aucun modèle configuré"}
+        models = []
+        for m in o["models"]:
+            short, label, origin, _d = ENSEMBLE_MODELS.get(m, (m.upper()[:8], m, "", o["days"]))
+            info = {"id": m, "short": short, "label": label, "origin": origin}
+            data, fetched, err = self._ens_fetch(m, lat, lon, o["days"], o)
+            if data is None:
+                models.append(dict(info, error=err or "indisponible"))
+                continue
+            try:
+                r = self._ens_process(data, m, o)
+            except Exception as ex:
+                log.error("livejson: ensemble %s : données inattendues : %s", m, ex)
+                r = {"error": "données inattendues"}
+            r.update(info, fetched=int(fetched))
+            if err and "error" not in r:
+                r["stale"] = True
+                r["warning"] = err
+            models.append(r)
+        log.debug("livejson: ensembles calculés en %.2f s", time.time() - t1)
+        return {
+            "version": VERSION, "generated": int(time.time()), "source": "open-meteo",
+            "latitude": lat, "longitude": lon, "cache": o["cache"],
+            "horizons": o["horizons"], "horizon": o["horizon"],
+            "threshold": o["threshold"], "heavy": o["heavy"],
+            "units": {"temp": "°C", "rain": "mm", "wind": "km/h", "press": "hPa"},
+            "models": models,
+        }
+
     def history(self, stop, db_lookup):
         t1 = time.time()
         dbm = db_lookup(self.binding)

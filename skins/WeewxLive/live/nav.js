@@ -2,7 +2,7 @@
  * période (tous les paramètres), une page de détail par paramètre de skin.conf, puis les
  * pages supplémentaires comme « Extrêmes » et « Archives » ; menu déroulant
  * « Climatologie » : tableaux climatologiques (« Climatologie mensuelle », « Climatologie
- * année »).
+ * année ») ; menu déroulant « Prévisions » (« Ensembles »).
  * Sur les pages statiques (detail.html, extremes.html), applique aussi le nom de la
  * station, le sous-titre et le logo lus dans la configuration. */
 (function () {
@@ -30,6 +30,10 @@
 
   // menu « Climatologie » (rempli d'après la configuration : [[archives]] climato)
   const CLIMATO = [];
+  // menu « Prévisions » (rempli d'après la configuration : [[ensembles]] enable)
+  const FORECAST = [];
+  const FC_PAGES = [{ id: "fc:ensembles", label: "Ensembles", page: "ensembles.html" }];
+  const fcPage = FC_PAGES.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
 
   // pages situées dans un sous-dossier (pages d'archives : archive/) : préfixe des liens
   const BASE = (document.body && document.body.dataset.base) || "";
@@ -43,7 +47,7 @@
   const demo = q.has("demo");
   const isDetail = /detail\.html$/.test(location.pathname);
   const extra = EXTRA.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
-  let current = climatoId || (isArchive ? "archives" : extra ? extra.id
+  let current = climatoId || (fcPage ? fcPage.id : null) || (isArchive ? "archives" : extra ? extra.id
     : isDetail ? (q.get("period") ? "period:" + q.get("period") : q.get("p") || "outTemp") : "home");
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -51,7 +55,7 @@
   // Lien vers une page, en conservant le mode démo
   function href(id) {
     if (id === "home") return BASE + "index.html" + (demo ? "?demo" : "");
-    const e = EXTRA.find((x) => x.id === id) || CLIMATO.find((x) => x.id === id);
+    const e = EXTRA.find((x) => x.id === id) || CLIMATO.find((x) => x.id === id) || FC_PAGES.find((x) => x.id === id);
     if (e) return BASE + e.page + (e.page.endsWith(".html") && demo ? "?demo" : "");
     const p = id.startsWith("period:") ? new URLSearchParams({ period: id.slice(7) }) : new URLSearchParams({ p: id });
     if (demo) p.set("demo", "");
@@ -61,6 +65,7 @@
   // Archives (pages jour / mois / année, si générées) : page la plus fine disponible
   // pour la date du jour
   function setArchives(cfg) {
+    if (cfg && cfg.ensembles && cfg.ensembles.enable && !FORECAST.length) FORECAST.push(FC_PAGES[0]);
     const a = cfg && cfg.archives;
     if (!a || EXTRA.some((e) => e.id === "archives")) return;
     const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
@@ -123,7 +128,8 @@
           ${DATA.map(item).join("")}
           <li class="dd-sep" role="separator"></li>
           ${EXTRA.map(item).join("")}`) +
-      (CLIMATO.length ? dropdown("dd-climato", "Climatologie", CLIMATO, CLIMATO.map(item).join("")) : "");
+      (CLIMATO.length ? dropdown("dd-climato", "Climatologie", CLIMATO, CLIMATO.map(item).join("")) : "") +
+      (FORECAST.length ? dropdown("dd-fc", "Prévisions", FORECAST, FORECAST.map(item).join("")) : "");
     document.querySelectorAll("a[data-detail]").forEach((a) => (a.href = href(a.dataset.detail)));
 
     menus = [...nav.querySelectorAll(".dd")].map((dd) => {

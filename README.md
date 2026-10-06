@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.48.
+et n'a pas besoin d'être joignable depuis internet. Version 1.49.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -33,6 +33,10 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.48.
   page d'archives de chaque jour) et **annuel** (`archive/climato-AAAA.html`, une ligne par
   mois : températures et nombres de jours de gel / sans dégel / forte chaleur, pluie, vent ;
   lien vers le tableau de chaque mois). Cellules colorées.
+- **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`) : tous
+  les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
+  groupée, pluie et probabilité par jour, analyse écrite, comparaison des modèles, tableau
+  jour après jour ; modèles configurables.
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -73,6 +77,7 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/live/astro.js` | « Soleil et Lune » (affichage des données de l'almanach weewx) |
 | `skins/WeewxLive/live/detail.html`, `detail.js` | pages de détail par paramètre |
 | `skins/WeewxLive/live/extremes.html`, `extremes.js` | page « Extrêmes » |
+| `skins/WeewxLive/live/ensembles.html`, `ensembles.js` | page « Prévisions — Ensembles » |
 | `skins/WeewxLive/live/nav.js` | menu commun ; nom, sous-titre et logo des pages statiques |
 | `skins/WeewxLive/live/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
 | `skins/WeewxLive/live/style.css` | thème (clair / sombre) |
@@ -93,8 +98,9 @@ weewx produit dans `HTML_ROOT/live/` :
 | `data/extremes.json` | records | 1 h max. |
 | `data/forecast.json` | prévisions Open-Meteo (cache) | à chaque archive, téléchargement 1 fois par heure |
 | `data/astro.json` | soleil et lune du jour (almanach weewx) | à chaque archive |
+| `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
-| `detail.html`, `extremes.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
+| `detail.html`, `extremes.html`, `ensembles.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
 Les extrêmes du jour viennent des résumés journaliers de weewx (ils incluent les pics
 mesurés entre deux archives). Les unités sont converties par weewx lui-même, quel que soit
@@ -677,7 +683,67 @@ en mm quelles que soient les unités affichées.
         min_day_coverage = 0.75     # fraction du jour mesurée (0 à 1)
 ```
 
-## 10. Couleurs des températures
+## 10. Prévisions d'ensemble (`ensembles.html`)
+
+Menu **« Prévisions » → « Ensembles »**. Une prévision d'ensemble est calculée plusieurs fois
+(les « membres ») avec des conditions de départ légèrement différentes : leur dispersion
+mesure l'incertitude. La page regroupe les membres de plusieurs modèles de l'
+[API Ensemble d'Open-Meteo](https://open-meteo.com/en/docs/ensemble-api) (présentation
+inspirée de la page « Prévisions Open-Meteo » de Météo Sciez et des scripts de
+digitalurban) :
+
+- **boutons des modèles** (cliquer pour retirer / remettre un modèle ; au moins un reste
+  affiché) et **horizon** (3, 7, 10, 16 jours) ; le choix est mémorisé par le navigateur ;
+- **Température, Vent moyen, Pression — chaque membre** : une courbe fine par membre, à la
+  couleur de son modèle, la **moyenne groupée** (tous les membres des modèles affichés) et la
+  bande **10–90 %** ; l'infobulle donne aussi la moyenne de chaque modèle ;
+- **Pluie — total du jour et probabilité** : moyenne groupée (barre bleue), 90e centile
+  (barre grise), moyenne de chaque modèle (points), et pourcentage des membres prévoyant au
+  moins `rain_threshold` mm ;
+- **Analyse écrite** : chiffres clés (moyenne des maximales, enveloppe des membres, pluie
+  totale, jours secs, vent maximal, nombre de membres, confiance) et texte généré : aperçu
+  général, pluie, vent et pression, accord des modèles, prévisibilité ;
+- **Comparaison des modèles** sur l'horizon (moyennes des max. / min., pluie, vent, pression,
+  le plus chaud / le plus frais) et **jour après jour** (moyenne, intervalle 10–90 % et
+  extrêmes, risque de pluie, confiance température et pluie, vent, pression ; « 3/5 » quand
+  certains modèles ne vont pas jusqu'à ce jour).
+
+weewx télécharge chaque modèle au plus une fois par `cache` (3 h ; les modèles sont recalculés
+toutes les 6 à 12 h) et publie dans `data/ensembles.json` (environ 400 Ko pour 5 modèles et
+207 membres) les membres de température, vent et pression (un point toutes les `step`
+heures) et les valeurs journalières de chaque membre (max., min., pluie, vent max.,
+pression moyenne, jour local de la station). Le navigateur fait tous les calculs, selon les
+modèles cochés et l'horizon.
+
+```ini
+    [[ensembles]]
+        enable = true
+        models = ecmwf_ifs_025, gfs_seamless, icon_seamless_eps, gem_global, weathernext_ensemble_2
+        days = 16                 # échéance téléchargée (limitée par chaque modèle)
+        horizons = 3, 7, 10, 16   # boutons d'horizon (jours)
+        default_horizon = 3
+        step = 3                  # heures entre deux points des courbes (1, 2, 3, 4 ou 6)
+        cache = 10800             # secondes (minimum 1800)
+        rain_threshold = 0.2      # mm : pluie « mesurable » (risque de pluie)
+        heavy_rain = 5            # mm : forte pluie (analyse écrite)
+        # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
+```
+
+Modèles disponibles (identifiant, membres, échéance) : `ecmwf_ifs_025` (ECMWF ENS, 51, 15 j),
+`ecmwf_aifs_025` (ECMWF AIFS, IA, 51, 15 j), `gfs_seamless` (NOAA GEFS, 31, 16 j et plus),
+`icon_seamless_eps` (DWD ICON EPS, 40, 7,5 j), `icon_eu_eps` (40, 5 j), `icon_d2_eps` (20, 2 j),
+`gem_global` (ECCC GEPS, 21, 16 j), `weathernext_ensemble_2` (Google WeatherNext 2, IA, 64,
+15 j), `ukmo_mogreps_global` (Met Office, 18, 8 j), `bom_access_ge` (BOM, 18, 10 j),
+`meteoswiss_icon_ch1` / `meteoswiss_icon_ch2`, `aigefs_025`, `ecmwf_ifs_europe`… (liste
+complète dans la documentation d'Open-Meteo). Un modèle inconnu de l'extension est accepté
+et affiché sous son identifiant. Plus de modèles = plus de membres à dessiner et un
+`ensembles.json` plus gros.
+
+Usage gratuit de l'API d'Open-Meteo réservé aux usages non commerciaux (une requête par
+modèle et par période de cache). Pour les modèles au pas de 6 h, les min. / max. journaliers
+sont calculés sur 4 valeurs et sont donc moins précis.
+
+## 11. Couleurs des températures
 
 Les échelles sont définies une seule fois dans **`live/minichart.js`** (`window.TempScale`) :
 
