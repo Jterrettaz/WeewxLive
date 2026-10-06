@@ -562,3 +562,20 @@ button.fc-day:focus-visible, .fh-close:focus-visible { outline: 2px solid var(--
   .astro-chart { height: 180px; }
 }
 .astro-side[hidden] { display: none; }
+
+/* ---------- Menu « Données » : intitulés de groupes ---------- */
+.dd-head { padding: 6px 10px 2px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+.dd-list { max-height: min(75vh, 640px); overflow-y: auto; }
+
+/* ---------- Pages par période (tous les paramètres) ---------- */
+.p-jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 18px; }
+.p-jump a { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px;
+  color: var(--text-2); text-decoration: none; background: var(--surface); border: 1px solid var(--border); }
+.p-jump a:hover { color: var(--text); border-color: var(--text-3); }
+.p-jump i { width: 8px; height: 8px; border-radius: 2px; }
+.by-period .period-head .p-range { display: none; }
+.by-period .period-head h3 { display: flex; align-items: center; gap: 8px; }
+.by-period .period-head h3 .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.by-period .period-head h3 a { color: inherit; text-decoration: none; }
+.by-period .period-head h3 a:hover { text-decoration: underline; }
+.by-period .period { scroll-margin-top: 12px; }

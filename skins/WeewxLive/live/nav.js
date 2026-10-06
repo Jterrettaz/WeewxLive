@@ -1,5 +1,6 @@
-/* Menu commun aux pages : « Tableau de bord » + menu déroulant « Données » (une page de
- * détail par paramètre de skin.conf, puis les pages supplémentaires comme « Extrêmes »).
+/* Menu commun aux pages : « Tableau de bord » + menu déroulant « Données » : pages par
+ * période (tous les paramètres), une page de détail par paramètre de skin.conf, puis les
+ * pages supplémentaires comme « Extrêmes ».
  * Sur les pages statiques (detail.html, extremes.html), applique aussi le nom de la
  * station, le sous-titre et le logo lus dans la configuration. */
 (function () {
@@ -15,6 +16,13 @@
     { id: "outHumidity", label: "Humidité" },
     { id: "barometer", label: "Pression" },
   ];
+  // pages par période (tous les paramètres), en haut du menu « Données »
+  const PERIOD_PAGES = [
+    { id: "period:24h", label: "24 dernières heures" },
+    { id: "period:7d", label: "7 derniers jours" },
+    { id: "period:30d", label: "30 derniers jours" },
+    { id: "period:365d", label: "365 derniers jours" },
+  ];
   // pages supplémentaires du menu « Données », après les paramètres
   const EXTRA = [{ id: "extremes", label: "Extrêmes", page: "extremes.html" }];
 
@@ -22,7 +30,8 @@
   const demo = q.has("demo");
   const isDetail = /detail\.html$/.test(location.pathname);
   const extra = EXTRA.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
-  let current = extra ? extra.id : isDetail ? q.get("p") || "outTemp" : "home";
+  let current = extra ? extra.id
+    : isDetail ? (q.get("period") ? "period:" + q.get("period") : q.get("p") || "outTemp") : "home";
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -31,7 +40,7 @@
     if (id === "home") return "index.html" + (demo ? "?demo" : "");
     const e = EXTRA.find((x) => x.id === id);
     if (e) return e.page + (demo ? "?demo" : "");
-    const p = new URLSearchParams({ p: id });
+    const p = id.startsWith("period:") ? new URLSearchParams({ period: id.slice(7) }) : new URLSearchParams({ p: id });
     if (demo) p.set("demo", "");
     return "detail.html?" + p.toString().replace(/demo=(&|$)/, "demo$1");
   }
@@ -58,7 +67,7 @@
   function render() {
     const nav = document.getElementById("menu");
     if (!nav) return;
-    const cur = DATA.find((d) => d.id === current) || EXTRA.find((d) => d.id === current);
+    const cur = [...PERIOD_PAGES, ...DATA, ...EXTRA].find((d) => d.id === current);
     const item = (d) => `<li><a href="${esc(href(d.id))}"${d.id === current ? ' aria-current="page"' : ""}>${esc(d.label)}</a></li>`;
     nav.innerHTML = `
       <a href="${href("home")}"${current === "home" ? ' aria-current="page"' : ""}>${HOME.label}</a>
@@ -67,6 +76,10 @@
           Données${cur ? `<span class="dd-cur"> · ${esc(cur.label)}</span>` : ""}${CHEVRON}
         </button>
         <ul class="dd-list" id="dd-data" hidden>
+          <li class="dd-head" role="presentation">Tous les paramètres</li>
+          ${PERIOD_PAGES.map(item).join("")}
+          <li class="dd-sep" role="separator"></li>
+          <li class="dd-head" role="presentation">Par paramètre</li>
           ${DATA.map(item).join("")}
           <li class="dd-sep" role="separator"></li>
           ${EXTRA.map(item).join("")}

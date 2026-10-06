@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.39.
+et n'a pas besoin d'être joignable depuis internet. Version 1.40.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -23,6 +23,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.39.
 - **Une page par paramètre** (menu « Données » ou titre d'un panneau) : statistiques et
   graphique sur **24 h, 7 jours, 30 jours, 365 jours et 730 jours**,
   l'un sous l'autre.
+- **Une page par période** (en haut du menu « Données ») : 24 dernières heures, 7, 30 et
+  365 derniers jours, avec une section par paramètre (statistiques et graphique).
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -536,6 +538,14 @@ Les extrêmes et moyennes viennent des résumés journaliers de weewx ; les sér
 sont lues en une requête par mesure, rapide même sur un Raspberry Pi. Fréquences de
 régénération : `stale_age` dans `skin.conf` ; seuils (gel, chaleur, pluie) en tête de
 `bin/user/livejson.py`.
+
+### Pages par période (tous les paramètres)
+
+`detail.html?period=24h` (ou `7d`, `30d`, `365d`), en haut du menu « Données » (« Tous les
+paramètres ») : une section par paramètre, identique à celle de la page de détail pour cette
+période (statistiques puis graphique), avec des liens rapides vers chaque section en haut de
+page. Le titre de chaque section mène à la page de détail du paramètre. Les données viennent
+des mêmes fichiers `data/p24h.json`… (un seul fichier lu par page).
 
 ## 9. Page « Extrêmes » (records de la station)
 

@@ -1,6 +1,7 @@
-/* weewx-live — page de détail d'un paramètre (ou d'un panneau groupé) : statistiques +
- * graphique sur 24 h, 7 jours, 30 jours, 365 jours (+ 730 jours pour la température),
- * l'une sous l'autre (fichiers data/p*.json générés par weewx). */
+/* weewx-live — pages de détail (fichiers data/p*.json générés par weewx) :
+ *   detail.html?p=<paramètre>   un paramètre (ou un panneau groupé) : statistiques +
+ *                               graphique sur 24 h, 7, 30, 365 et 730 jours, l'une sous l'autre ;
+ *   detail.html?period=<24h|7d|30d|365d>   une période : une section par paramètre. */
 (function () {
   "use strict";
 
@@ -90,7 +91,16 @@
   // couleur d'un paramètre : nom de variable CSS uniquement (ex. --temp)
   const safeColor = (c, d) => (/^--[\w-]+$/.test(c || "") ? c : d);
 
-  function Section(period, el) {
+  // « du … au … » d'une période
+  function rangeText(period, d) {
+    const long = period === "365d" || period === "730d";
+    return `du ${fr(d.start, { weekday: "short", day: "numeric", month: "short", year: long ? "numeric" : undefined })} ${hm(d.start)}` +
+      ` au ${fr(d.stop, { weekday: "short", day: "numeric", month: "short" })} ${hm(d.stop)}`;
+  }
+
+  // Section : statistiques + graphique d'un paramètre (sp) sur une période
+  function Section(period, el, sp) {
+    const param = sp, def = P[sp];
     // périodes longues (365 et 730 jours) : pluie en cumuls mensuels, dates avec l'année
     const LONG = period === "365d" || period === "730d";
     let chart = null;
@@ -364,9 +374,7 @@
     let last = null;   // dernières données (redessin au changement de thème clair / sombre)
     function render(d) {
       last = d;
-      $q(".p-range").textContent =
-        `du ${fr(d.start, { weekday: "short", day: "numeric", month: "short", year: LONG ? "numeric" : undefined })} ${hm(d.start)}` +
-        ` au ${fr(d.stop, { weekday: "short", day: "numeric", month: "short" })} ${hm(d.stop)}`;
+      $q(".p-range").textContent = rangeText(period, d);
       $q(".p-msg").hidden = true;
       renderTiles(d);
       renderChart(d);
@@ -382,34 +390,58 @@
   // Chargement : toutes les périodes de la page en parallèle
   // ------------------------------------------------------------------
   const sections = {};
-  function buildSections() {
-    const root = document.getElementById("sections");
-    root.innerHTML = Object.entries(PERIODS).filter(([, p]) => !p.only || p.only.includes(param)).map(([r, p]) => `
-      <section class="period" id="p${r}" aria-labelledby="h${r}">
-        <div class="period-head"><h3 id="h${r}">${esc(p.label)}</h3><span class="p-range"></span></div>
+  // pages « par période » (menu Données, en haut)
+  const PAGE_PERIODS = ["24h", "7d", "30d", "365d"];
+  let byPeriod = null;
+
+  const sectionHTML = (id, head, label) => `
+      <section class="period" id="${id}" aria-labelledby="h-${id}">
+        <div class="period-head"><h3 id="h-${id}">${head}</h3><span class="p-range"></span></div>
         <p class="p-msg banner" hidden></p>
         <div class="stats" aria-label="Statistiques"></div>
         <div class="card big">
           <header><h4 class="chart-title">--</h4></header>
-          <div class="chart chart-big" role="img" aria-label="Graphique ${esc(p.label)}"></div>
+          <div class="chart chart-big" role="img" aria-label="Graphique ${esc(label)}"></div>
           <ul class="legend"></ul>
         </div>
-      </section>`).join("");
+      </section>`;
+
+  // page d'un paramètre : une section par période
+  function buildSections() {
+    const root = document.getElementById("sections");
+    root.innerHTML = Object.entries(PERIODS).filter(([, p]) => !p.only || p.only.includes(param))
+      .map(([r, p]) => sectionHTML("p" + r, esc(p.label), p.label)).join("");
     for (const r of Object.keys(PERIODS)) {
       const el = document.getElementById("p" + r);
-      if (el) sections[r] = Section(r, el);
+      if (el) sections[r] = Section(r, el, param);
     }
   }
 
+  // page d'une période : une section par paramètre, avec liens rapides
+  function buildPeriodSections(r) {
+    const root = document.getElementById("sections");
+    const ids = Object.keys(P).filter((k) => !PERIODS[r].only || PERIODS[r].only.includes(k));
+    const link = (k) => {
+      const h = window.WeewxNav ? WeewxNav.href(k) : "detail.html?p=" + encodeURIComponent(k);
+      return `<a href="${esc(h)}#p${r}">${esc(P[k].title)}</a>`;
+    };
+    root.innerHTML = `<nav class="p-jump" aria-label="Paramètres de la page">${ids.map((k) =>
+      `<a href="#s-${esc(k)}"><i style="background:var(${P[k].color})"></i>${esc(P[k].title)}</a>`).join("")}</nav>` +
+      ids.map((k) => sectionHTML("s-" + k,
+        `<span class="sw" style="background:var(${P[k].color})"></span>${link(k)}`, `${P[k].title}, ${PERIODS[r].label}`)).join("");
+    for (const k of ids) sections[k] = Section(r, document.getElementById("s-" + k), k);
+  }
+
+  async function fetchPeriod(r) {
+    if (DEMO) return Demo.period(r);
+    const res = await fetch(`data/p${r}.json?_=${Math.floor(Date.now() / 60000)}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+  // page d'un paramètre : un fichier par période
   async function loadOne(r) {
     try {
-      let d;
-      if (DEMO) d = Demo.period(r);
-      else {
-        const res = await fetch(`data/p${r}.json?_=${Math.floor(Date.now() / 60000)}`, { cache: "no-store" });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        d = await res.json();
-      }
+      const d = await fetchPeriod(r);
       sections[r].render(d);
       return d;
     } catch (e) {
@@ -417,9 +449,21 @@
       return null;
     }
   }
+  // page d'une période : un seul fichier pour toutes les sections
+  async function loadPeriod(r) {
+    try {
+      const d = await fetchPeriod(r);
+      for (const x of Object.values(sections)) x.render(d);
+      document.getElementById("p-last").textContent = rangeText(r, d);
+      return [d];
+    } catch (e) {
+      for (const x of Object.values(sections)) x.fail(`Données indisponibles (data/p${r}.json : ${e.message}).`);
+      return [];
+    }
+  }
 
   async function loadAll() {
-    const res = await Promise.all(Object.keys(sections).map(loadOne));
+    const res = byPeriod ? await loadPeriod(byPeriod) : await Promise.all(Object.keys(sections).map(loadOne));
     const gen = res.filter(Boolean).map((d) => d.generated || 0);
     document.getElementById("gen").textContent = gen.length
       ? " · générées " + fr(Math.max(...gen), { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
@@ -514,6 +558,29 @@
       } catch (e) { /* facultatif */ }
     }
     applyParams(cfg && cfg.parameters);
+    for (const k of Object.keys(P)) {
+      P[k].color = safeColor(P[k].color, "--text-2");
+      if (P[k].members) P[k].members.forEach((m) => (m.color = safeColor(m.color, "--text-2")));
+    }
+    const per = q.get("period");
+    if (per && PAGE_PERIODS.includes(per)) {
+      // page d'une période : tous les paramètres
+      byPeriod = per;
+      if (window.WeewxNav) WeewxNav.setCurrent("period:" + per);
+      if (!Object.keys(P).length) {
+        document.getElementById("sections").innerHTML = '<p class="banner">Aucun paramètre à afficher (voir [[parameters]] dans skin.conf).</p>';
+        return;
+      }
+      document.body.classList.add("by-period");
+      document.getElementById("p-title").innerHTML = `<span class="sw" style="background:var(--text-2)"></span>${esc(PERIODS[per].label)}`;
+      document.getElementById("p-last").textContent = "";
+      if (DEMO) document.getElementById("mode").textContent = " · mode démo (données simulées)";
+      document.title = `${PERIODS[per].label} — ${(cfg && cfg.stationName) || "Station météo"}`;
+      buildPeriodSections(per);
+      loadAll();
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Object.values(sections).forEach((x) => x.redraw()));
+      return;
+    }
     const wanted = q.get("p");
     param = P[wanted] ? wanted : Object.keys(P)[0];
     def = P[param];
@@ -522,8 +589,6 @@
       return;
     }
     if (window.WeewxNav) WeewxNav.setCurrent(param);   // menu : paramètre réellement affiché
-    def.color = safeColor(def.color, "--text-2");
-    if (def.members) def.members.forEach((m) => (m.color = safeColor(m.color, "--text-2")));
     document.getElementById("p-title").innerHTML = `<span class="sw" style="background:var(${def.color})"></span>${esc(def.title)}`;
     document.getElementById("p-last").textContent = def.hint;
     document.body.style.setProperty("--c", `var(${def.color})`);
