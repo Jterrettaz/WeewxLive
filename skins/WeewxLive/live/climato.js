@@ -24,7 +24,6 @@
   const withUnit = (v, u, d) => `${num(v, d)}<span class="u"> ${esc(u || "")}</span>`;
   const SECT = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
   const sector = (deg) => SECT[Math.round(deg / 45) % 8];
-  const fmtIso = (iso) => { const [y, m, d] = String(iso || "").split("-").map(Number); return y ? `${d} ${MONTHS[m - 1]} ${y}` : ""; };
   const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
   // ------------------------------------------------------------------
@@ -184,14 +183,12 @@
       cols.baro ? td(r.baro, U.baro, U.baro === "inHg" ? 2 : 1, total ? "" : pFill(r.baro)) : "",
     ].join("");
 
-    let missing = 0;     // jours avec données mais sans page « jour »
     const rows = days.map((r) => {
       const empty = !["tmin", "tmax", "wind", "rain", "hum", "baro"].some((k) => isNum(r[k]));
       const link = dayPages && !empty && r.iso >= (cfg.dayFirst || "") && r.iso <= (cfg.today || "9999");
       const label = `${r.d} ${mName}`;
-      if (!empty && !link) missing++;
       const day = link
-        ? `<a class="cm-day cm-link-day" href="day-${r.iso}.html" title="Ouvrir la page d'archives du ${esc(label)}" aria-label="Page d'archives du ${esc(label)}">${ICON}<span>${r.d}</span></a>`
+        ? `<a class="cm-day" href="day-${r.iso}.html" title="Archives du ${esc(label)}" aria-label="Archives du ${esc(label)}">${ICON}<span>${r.d}</span></a>`
         : `<span class="cm-day"><span class="cm-noicon"></span><span>${r.d}</span></span>`;
       return `<tr><th scope="row">${day}</th>${cells(r, false)}</tr>`;
     }).join("");
@@ -217,10 +214,7 @@
         <tbody>${rows}</tbody>
         <tfoot><tr><th scope="row" class="cm-tot">Mois</th>${cells(T, true)}</tr></tfoot>
       </table>
-      <p class="cm-note">Cliquez sur le numéro d'un jour (ou son icône) pour ouvrir sa page d'archives.
-      ${missing ? (dayPages ? `Pages « jour » disponibles à partir du ${esc(fmtIso(cfg.dayFirst))} (option <code>days</code> de <code>[[archives]]</code>).`
-                            : "Pages « jour » désactivées (option <code>day</code> de <code>[[archives]]</code>).") : ""}
-      En gras : température la plus basse, la plus haute et rafale la plus forte du mois.
+      <p class="cm-note">En gras : température la plus basse, la plus haute et rafale la plus forte du mois.
       Ligne « Mois » : minimum, moyenne et maximum du mois, vent moyen (rafale max.), cumul de pluie, humidité et pression moyennes.</p>`
       : `<p class="muted">Pas de données pour ce mois.</p>`;
   }
