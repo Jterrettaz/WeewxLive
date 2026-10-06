@@ -31,6 +31,8 @@ import html
 import re
 import json
 import logging
+import math
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -44,7 +46,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.43"
+VERSION = "1.44"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -213,6 +215,7 @@ def _archive_options(opts):
         "days": _int(a.get("days", old.get("days")), 365, 0, 100000),   # 0 = toutes
         "month": to_bool(a.get("month", True)),
         "year": to_bool(a.get("year", True)),
+        "climato": to_bool(a.get("climato", True)),    # tableaux climatologiques mensuels
     }
 
 
@@ -526,12 +529,14 @@ class LiveJSON(SearchList):
             "livejson_climate": _Lazy(lambda: self._dump(self.climate(stop, db_lookup))),
             "livejson_extremes": _Lazy(lambda: self._dump(self.extremes(stop, db_lookup))),
             "livejson_astro": _Lazy(lambda: self._dump(self.astro_data(stop, db_lookup))),
-            # pages « jour » (gabarit days/day-%Y-%m-%d.html.tmpl, timespan = la journée)
+            # pages « jour » (gabarit archive/day-%Y-%m-%d.html.tmpl, timespan = la journée)
             "livejson_day": _Lazy(lambda: self._dump(self.day_data(timespan, db_lookup)).replace("</", "<\\/")),
             # pages « mois » et « année » : statistiques et séries journalières de la période
             "livejson_span": _Lazy(lambda: self._dump(self.span_data(timespan, db_lookup)).replace("</", "<\\/")),
             # dates, titres et liens des pages d'archives (sélecteur de date compris)
             "livejson_arch": _LazyDict(lambda: self.arch_info(timespan, db_lookup)),
+            # tableau climatologique mensuel (archive/climato-AAAA-MM.html)
+            "livejson_climato": _Lazy(lambda: self._dump(self.climato_data(timespan, db_lookup)).replace("</", "<\\/")),
             # gabarit index.html.tmpl : paramètres (chaînes déjà échappées pour le HTML),
             # nom de la station et configuration à intégrer dans la page
             "livejson_params": self.template_params(),
@@ -603,8 +608,8 @@ class LiveJSON(SearchList):
             "logo": self.logo,
             "latitude": lat,
             "longitude": lon,
-            # pages « jour » : days/day-AAAA-MM-JJ.html
-            "archives": {k: self.arch[k] for k in ("day", "days", "month", "year")},
+            # pages d'archives : archive/day-AAAA-MM-JJ.html, month-…, year-…, climato-…
+            "archives": {k: self.arch[k] for k in ("day", "days", "month", "year", "climato")},
             # « Soleil et Lune » : almanach weewx (data/astro.json)
             "astro": {"enable": to_bool(self.astro.get("enable", True))},
             "forecast": {
@@ -842,7 +847,9 @@ class LiveJSON(SearchList):
                     "year": "year-%04d.html" % x.year}[kind]
 
         info = {"first": first.isoformat(), "today": today.isoformat(), "dayFirst": day_first.isoformat(),
-                "day": a["day"], "month": a["month"], "year": a["year"], "iso": d.isoformat()}
+                "day": a["day"], "month": a["month"], "year": a["year"], "climato": a["climato"],
+                "iso": d.isoformat(), "ym": "%04d-%02d" % (d.year, d.month), "y": d.year, "m": d.month,
+                "years": list(range(first.year, today.year + 1))}
         if length <= 90000:                                  # journée
             prev_d, next_d = d - datetime.timedelta(days=1), d + datetime.timedelta(days=1)
             info.update(kind="day", label="%s %d %s %d" % (WEEKDAYS[d.weekday()], d.day, MONTHS[d.month - 1], d.year),
@@ -851,14 +858,125 @@ class LiveJSON(SearchList):
         elif length <= 32 * 86400:                           # mois
             pm = datetime.date(d.year - (d.month == 1), (d.month - 2) % 12 + 1, 1)
             nm = datetime.date(d.year + (d.month == 12), d.month % 12 + 1, 1)
+            has_p, has_n = pm >= first.replace(day=1), nm <= today
             info.update(kind="month", label="%s %d" % (MONTHS[d.month - 1], d.year),
-                        prev=fname("month", pm) if pm >= first.replace(day=1) else "",
-                        next=fname("month", nm) if nm <= today else "")
+                        prev=fname("month", pm) if has_p else "",
+                        next=fname("month", nm) if has_n else "",
+                        # tableau climatologique : mois précédent / suivant (AAAA-MM)
+                        prevYm="%04d-%02d" % (pm.year, pm.month) if has_p else "",
+                        nextYm="%04d-%02d" % (nm.year, nm.month) if has_n else "")
         else:                                                # année
             info.update(kind="year", label="Année %d" % d.year,
                         prev=fname("year", datetime.date(d.year - 1, 1, 1)) if d.year > first.year else "",
                         next=fname("year", datetime.date(d.year + 1, 1, 1)) if d.year < today.year else "")
         return info
+
+    # ------------------------------------------------------------------
+    # Tableau climatologique mensuel (archive/climato-AAAA-MM.html) : une ligne par jour
+    # (températures min. / moy. / max., vent moyen et rafale max., secteur dominant, pluie,
+    # humidité et pression moyennes) et une ligne de synthèse du mois.
+    # ------------------------------------------------------------------
+    CLIMATO_COLS = (
+        # clé de sortie, mesure (unités), colonne du résumé journalier, valeur
+        ("tmin", "outTemp", "outTemp", "min"), ("tavg", "outTemp", "outTemp", "avg"),
+        ("tmax", "outTemp", "outTemp", "max"), ("wind", "windSpeed", "windSpeed", "avg"),
+        ("gust", "windGust", "windGust", "max"), ("rain", "rain", "rain", "sum"),
+        ("hum", "outHumidity", "outHumidity", "avg"), ("baro", "barometer", "barometer", "avg"),
+    )
+
+    @staticmethod
+    def _vecdir(x, y):
+        """Direction (° compas) du vecteur vent moyen (xsum : est, ysum : nord, comme weewx)."""
+        if x is None or y is None or (x == 0 and y == 0):
+            return None
+        return round((90.0 - math.degrees(math.atan2(y, x))) % 360.0)
+
+    def climato_data(self, timespan, db_lookup):
+        t1 = time.time()
+        dbm = db_lookup(self.binding)
+        start, end = int(timespan.start), int(timespan.stop)
+        last = int(dbm.lastGoodStamp() or end)
+        stop = max(start, min(end, last))
+        rows = {}                                   # date -> {clé: valeur}
+
+        def read(obs, col, sql_cols, pick):
+            """Lit le résumé journalier « col » du mois ; pick(ligne, conv) -> {clé: valeur}."""
+            sql = ("SELECT dateTime, %s FROM %s_day_%s WHERE dateTime >= ? AND dateTime < ? ORDER BY dateTime"
+                   % (sql_cols, dbm.table_name, col))
+            try:
+                res = list(dbm.genSql(sql, (start, end)))
+            except Exception as e:
+                log.debug("livejson: résumé journalier %s indisponible : %s", col, e)
+                return False
+            unit, group = weewx.units.getStandardUnitType(dbm.std_unit_system, obs)
+
+            def conv(v):
+                if v is None:
+                    return None
+                return _round(self._conv(weewx.units.ValueTuple(v, unit, group), obs).value, 1)
+            for r in res:
+                vals = {k: v for k, v in pick(r[1:], conv).items() if v is not None}
+                if vals:
+                    rows.setdefault(datetime.date.fromtimestamp(r[0]), {}).update(vals)
+            return True
+
+        def avg(ws, st):
+            return ws / st if ws is not None and st else None
+
+        cols = {}
+        for key, obs, col, how in self.CLIMATO_COLS:
+            cols.setdefault((obs, col), []).append((key, how))
+        for (obs, col), wanted in cols.items():
+            def pick(r, conv, wanted=wanted):
+                mn, mx, ws, st, sm = r
+                v = {"min": mn, "max": mx, "avg": avg(ws, st), "sum": sm}
+                return {k: conv(v[how]) for k, how in wanted}
+            ok = read(obs, col, "min, max, wsum, sumtime, sum", pick)
+            if not ok and obs == "windGust":
+                # pas de résumé windGust : maximum du vecteur vent (rafale)
+                read("windGust", "wind", "min, max, wsum, sumtime, sum", pick)
+        # secteur dominant du jour (vent vectoriel moyen)
+        read("windSpeed", "wind", "xsum, ysum",
+             lambda r, conv: {"dir": self._vecdir(r[0], r[1])})
+
+        first = datetime.date.fromtimestamp(start)
+        last_day = datetime.date.fromtimestamp(stop - 1) if stop > start else first
+        days, d = [], first
+        while d <= last_day and d < datetime.date.fromtimestamp(end):
+            r = rows.get(d, {})
+            r["d"] = d.day
+            r["iso"] = d.isoformat()
+            days.append(r)
+            d += datetime.timedelta(days=1)
+
+        # synthèse du mois (agrégats weewx sur la période)
+        span = TimeSpan(start, stop)
+        total = {}
+        for key, obs, col, how in self.CLIMATO_COLS:
+            try:
+                vt = self._conv(weewx.xtypes.get_aggregate(col, span, how, dbm), obs)
+                if vt is not None and vt.value is not None:
+                    total[key] = _round(vt.value, 1)
+            except Exception as e:
+                log.debug("livejson: agrégat mensuel %s.%s indisponible : %s", col, how, e)
+        if "gust" not in total:
+            try:
+                vt = self._conv(weewx.xtypes.get_aggregate("wind", span, "max", dbm), "windGust")
+                if vt is not None and vt.value is not None:
+                    total["gust"] = _round(vt.value, 1)
+            except Exception:
+                pass
+        try:
+            vt = weewx.xtypes.get_aggregate("wind", span, "vecdir", dbm)
+            if vt.value is not None:
+                total["dir"] = round(vt.value)
+        except Exception as e:
+            log.debug("livejson: direction dominante du mois indisponible : %s", e)
+
+        units = {k: self.units.get(obs, "") for k, obs, _c, _h in self.CLIMATO_COLS}
+        log.debug("livejson: tableau climatologique généré en %.2f s", time.time() - t1)
+        return {"version": VERSION, "generated": int(time.time()), "start": start, "end": end,
+                "stop": stop, "units": units, "days": days, "total": total}
 
     # ------------------------------------------------------------------
     # Pages de détail
@@ -1462,20 +1580,21 @@ class LiveJSON(SearchList):
 # ----------------------------------------------------------------------
 # Générateur Cheetah du skin : celui de weewx, avec l'option [LiveJSON] [[archives]] pour
 # les pages d'archives (sections [[SummaryByDay]], [[SummaryByMonth]], [[SummaryByYear]]) :
-# désactivation par type (day / month / year = false) et limite des pages « jour » aux N
-# derniers jours (days = N ; 0 = depuis le début des données).
+# désactivation par type de page (day / month / year / climato = false, d'après le nom du
+# gabarit) et limite des pages « jour » aux N derniers jours (days = N ; 0 = toutes).
 # ----------------------------------------------------------------------
+ARCH_TEMPLATE_RE = re.compile(r"^(day|month|year|climato)-%")
+
+
 class LiveCheetahGenerator(CheetahGenerator):
 
     def generate(self, section, section_name, gen_ts):
-        kinds = {"SummaryByDay": "day", "SummaryByMonth": "month", "SummaryByYear": "year"}
-        if section_name not in kinds:
-            return CheetahGenerator.generate(self, section, section_name, gen_ts)
         a = _archive_options(self.skin_dict.get("LiveJSON", {}))
-        kind = kinds[section_name]
-        if not a[kind]:
-            return 0
-        if kind != "day" or not a["days"]:
+        if "template" in section:
+            m = ARCH_TEMPLATE_RE.match(os.path.basename(str(section["template"])))
+            if m and not a[m.group(1)]:
+                return 0
+        if section_name != "SummaryByDay" or not a["day"] or not a["days"]:
             return CheetahGenerator.generate(self, section, section_name, gen_ts)
         ref = gen_ts or time.time()
         first = datetime.date.fromtimestamp(ref) - datetime.timedelta(days=a["days"] - 1)

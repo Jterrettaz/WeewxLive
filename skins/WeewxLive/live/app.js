@@ -5,7 +5,7 @@
   "use strict";
 
   const DEMO = new URLSearchParams(location.search).has("demo");
-  // page « jour » (days/day-AAAA-MM-JJ.html) : données de la journée intégrées à la page,
+  // page « jour » (archive/day-AAAA-MM-JJ.html) : données de la journée intégrées à la page,
   // ni MQTT ni relecture ; graphiques de minuit à minuit
   const DAY = window.WEEWX_DAY || null;
   const nowS = () => (DAY ? DAY.stop : Date.now() / 1000);

@@ -2,22 +2,7 @@
 ## date (archive.js) et navigation période précédente / suivante. Variable $a = $livejson_arch.
 #set $prev_txt = {'day': '‹ Veille', 'month': '‹ Mois précédent', 'year': '‹ Année précédente'}[$a.kind]
 #set $next_txt = {'day': 'Lendemain ›', 'month': 'Mois suivant ›', 'year': 'Année suivante ›'}[$a.kind]
-  <header class="top">
-    <div class="brand">
-#if $livejson_logo
-#set $src = $livejson_logo.src if $livejson_logo.src.startswith(('http://', 'https://', '/')) else '../' + $livejson_logo.src
-      <img class="brand-logo" src="$src" alt="$livejson_logo.alt" height="$livejson_logo.height" style="height:${livejson_logo.height}px">
-#end if
-      <div class="brand-text">
-        <h1 id="station-name">$livejson_station</h1>
-        <p class="subtitle">$livejson_hardware</p>
-      </div>
-    </div>
-    <div class="status">
-      <span class="pill pill-arch"><span class="dot"></span><span class="txt">Archives</span></span>
-    </div>
-  </header>
-  <nav id="menu" class="menu" aria-label="Pages"></nav>
+#include "live/archive/brand.inc"
 
   <!-- sélecteur de date : page du jour, du mois ou de l'année contenant la date choisie -->
   <form class="arch-bar" id="arch-bar" data-first="$a.first" data-today="$a.today" data-day-first="$a.dayFirst" onsubmit="return false">
@@ -49,3 +34,6 @@
     <span class="day-next" aria-hidden="true"></span>
 #end if
   </nav>
+#if $a.kind == 'month' and $a.climato
+  <p class="arch-links"><a href="climato-${a.ym}.html">Tableau climatologique du mois ›</a></p>
+#end if
