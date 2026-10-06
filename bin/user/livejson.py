@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.52"
+VERSION = "1.53"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -399,29 +399,43 @@ FORECAST_RETRY = 900
 # par modèle, au plus une fois par période de cache, en mémoire du processus weewxd.
 # ----------------------------------------------------------------------
 ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
-# identifiant Open-Meteo -> (nom court, nom complet, origine, échéance maximale en jours)
+# identifiant Open-Meteo (paramètre models=) -> (nom court, nom complet, origine,
+# échéance maximale en jours)
 ENSEMBLE_MODELS = {
-    "ecmwf_ifs_025": ("ECMWF", "ECMWF ENS", "Reading", 15),
-    "ecmwf_ifs_europe": ("ECMWF-EU", "ECMWF ENS Europe", "Reading", 15),
-    "ecmwf_aifs_025": ("AIFS", "ECMWF AIFS ENS (IA)", "Reading", 15),
-    "ecmwf_aifs_europe": ("AIFS-EU", "ECMWF AIFS ENS Europe (IA)", "Reading", 15),
+    "ecmwf_ifs025": ("ECMWF", "ECMWF ENS", "Reading", 15),
+    "ecmwf_ifs025_ensemble": ("ECMWF", "ECMWF ENS", "Reading", 15),
+    "ecmwf_ifs_europe_ensemble": ("ECMWF-EU", "ECMWF ENS Europe", "Reading", 15),
+    "ecmwf_aifs025": ("AIFS", "ECMWF AIFS ENS (IA)", "Reading", 15),
+    "ecmwf_aifs025_ensemble": ("AIFS", "ECMWF AIFS ENS (IA)", "Reading", 15),
+    "ecmwf_aifs_europe_ensemble": ("AIFS-EU", "ECMWF AIFS ENS Europe (IA)", "Reading", 15),
     "gfs_seamless": ("GFS", "NOAA GEFS", "États-Unis", 35),
-    "gfs_025": ("GFS", "NOAA GEFS 0,25°", "États-Unis", 10),
-    "gfs_05": ("GFS", "NOAA GEFS 0,5°", "États-Unis", 35),
-    "aigefs_025": ("AIGEFS", "NOAA AIGEFS (IA)", "États-Unis", 16),
+    "ncep_gefs_seamless": ("GFS", "NOAA GEFS", "États-Unis", 35),
+    "ncep_gefs025": ("GFS", "NOAA GEFS 0,25°", "États-Unis", 16),
+    "ncep_gefs05": ("GFS", "NOAA GEFS 0,5°", "États-Unis", 35),
+    "ncep_aigefs025": ("AIGEFS", "NOAA AIGEFS (IA)", "États-Unis", 16),
     "icon_seamless_eps": ("ICON", "DWD ICON EPS", "Allemagne", 7.5),
     "icon_global_eps": ("ICON", "DWD ICON EPS Global", "Allemagne", 7.5),
     "icon_eu_eps": ("ICON-EU", "DWD ICON EPS Europe", "Allemagne", 5),
     "icon_d2_eps": ("ICON-D2", "DWD ICON EPS D2", "Allemagne", 2),
     "gem_global": ("GEM", "ECCC GEPS", "Canada", 16),
-    "weathernext_ensemble_2": ("GWE", "Google WeatherNext 2", "États-Unis", 15),
-    "ukmo_mogreps_global": ("UKMO", "Met Office MOGREPS-G", "Royaume-Uni", 8),
-    "ukmo_mogreps_uk": ("UKMO-UK", "Met Office MOGREPS-UK", "Royaume-Uni", 5),
+    "gem_global_ensemble": ("GEM", "ECCC GEPS", "Canada", 16),
+    "google_weathernext2_ensemble": ("GWE", "Google WeatherNext 2 (IA)", "États-Unis", 15),
+    "ukmo_global_ensemble_20km": ("UKMO", "Met Office MOGREPS-G", "Royaume-Uni", 8),
+    "ukmo_uk_ensemble_2km": ("UKMO-UK", "Met Office MOGREPS-UK", "Royaume-Uni", 5),
+    "bom_access_global_ensemble": ("ACCESS", "BOM ACCESS-GE", "Australie", 10),
     "meteoswiss_icon_ch1": ("CH1", "MeteoSuisse ICON-CH1", "Suisse", 1.5),
     "meteoswiss_icon_ch2": ("CH2", "MeteoSuisse ICON-CH2", "Suisse", 5),
-    "bom_access_ge": ("ACCESS", "BOM ACCESS-GE", "Australie", 10),
 }
-ENSEMBLE_DEFAULT_MODELS = "ecmwf_ifs_025, gfs_seamless, icon_seamless_eps, gem_global, weathernext_ensemble_2"
+# anciens identifiants (versions 1.49 à 1.52, erronés) -> identifiants Open-Meteo
+ENSEMBLE_ALIASES = {
+    "ecmwf_ifs_025": "ecmwf_ifs025", "ecmwf_aifs_025": "ecmwf_aifs025",
+    "ecmwf_ifs_europe": "ecmwf_ifs_europe_ensemble", "ecmwf_aifs_europe": "ecmwf_aifs_europe_ensemble",
+    "gfs_025": "ncep_gefs025", "gfs_05": "ncep_gefs05", "aigefs_025": "ncep_aigefs025",
+    "weathernext_ensemble_2": "google_weathernext2_ensemble",
+    "ukmo_mogreps_global": "ukmo_global_ensemble_20km", "ukmo_mogreps_uk": "ukmo_uk_ensemble_2km",
+    "bom_access_ge": "bom_access_global_ensemble",
+}
+ENSEMBLE_DEFAULT_MODELS = "ecmwf_ifs025, gfs_seamless, icon_seamless_eps, gem_global, google_weathernext2_ensemble"
 # variables horaires téléchargées : (clé publiée, variable Open-Meteo, décimales)
 ENSEMBLE_VARS = (("temp", "temperature_2m", 1), ("rain", "precipitation", 1),
                  ("wind", "wind_speed_10m", 1), ("press", "pressure_msl", 1))
@@ -801,7 +815,13 @@ class LiveJSON(SearchList):
     # ------------------------------------------------------------------
     def _ens_options(self):
         e = self.ensembles
-        models = [m.lower() for m in _as_list(e.get("models", ENSEMBLE_DEFAULT_MODELS))]
+        models = []
+        for m in _as_list(e.get("models", ENSEMBLE_DEFAULT_MODELS)):
+            m = m.lower()
+            if m in ENSEMBLE_ALIASES:
+                log.info("livejson: ensembles : modèle %s -> %s (identifiant Open-Meteo)", m, ENSEMBLE_ALIASES[m])
+                m = ENSEMBLE_ALIASES[m]
+            models.append(m)
         bad = [m for m in models if not ENSEMBLE_MODEL_RE.match(m)]
         if bad:
             log.error("livejson: ensembles : modèle(s) ignoré(s) : %s", ", ".join(bad))
@@ -889,7 +909,8 @@ class LiveJSON(SearchList):
     @staticmethod
     def _ens_members(hourly, var, model):
         """Membres d'une variable : [contrôle, membre 1, …] (listes horaires)."""
-        rx = re.compile(r"^%s(?:_member(\d+))?(?:_%s)?$" % (re.escape(var), re.escape(model)))
+        # suffixe de modèle éventuel (nom du domaine Open-Meteo, pas forcément l'identifiant demandé)
+        rx = re.compile(r"^%s(?:_member(\d+))?(?:_[a-z][a-z0-9_]*)?$" % re.escape(var))
         found = []
         for k, v in hourly.items():
             m = rx.match(k)

@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.52.
+et n'a pas besoin d'être joignable depuis internet. Version 1.53.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -715,7 +715,7 @@ modèles cochés et l'horizon.
 ```ini
     [[ensembles]]
         enable = true
-        models = ecmwf_ifs_025, gfs_seamless, icon_seamless_eps, gem_global, weathernext_ensemble_2
+        models = ecmwf_ifs025, gfs_seamless, icon_seamless_eps, gem_global, google_weathernext2_ensemble
         days = 16                 # échéance téléchargée (limitée par chaque modèle)
         horizons = 3, 7, 10, 16   # boutons d'horizon (jours)
         default_horizon = 3
@@ -725,13 +725,16 @@ modèles cochés et l'horizon.
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
 ```
 
-Modèles disponibles (identifiant, membres, échéance) : `ecmwf_ifs_025` (ECMWF ENS, 51, 15 j),
-`ecmwf_aifs_025` (ECMWF AIFS, IA, 51, 15 j), `gfs_seamless` (NOAA GEFS, 31, 16 j et plus),
-`icon_seamless_eps` (DWD ICON EPS, 40, 7,5 j), `icon_eu_eps` (40, 5 j), `icon_d2_eps` (20, 2 j),
-`gem_global` (ECCC GEPS, 21, 16 j), `weathernext_ensemble_2` (Google WeatherNext 2, IA, 64,
-15 j), `ukmo_mogreps_global` (Met Office, 18, 8 j), `bom_access_ge` (BOM, 18, 10 j),
-`meteoswiss_icon_ch1` / `meteoswiss_icon_ch2`, `aigefs_025`, `ecmwf_ifs_europe`… (liste
-complète dans la documentation d'Open-Meteo). Un modèle inconnu de l'extension est accepté
+Modèles disponibles (identifiant, membres, échéance) : `ecmwf_ifs025` (ECMWF ENS, 51, 15 j),
+`ecmwf_aifs025_ensemble` (ECMWF AIFS, IA, 51, 15 j), `gfs_seamless` (NOAA GEFS, 31, 16 j et
+plus), `icon_seamless_eps` (DWD ICON EPS, 40, 7,5 j), `icon_eu_eps` (40, 5 j), `icon_d2_eps`
+(20, 2 j), `gem_global` (ECCC GEPS, 21, 16 j), `google_weathernext2_ensemble` (Google
+WeatherNext 2, IA, 64, 15 j), `ukmo_global_ensemble_20km` (Met Office, 18, 8 j),
+`ukmo_uk_ensemble_2km` (5 j), `bom_access_global_ensemble` (BOM, 18, 10 j), `ncep_gefs025`,
+`ncep_gefs05`, `ncep_aigefs025`, `ecmwf_ifs_europe_ensemble`, `meteoswiss_icon_ch1`,
+`meteoswiss_icon_ch2`… (liste complète dans la documentation d'Open-Meteo). Les identifiants
+erronés des versions 1.49 à 1.52 (`ecmwf_ifs_025`, `weathernext_ensemble_2`…) sont convertis
+automatiquement. Un modèle inconnu de l'extension est accepté
 et affiché sous son identifiant. Plus de modèles = plus de membres à dessiner et un
 `ensembles.json` plus gros.
 
