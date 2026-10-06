@@ -1,7 +1,8 @@
 /* Menu commun aux pages : « Tableau de bord » + menu déroulant « Données » : pages par
  * période (tous les paramètres), une page de détail par paramètre de skin.conf, puis les
  * pages supplémentaires comme « Extrêmes » et « Archives » ; menu déroulant
- * « Climatologie » : tableaux climatologiques (« Climatologie mensuelle »).
+ * « Climatologie » : tableaux climatologiques (« Climatologie mensuelle », « Climatologie
+ * année »).
  * Sur les pages statiques (detail.html, extremes.html), applique aussi le nom de la
  * station, le sous-titre et le logo lus dans la configuration. */
 (function () {
@@ -32,15 +33,18 @@
 
   // pages situées dans un sous-dossier (pages d'archives : archive/) : préfixe des liens
   const BASE = (document.body && document.body.dataset.base) || "";
-  const archKind = (/\/archive\/(day|month|year|climato)-[\d-]+\.html$/.exec(location.pathname) || [])[1];
+  const archM = /\/archive\/(day|month|year|climato)-([\d-]+)\.html$/.exec(location.pathname) || [];
+  const archKind = archM[1];
   const isArchive = !!archKind && archKind !== "climato";
+  // tableau climatologique : mensuel (climato-AAAA-MM) ou annuel (climato-AAAA)
+  const climatoId = archKind === "climato" ? (archM[2].length > 4 ? "climato:month" : "climato:year") : "";
 
   const q = new URLSearchParams(location.search);
   const demo = q.has("demo");
   const isDetail = /detail\.html$/.test(location.pathname);
   const extra = EXTRA.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
-  let current = archKind === "climato" ? "climato:month" : isArchive ? "archives" : extra ? extra.id
-    : isDetail ? (q.get("period") ? "period:" + q.get("period") : q.get("p") || "outTemp") : "home";
+  let current = climatoId || (isArchive ? "archives" : extra ? extra.id
+    : isDetail ? (q.get("period") ? "period:" + q.get("period") : q.get("p") || "outTemp") : "home");
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -63,7 +67,8 @@
     const page = a.day ? `archive/day-${y}-${m}-${dd}.html` : a.month ? `archive/month-${y}-${m}.html` : a.year ? `archive/year-${y}.html` : "";
     if (page) EXTRA.push({ id: "archives", label: "Archives", page });
     if (a.climato && !CLIMATO.length) {
-      CLIMATO.push({ id: "climato:month", label: "Climatologie mensuelle", page: `archive/climato-${y}-${m}.html` });
+      CLIMATO.push({ id: "climato:month", label: "Climatologie mensuelle", page: `archive/climato-${y}-${m}.html` },
+                   { id: "climato:year", label: "Climatologie année", page: `archive/climato-${y}.html` });
     }
   }
 

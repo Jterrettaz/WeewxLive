@@ -1,10 +1,14 @@
-/* weewx-live — tableau climatologique mensuel (archive/climato-AAAA-MM.html).
- * Données intégrées à la page par weewx (window.WEEWX_CLIMATO, livejson.climato_data) :
- * une ligne par jour (températures min. / moy. / max., vent moyen et rafale max., secteur
- * dominant, pluie, humidité, pression) et une ligne de synthèse du mois.
+/* weewx-live — tableaux climatologiques (dossier archive/), données intégrées à la page par
+ * weewx (window.WEEWX_CLIMATO) :
+ *  - mensuel (climato-AAAA-MM.html, livejson.climato_data) : une ligne par jour
+ *    (températures min. / moy. / max., vent moyen et rafale max., secteur dominant, pluie,
+ *    humidité, pression) et une ligne de synthèse du mois ; l'icône à gauche du numéro du
+ *    jour ouvre la page d'archives de ce jour ;
+ *  - annuel (climato-AAAA.html, livejson.climato_year_data) : une ligne par mois dans trois
+ *    tableaux (températures et nombres de jours, pluie, vent) et une ligne « Année » ;
+ *    l'icône à gauche du mois ouvre le tableau mensuel.
  * Couleurs : températures selon les paliers de 3 °C du site (TempScale.stepColor,
- * minichart.js) ; vent, pluie, humidité et pression selon des échelles propres à ce tableau.
- * Une icône à gauche du numéro du jour ouvre la page d'archives de ce jour. */
+ * minichart.js) ; vent, pluie, humidité et pression selon des échelles propres à ces tableaux. */
 (function () {
   "use strict";
 
@@ -50,7 +54,7 @@
     return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * f)).join(",")})`;
   }
   // températures : paliers de 3 °C du site (valeurs converties en °C si besoin)
-  const toC = (v) => (U.tmin === "°F" ? (v - 32) * 5 / 9 : v);
+  const toC = (v) => ((U.tmin || U.temp) === "°F" ? (v - 32) * 5 / 9 : v);
   const tFill = (v) => (window.TempScale && isNum(v) ? fill(TempScale.stepColor(toC(v))) : "");
   // pluie journalière (mm) : vert pâle (faible) -> cyan -> bleu -> violet (forte)
   const RAIN = [[0.1, "#9ef0c0"], [1, "#6ee0b4"], [3, "#5cc8e8"], [6, "#3a8de8"], [10, "#2525e6"], [25, "#3b0aa0"]];
@@ -63,13 +67,17 @@
   const BARO = [[995, "#5bbcf2"], [1008, "#6fe3cf"], [1015, "#7fe38a"], [1022, "#b9ef5a"], [1032, "#f5e04a"]];
   const pHpa = (v) => (U.baro === "inHg" ? v * 33.8639 : U.baro === "mmHg" ? v * 1.33322 : U.baro === "kPa" ? v * 10 : v);
   const pFill = (v) => (isNum(v) && /hPa|mbar|inHg|mmHg|kPa/.test(U.baro || "") ? fill(ramp(BARO, pHpa(v))) : "");
-  // vent moyen : gris d'autant plus soutenu que le vent est fort (relatif au mois)
-  let windMax = 0;
-  const wStyle = (v) => {
-    if (!isNum(v) || !windMax) return "";
-    const p = Math.round(4 + 18 * Math.min(1, v / windMax));
+  // vent : gris d'autant plus soutenu que le vent est fort (relatif au maximum de la colonne)
+  const grey = (v, max) => {
+    if (!isNum(v) || !max) return "";
+    const p = Math.round(4 + 18 * Math.min(1, v / max));
     return ` style="background:color-mix(in oklab, var(--text) ${p}%, var(--surface))"`;
   };
+  let windMax = 0;
+  const wStyle = (v) => grey(v, windMax);
+  // pluie mensuelle (mm) : vert pâle -> bleu -> violet
+  const RAIN_M = [[5, "#9ef0c0"], [20, "#5cc8e8"], [45, "#3a8de8"], [75, "#2525e6"], [110, "#7a1fd0"], [180, "#3b0a70"]];
+  const rmFill = (v) => (isNum(v) && rainMm(v) > 0 ? fill(ramp(RAIN_M, rainMm(v))) : "");
 
   // ------------------------------------------------------------------
   // Tableau
@@ -79,7 +87,73 @@
   const cfg = bar ? bar.dataset : {};
   const dayPages = cfg.day === "1";
 
-  function render() {
+  function render() { return D.months ? renderYear() : renderMonth(); }
+
+  // ------------------------------------------------------------------
+  // Tableaux annuels : températures, pluie, vent (une ligne par mois)
+  // ------------------------------------------------------------------
+  function renderYear() {
+    const M = D.months || [], T = D.total || {}, TH = D.thresholds || {};
+    const has = (...ks) => ks.some((k) => M.some((r) => isNum(r[k])) || isNum(T[k]));
+    const any = (r) => Object.keys(r).some((k) => k !== "m" && k !== "ym" && isNum(r[k]));
+    const ext = (k, f) => { const v = M.map((r) => r[k]).filter(isNum); return v.length ? f(...v) : null; };
+    const val = (v, u, d, style, rec) => `<td${style || ""}${rec ? ' class="cm-rec"' : ""}>${isNum(v) ? (u === null ? v : withUnit(v, u, d)) : "—"}</td>`;
+    const cnt = (v) => val(v, null);
+    const monthCell = (r) => {
+      const label = `${MONTHS[r.m - 1]} ${D.year}`;
+      return `<th scope="row">${any(r)
+        ? `<a class="cm-day" href="climato-${r.ym}.html" title="Climatologie de ${esc(label)}" aria-label="Climatologie de ${esc(label)}">${ICON}<span>${MONTHS[r.m - 1]}</span></a>`
+        : `<span class="cm-day"><span class="cm-noicon"></span><span>${MONTHS[r.m - 1]}</span></span>`}</th>`;
+    };
+    // tableau : groupe d'en-tête, colonnes [titre, cellule(r, total)]
+    const table = (title, cols, caption) => `<div class="cm-scroll">
+      <table class="cm-table cm-year">
+        <caption class="sr">${esc(caption)}</caption>
+        <thead><tr><th rowspan="2" scope="col" class="cm-jour">Mois</th><th colspan="${cols.length}" scope="colgroup" class="cm-grp">${title}</th></tr>
+          <tr>${cols.map(([h]) => `<th scope="col" class="cm-sub2">${h}</th>`).join("")}</tr></thead>
+        <tbody>${M.map((r) => `<tr>${monthCell(r)}${cols.map(([, c]) => c(r, false)).join("")}</tr>`).join("")}</tbody>
+        <tfoot><tr><th scope="row" class="cm-tot">Année</th>${cols.map(([, c]) => c(T, true)).join("")}</tr></tfoot>
+      </table></div>`;
+    const out = [];
+    const ut = U.temp, ur = U.rain;
+
+    if (has("tavg", "tmin", "tmax")) {
+      const lo = ext("tmin", Math.min), hi = ext("tmax", Math.max);
+      const tc = (k, rec) => (r, tot) => val(r[k], ut, 1, tot ? "" : tFill(r[k]), !tot && rec && r[k] === rec);
+      out.push(table("Température", [
+        ["moy", tc("tavg")], ["moy min", tc("tminAvg")], ["min", tc("tmin", lo)],
+        ["moy max", tc("tmaxAvg")], ["max", tc("tmax", hi)],
+        [`Jours sans dégel<br><small>(max ≤ ${num(TH.ice)} °C)</small>`, (r) => cnt(r.ice)],
+        [`Jours de gel<br><small>(min &lt; ${num(TH.frost)} °C)</small>`, (r) => cnt(r.frost)],
+        [`Jours<br><small>(max &gt; ${num(TH.heat)} °C)</small>`, (r) => cnt(r.heat)],
+      ], `Températures par mois, ${D.year}`));
+    }
+    if (has("rain")) {
+      const top = ext("rain", Math.max);
+      out.push(table("Pluie", [
+        ["pluie totale", (r, tot) => val(r.rain, ur, 1, tot ? "" : rmFill(r.rain), !tot && r.rain === top && top > 0)],
+        [`jours de pluie<br><small>(≥ ${num(TH.rain)} mm)</small>`, (r) => cnt(r.rainDays)],
+        [`jours ≥ ${num(TH.heavy)} mm`, (r) => cnt(r.heavyDays)],
+      ], `Pluie par mois, ${D.year}`));
+    }
+    if (has("wind", "gust")) {
+      const mw = ext("windMax", Math.max), mg = ext("gust", Math.max);
+      out.push(table("Vent", [
+        ["vent moyen", (r) => val(r.wind, U.wind, 1)],
+        ["vent moyen max<br><small>(intervalle d'archive)</small>", (r, tot) => val(r.windMax, U.wind, 1, tot ? "" : grey(r.windMax, mw), !tot && r.windMax === mw)],
+        ["rafale maximum", (r, tot) => val(r.gust, U.gust, 1, tot ? "" : grey(r.gust, mg), !tot && r.gust === mg)],
+      ], `Vent par mois, ${D.year}`));
+    }
+    wrap.innerHTML = out.length ? `<div class="cm-tables">${out.join("")}</div>
+      <p class="cm-note">Valeurs calculées à partir des résumés journaliers (de 0 h à 24 h). En gras : extrêmes de l'année.
+      Ligne « Année » : moyennes, extrêmes, cumuls et totaux de l'année.</p>`
+      : `<p class="muted">Pas de données pour cette année.</p>`;
+  }
+
+  // ------------------------------------------------------------------
+  // Tableau mensuel (une ligne par jour)
+  // ------------------------------------------------------------------
+  function renderMonth() {
     const days = D.days || [];
     const T = D.total || {};
     const has = (k) => days.some((r) => isNum(r[k])) || isNum(T[k]);
@@ -152,14 +226,17 @@
     const msg = document.getElementById("cm-msg");
     bar.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const ym = `${document.getElementById("cm-year").value}-${document.getElementById("cm-month").value}`;
-      const first = (cfg.first || "").slice(0, 7), last = (cfg.today || "").slice(0, 7);
+      const selM = document.getElementById("cm-month");
+      const year = !selM;                      // tableau annuel : choix de l'année seule
+      const ym = document.getElementById("cm-year").value + (year ? "" : `-${selM.value}`);
+      const n = year ? 4 : 7;
+      const first = (cfg.first || "").slice(0, n), last = (cfg.today || "").slice(0, n);
       if (ym < first || ym > last) {
-        const f = (s) => { const [a, b] = s.split("-"); return `${MONTHS[+b - 1]} ${a}`; };
-        msg.textContent = `Pas de données pour ce mois (archives de ${f(first)} à ${f(last)}).`;
+        const f = (s) => { if (year) return s; const [a, b] = s.split("-"); return `${MONTHS[+b - 1]} ${a}`; };
+        msg.textContent = `Pas de données pour ${year ? "cette année" : "ce mois"} (archives de ${f(first)} à ${f(last)}).`;
         return;
       }
-      if (ym === cfg.ym) return;
+      if (ym === (year ? cfg.y : cfg.ym)) return;
       const url = `climato-${ym}.html`;
       msg.textContent = "";
       try {

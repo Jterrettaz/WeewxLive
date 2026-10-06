@@ -46,7 +46,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.44"
+VERSION = "1.45"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -537,6 +537,8 @@ class LiveJSON(SearchList):
             "livejson_arch": _LazyDict(lambda: self.arch_info(timespan, db_lookup)),
             # tableau climatologique mensuel (archive/climato-AAAA-MM.html)
             "livejson_climato": _Lazy(lambda: self._dump(self.climato_data(timespan, db_lookup)).replace("</", "<\\/")),
+            # tableau climatologique annuel (archive/climato-AAAA.html)
+            "livejson_climato_year": _Lazy(lambda: self._dump(self.climato_year_data(timespan, db_lookup)).replace("</", "<\\/")),
             # gabarit index.html.tmpl : paramètres (chaînes déjà échappées pour le HTML),
             # nom de la station et configuration à intégrer dans la page
             "livejson_params": self.template_params(),
@@ -867,6 +869,8 @@ class LiveJSON(SearchList):
                         nextYm="%04d-%02d" % (nm.year, nm.month) if has_n else "")
         else:                                                # année
             info.update(kind="year", label="Année %d" % d.year,
+                        prevY=d.year - 1 if d.year > first.year else "",
+                        nextY=d.year + 1 if d.year < today.year else "",
                         prev=fname("year", datetime.date(d.year - 1, 1, 1)) if d.year > first.year else "",
                         next=fname("year", datetime.date(d.year + 1, 1, 1)) if d.year < today.year else "")
         return info
@@ -977,6 +981,120 @@ class LiveJSON(SearchList):
         log.debug("livejson: tableau climatologique généré en %.2f s", time.time() - t1)
         return {"version": VERSION, "generated": int(time.time()), "start": start, "end": end,
                 "stop": stop, "units": units, "days": days, "total": total}
+
+    # Tableau climatologique annuel (archive/climato-AAAA.html) : une ligne par mois, en
+    # trois tableaux (températures et nombres de jours, pluie, vent) et une ligne « Année ».
+    # Seuils des nombres de jours (valeurs en °C et mm, quelles que soient les unités
+    # affichées) :
+    CLIMATO_ICE_C = 0.0        # jour sans dégel : max. <= 0 °C
+    CLIMATO_HEAT_C = 30.0      # jour de forte chaleur : max. > 30 °C
+    CLIMATO_HEAVY_MM = 10.0    # jour de forte pluie : cumul >= 10 mm
+
+    def climato_year_data(self, timespan, db_lookup):
+        t1 = time.time()
+        dbm = db_lookup(self.binding)
+        start, end = int(timespan.start), int(timespan.stop)
+
+        def table(obs, col, cols):
+            """Lignes [date, valeurs…] du résumé journalier de l'année + conversions
+            (unités affichées, et unité de référence pour les seuils)."""
+            sql = ("SELECT dateTime, %s FROM %s_day_%s WHERE dateTime >= ? AND dateTime < ? ORDER BY dateTime"
+                   % (cols, dbm.table_name, col))
+            try:
+                res = list(dbm.genSql(sql, (start, end)))
+            except Exception as e:
+                log.debug("livejson: résumé journalier %s indisponible : %s", col, e)
+                return None, None, None
+            unit, group = weewx.units.getStandardUnitType(dbm.std_unit_system, obs)
+
+            def conv(v):
+                return None if v is None else self._conv(weewx.units.ValueTuple(v, unit, group), obs).value
+
+            def ref(v, target):
+                return None if v is None else weewx.units.convert(weewx.units.ValueTuple(v, unit, group), target).value
+            return [(datetime.date.fromtimestamp(r[0]), r[1:]) for r in res], conv, ref
+
+        months = [dict() for _ in range(12)]
+        year = {}
+
+        def acc(m, key, v, how):
+            """Accumule v dans le mois m et dans l'année : min, max, somme, moyenne, compte."""
+            for d in (months[m], year):
+                if how == "min":
+                    d[key] = v if d.get(key) is None else min(d[key], v)
+                elif how == "max":
+                    d[key] = v if d.get(key) is None else max(d[key], v)
+                elif how in ("sum", "count"):
+                    d[key] = d.get(key, 0) + v
+                elif how == "mean":                          # moyenne simple (liste)
+                    d.setdefault(key, []).append(v)
+                elif how == "wavg":                          # moyenne pondérée (wsum, sumtime)
+                    w, t = d.get(key, (0.0, 0.0))
+                    d[key] = (w + v[0], t + v[1])
+
+        rows, conv, ref = table("outTemp", self.col("outTemp"), "min, max, wsum, sumtime")
+        for day, (mn, mx, ws, st) in rows or ():
+            m = day.month - 1
+            if mn is not None:
+                acc(m, "tmin", conv(mn), "min")
+                acc(m, "tminAvg", conv(mn), "mean")
+                acc(m, "frost", 1 if ref(mn, "degree_C") < FROST_C else 0, "count")
+            if mx is not None:
+                acc(m, "tmax", conv(mx), "max")
+                acc(m, "tmaxAvg", conv(mx), "mean")
+                acc(m, "ice", 1 if ref(mx, "degree_C") <= self.CLIMATO_ICE_C else 0, "count")
+                acc(m, "heat", 1 if ref(mx, "degree_C") > self.CLIMATO_HEAT_C else 0, "count")
+            if ws is not None and st:
+                acc(m, "tavg", (ws, st), "wavg")
+                # moyenne affichée : convertie à la fin (température : conversion affine)
+        rows, conv_r, ref_r = table("rain", self.col("rain"), "sum")
+        for day, (sm,) in rows or ():
+            if sm is None:
+                continue
+            m = day.month - 1
+            mm = ref_r(sm, "mm")
+            acc(m, "rain", sm, "sum")
+            acc(m, "rainDays", 1 if mm >= RAIN_DAY_MM else 0, "count")
+            acc(m, "heavyDays", 1 if mm >= self.CLIMATO_HEAVY_MM else 0, "count")
+        rows, conv_w, _ = table("windSpeed", self.col("windSpeed"), "max, wsum, sumtime")
+        for day, (mx, ws, st) in rows or ():
+            m = day.month - 1
+            if mx is not None:
+                acc(m, "windMax", conv_w(mx), "max")
+            if ws is not None and st:
+                acc(m, "wind", (ws, st), "wavg")
+        rows, conv_g, _ = table("windGust", self.col("windGust"), "max")
+        if rows is None:                                    # pas de résumé windGust
+            rows, conv_g, _ = table("windGust", "wind", "max")
+        for day, (mx,) in rows or ():
+            if mx is not None:
+                acc(day.month - 1, "gust", conv_g(mx), "max")
+
+        def finish(d):
+            out = {}
+            for k, v in d.items():
+                if k in ("tavg", "wind"):
+                    w, t = v
+                    c = conv if k == "tavg" else conv_w
+                    v = c(w / t) if t else None
+                elif k in ("tminAvg", "tmaxAvg"):
+                    v = sum(v) / len(v) if v else None
+                elif k == "rain":
+                    v = conv_r(v)
+                if v is not None:
+                    out[k] = _round(v, 1) if isinstance(v, float) else v
+            return out
+
+        y = datetime.date.fromtimestamp(start + 43200).year
+        res = {"version": VERSION, "generated": int(time.time()), "year": y,
+               "units": {"temp": self.units.get("outTemp", ""), "rain": self.units.get("rain", ""),
+                         "wind": self.units.get("windSpeed", ""), "gust": self.units.get("windGust", "")},
+               "thresholds": {"frost": FROST_C, "ice": self.CLIMATO_ICE_C, "heat": self.CLIMATO_HEAT_C,
+                              "rain": RAIN_DAY_MM, "heavy": self.CLIMATO_HEAVY_MM},
+               "months": [dict(finish(d), m=i + 1, ym="%04d-%02d" % (y, i + 1)) for i, d in enumerate(months)],
+               "total": finish(year)}
+        log.debug("livejson: tableau climatologique annuel généré en %.2f s", time.time() - t1)
+        return res
 
     # ------------------------------------------------------------------
     # Pages de détail

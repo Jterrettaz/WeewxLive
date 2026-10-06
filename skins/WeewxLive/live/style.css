@@ -651,3 +651,9 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 }
 /* petit écran : page courante non répétée dans les boutons (bouton actif en noir) */
 @media (max-width: 520px) { .dd-btn .dd-cur { display: none; } }
+/* tableaux climatologiques annuels : les uns sous les autres, centrés */
+.cm-tables { display: grid; gap: 28px; }
+.cm-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.cm-table th.cm-sub2 small { font-weight: 400; font-size: 12px; color: var(--text-3); }
+.cm-year th.cm-sub2 { min-width: 6.5em; }
+.cm-table th.cm-sub2 small { display: block; white-space: nowrap; }

@@ -36,4 +36,6 @@
   </nav>
 #if $a.kind == 'month' and $a.climato
   <p class="arch-links"><a href="climato-${a.ym}.html">Tableau climatologique du mois ›</a></p>
+#elif $a.kind == 'year' and $a.climato
+  <p class="arch-links"><a href="climato-${a.y}.html">Tableau climatologique de l'année ›</a></p>
 #end if

@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.44.
+et n'a pas besoin d'être joignable depuis internet. Version 1.45.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -28,9 +28,11 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.44.
 - **Archives** (`archive/day-AAAA-MM-JJ.html`, `month-AAAA-MM.html`, `year-AAAA.html`) :
   une page par jour (tous les panneaux du tableau de bord), par mois et par année (une section
   par paramètre), avec sélecteur de date et navigation précédent / suivant (désactivables).
-- **Climatologie mensuelle** (menu « Climatologie », `archive/climato-AAAA-MM.html`) :
-  tableau d'un mois, une ligne par jour (températures, vent, secteur, pluie, humidité,
-  pression), cellules colorées, lien vers la page d'archives de chaque jour.
+- **Climatologie** (menu « Climatologie ») : tableau **mensuel** (`archive/climato-AAAA-MM.html`,
+  une ligne par jour : températures, vent, secteur, pluie, humidité, pression ; lien vers la
+  page d'archives de chaque jour) et **annuel** (`archive/climato-AAAA.html`, une ligne par
+  mois : températures et nombres de jours de gel / sans dégel / forte chaleur, pluie, vent ;
+  lien vers le tableau de chaque mois). Cellules colorées.
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -64,7 +66,7 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/live/archive/month-%Y-%m.html.tmpl`, `year-%Y.html.tmpl` | pages d'archives « mois » et « année » |
 | `skins/WeewxLive/live/archive/header.inc`, `archive.js` | en-tête commun des archives : menu, sélecteur de date, précédent / suivant |
 | `skins/WeewxLive/live/archive/brand.inc` | marque (logo, nom) et menu des pages du dossier `archive/` |
-| `skins/WeewxLive/live/archive/climato-%Y-%m.html.tmpl`, `climato.js` | tableau climatologique mensuel |
+| `skins/WeewxLive/live/archive/climato-%Y-%m.html.tmpl`, `climato-%Y.html.tmpl`, `climato.js` | tableaux climatologiques mensuel et annuel |
 | `skins/WeewxLive/live/index.html.tmpl`, `app.js` | tableau de bord : gabarit Cheetah (un panneau par paramètre de `[[parameters]]`, configuration intégrée à la page) et script temps réel |
 | `skins/WeewxLive/live/extras.js` | prévisions, radar et satellite du tableau de bord |
 | `skins/WeewxLive/live/climate.js` | « Ce jour et ce mois au fil des ans » |
@@ -589,7 +591,7 @@ qu'une fois (si le fichier n'existe pas déjà).
         day = true        # pages « jour »
         month = true      # pages « mois » (toutes, depuis le début de la base)
         year = true       # pages « année » (toutes)
-        climato = true    # tableaux climatologiques mensuels (tous)
+        climato = true    # tableaux climatologiques mensuels et annuels (tous)
         days = 365        # pages « jour » produites en remontant depuis aujourd'hui (0 = toutes)
 ```
 
@@ -623,12 +625,31 @@ En gras : température la plus basse, la plus haute et rafale la plus forte du m
 ligne « Mois » : minimum, moyenne et maximum, vent moyen (rafale max.), secteur dominant,
 cumul de pluie, humidité et pression moyennes. Une colonne sans données (pas de baromètre…)
 est masquée. En haut : choix du mois et de l'année (« Afficher »), mois précédent / suivant,
-liens vers les graphiques du mois et la page de l'année. Les pages « mois » des archives ont
+liens vers les graphiques du mois et le tableau climatologique de l'année. Les pages « mois » des archives ont
 un lien « Tableau climatologique du mois ». Sur petit écran, le tableau défile
 horizontalement (colonne « Jour » fixe).
 
 Les couleurs de la pression supposent des hPa (conversion automatique depuis inHg, mmHg,
 kPa) ; celles de la pluie, des mm (conversion depuis in et cm).
+
+### Climatologie annuelle
+
+`archive/climato-AAAA.html` (gabarit `live/archive/climato-%Y.html.tmpl`, section
+`[[SummaryByYear]]`, même option `climato`), menu **« Climatologie »** → **« Climatologie
+année »** (année en cours). Trois tableaux, une ligne par mois (les mois sans données
+affichent « — ») et une ligne « Année » ; l'icône à gauche du mois ouvre le tableau mensuel :
+
+| Tableau | Colonnes |
+|---|---|
+| Température | moyenne, moyenne des minima, minimum, moyenne des maxima, maximum (couleurs `TEMP_STEPS`) ; jours sans dégel (max. ≤ 0 °C), jours de gel (min. < 0 °C), jours de forte chaleur (max. > 30 °C) |
+| Pluie | cumul (vert pâle → bleu → violet), jours de pluie (≥ 1 mm), jours ≥ 10 mm |
+| Vent | vent moyen, plus forte vitesse moyenne sur un intervalle d'archive (« vent 10 min » si `archive_interval = 600`), rafale maximum (gris relatif à l'année) |
+
+En gras : extrêmes de l'année. En haut : choix de l'année, année précédente / suivante, lien
+vers les graphiques de l'année ; la page « année » des archives a un lien « Tableau
+climatologique de l'année ». Les seuils sont dans `livejson.py` (`CLIMATO_ICE_C`,
+`CLIMATO_HEAT_C`, `CLIMATO_HEAVY_MM`, `FROST_C`, `RAIN_DAY_MM`) et s'appliquent en °C et
+en mm quelles que soient les unités affichées.
 
 ## 9. Page « Extrêmes » (records de la station)
 
