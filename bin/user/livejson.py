@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.56"
+VERSION = "1.57"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -456,8 +456,8 @@ METEOGRAM_SURFACE = ("temperature_2m", "relative_humidity_2m", "precipitation", 
 # niveaux de pression (hPa) : du sol à environ 12 km
 METEOGRAM_LEVELS = (1000, 975, 950, 925, 900, 850, 800, 700, 600, 500, 400, 300, 250, 200)
 # variable par niveau : (clé publiée, préfixe Open-Meteo, décimales)
-METEOGRAM_LVARS = (("z", "geopotential_height", 0), ("t", "temperature", 1), ("rh", "relative_humidity", 0),
-                   ("cc", "cloud_cover", 0), ("ws", "wind_speed", 0), ("wd", "wind_direction", 0))
+METEOGRAM_LVARS = (("z", "geopotential_height", 0), ("t", "temperature", 1), ("cc", "cloud_cover", 0),
+                   ("ws", "wind_speed", 0), ("wd", "wind_direction", 0))
 METEOGRAM_MODELS = {
     "icon_seamless": "DWD ICON (D2, puis EU, puis global)",
     "icon_d2": "DWD ICON-D2", "icon_eu": "DWD ICON-EU", "icon_global": "DWD ICON global",
@@ -1040,8 +1040,8 @@ class LiveJSON(SearchList):
     # ------------------------------------------------------------------
     def meteogram_data(self):
         """Prévision horaire d'un modèle Open-Meteo depuis l'heure en cours : valeurs au sol
-        et, pour chaque niveau de pression, altitude, température, humidité, nébulosité et
-        vent ; le navigateur dessine les coupes en altitude."""
+        et, pour chaque niveau de pression, altitude, température, nébulosité et vent ; le
+        navigateur dessine les coupes en altitude."""
         g, f = self.meteogram, self.forecast
         if not to_bool(g.get("enable", True)):
             return {"error": "météogramme désactivé"}

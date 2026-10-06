@@ -2,10 +2,10 @@
  * Données : data/meteogram.json, produit par weewx (livejson.meteogram_data) à partir de
  * l'API de prévision d'Open-Meteo ([LiveJSON] [[meteogram]] model, icon_seamless par défaut) :
  * valeurs horaires au sol et, pour chaque niveau de pression, altitude géopotentielle,
- * température, humidité relative, nébulosité et vent.
+ * température, nébulosité et vent.
  * Panneaux (axe du temps commun, réticule et infobulle partagés) :
  *   pictogrammes du temps · température à 2 m (min. / max. de chaque jour) ·
- *   humidité relative et nébulosité selon l'altitude · précipitations horaires (dont averses)
+ *   couverture nuageuse selon l'altitude · précipitations horaires (dont averses)
  *   · neige · température et vent en altitude (isotherme 0 °C) · vent moyen et rafales au sol.
  * Les coupes en altitude sont interpolées entre les niveaux de pression (et la valeur au
  * sol), puis dessinées pixel par pixel ; les isothermes par « marching squares ». */
@@ -43,8 +43,6 @@
   // température en altitude : bleus sous 0 °C, du jaune pâle au rouge au-dessus (pivot 0 °C)
   const T_STOPS = [[-40, "#24125e"], [-28, "#3a2fa3"], [-16, "#2f63c9"], [-8, "#4f97e3"], [-2, "#a9d3f2"],
     [0, "#e9f1f4"], [2, "#f7ecb8"], [8, "#f5cc63"], [14, "#f19a3e"], [22, "#df5a2c"], [30, "#a51d22"]].map(([v, c]) => [v, hex(c)]);
-  // humidité relative ≥ 70 % : bleus, du plus clair au plus foncé
-  const RH_STOPS = [[70, "#bfe6f2"], [80, "#86c6ec"], [90, "#4f93df"], [100, "#2f56c4"]].map(([v, c]) => [v, hex(c)]);
 
   // ------------------------------------------------------------------
   // Profils verticaux (interpolation entre niveaux de pression)
@@ -55,12 +53,12 @@
     const s = D.surface, pts = [];
     const uv = (ws, wd) => (isNum(ws) && isNum(wd) ? [-ws * Math.sin(wd * Math.PI / 180), -ws * Math.cos(wd * Math.PI / 180)] : [null, null]);
     const [u0, v0] = uv(s.wind_speed_10m[i], s.wind_direction_10m[i]);
-    pts.push({ z: elev(), t: s.temperature_2m[i], rh: s.relative_humidity_2m[i], cc: null, u: u0, v: v0 });
+    pts.push({ z: elev(), t: s.temperature_2m[i], cc: null, u: u0, v: v0 });
     for (const lv of D.levels) {
       const z = lv.z[i];
       if (!isNum(z) || z <= elev() + 10) continue;
       const [u, v] = uv(lv.ws[i], lv.wd[i]);
-      pts.push({ z, t: lv.t[i], rh: lv.rh[i], cc: lv.cc[i], u, v });
+      pts.push({ z, t: lv.t[i], cc: lv.cc[i], u, v });
     }
     pts.sort((a, b) => a.z - b.z);
     return pts;
@@ -265,21 +263,17 @@
     return { Y };
   }
 
-  let HUM = null, TMP = null;
-  function drawHumidity(ctx, p) {
+  let CLD = null, TMP = null;
+  // couverture nuageuse : gris d'autant plus opaque que le ciel est couvert (≥ 5 %)
+  const cloudRGB = () => (dark() ? [205, 205, 200] : [92, 92, 90]);
+  function drawClouds(ctx, p) {
     const top = D.top.humidity;
-    HUM = HUM || grid(["rh", "cc"], top, 110);
-    const cloud = dark() ? [205, 205, 200] : [92, 92, 90];
-    raster(ctx, p, top, HUM.zs.length, (r, c) => {
-      const rh = bilin(HUM.g.rh, r, c), cc = bilin(HUM.g.cc, r, c);
-      let col = null, a = 0;
-      if (isNum(rh) && rh >= 70) { col = ramp(RH_STOPS, rh); a = 0.85; }
-      if (isNum(cc) && cc >= 5) {
-        const k = Math.min(1, cc / 100) * 0.85;
-        col = col ? col.map((x, j) => x * (1 - k) + cloud[j] * k) : cloud;
-        a = Math.max(a, k);
-      }
-      return col ? [col[0], col[1], col[2], Math.round(a * 255)] : null;
+    CLD = CLD || grid(["cc"], top, 110);
+    const cloud = cloudRGB();
+    raster(ctx, p, top, CLD.zs.length, (r, c) => {
+      const cc = bilin(CLD.g.cc, r, c);
+      if (!isNum(cc) || cc < 5) return null;
+      return [cloud[0], cloud[1], cloud[2], Math.round(Math.min(1, cc / 100) * 0.9 * 255)];
     });
     const { Y } = altAxis(ctx, p, top, top - elev() > 8000 ? 2000 : 1000);
     p.o.yOf = (y) => elev() + (1 - (y - TOP) / p.ph) * (top - elev());
@@ -469,10 +463,10 @@
     const p = hover.panel;
     if (p && p.o.yOf && hover.y > TOP && hover.y < TOP + p.ph) {
       const z = p.o.yOf(hover.y), pts = column(i);
-      const tz = interp(pts, "t", z), rh = interp(pts, "rh", z), cc = interp(pts, "cc", z), u = interp(pts, "u", z), v = interp(pts, "v", z);
+      const tz = interp(pts, "t", z), cc = interp(pts, "cc", z), u = interp(pts, "u", z), v = interp(pts, "v", z);
       const sp = isNum(u) && isNum(v) ? Math.hypot(u, v) : null;
       const from = isNum(u) && isNum(v) ? (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360 : null;
-      rows.push([`À ${Math.round(z / 10) * 10} m`, [isNum(tz) ? `${fmt(tz, 1)} °C` : "", isNum(rh) ? `HR ${fmt(rh, 0)} %` : "",
+      rows.push([`À ${Math.round(z / 10) * 10} m`, [isNum(tz) ? `${fmt(tz, 1)} °C` : "",
         isNum(cc) ? `nuages ${fmt(cc, 0)} %` : "", isNum(sp) ? `vent ${fmt(sp, 0)} km/h ${dirName(from)}` : ""].filter(Boolean).join(" · "), css("--text")]);
     }
     tip.innerHTML = `<div class="t">${new Date(t * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>` +
@@ -505,8 +499,8 @@
       <div class="mg-scroll"><div class="mg-inner">
         <div class="mg-icons" id="mg-icons" aria-label="Temps prévu"></div>
         ${sec("mg-temp", "Température à 2 m (°C)", "", 170)}
-        ${sec("mg-hum", "Humidité relative et nébulosité selon l'altitude (m)",
-          li("linear-gradient(90deg,#bfe6f2,#4f93df,#2f56c4)", "humidité ≥ 70 %") + li(dark() ? "#cdcdc8" : "#5c5c5a", "nuages (plus foncé = plus couvert)") +
+        ${sec("mg-hum", "Couverture nuageuse selon l'altitude (m)",
+          li(`linear-gradient(90deg,rgba(${cloudRGB()},.15),rgba(${cloudRGB()},.9))`, "nuages : de 10 à 100 % (plus foncé = plus couvert)") +
           li("var(--wind)", "isotherme 0 °C", "dash"), 200)}
         ${sec("mg-rain", "Précipitations (mm par heure)", li("var(--rain)", "précipitations") + li("var(--press)", "dont averses"), 130,
           ` <span class="mg-tot">cumul sur la période : <b>${fmt(total, 1)} mm</b></span>`)}
@@ -519,10 +513,10 @@
       </div></div>
       <p class="en-foot">Prévision automatique d'un modèle numérique, sans expertise humaine. Les coupes en altitude sont interpolées
         entre les niveaux de pression du modèle (${D.levels.length} niveaux, de ${D.levels[0] ? D.levels[0].p : "?"} à ${D.levels.length ? D.levels[D.levels.length - 1].p : "?"} hPa).</p>`;
-    panels.length = 0; HUM = null; TMP = null;
+    panels.length = 0; CLD = null; TMP = null;
     const add = (id, draw) => { const el = $(id); if (el) panels.push(new Panel(el, { draw })); };
     add("mg-temp", drawTemp);
-    add("mg-hum", drawHumidity);
+    add("mg-hum", drawClouds);
     add("mg-rain", drawRain);
     add("mg-snow", drawSnow);
     add("mg-up", drawUpperTemp);

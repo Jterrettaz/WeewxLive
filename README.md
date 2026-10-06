@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.56.
+et n'a pas besoin d'être joignable depuis internet. Version 1.57.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -35,7 +35,7 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.56.
   lien vers le tableau de chaque mois). Cellules colorées.
 - **Météogramme** (menu « Prévisions » → « Météogramme », `meteogram.html`) : prévision
   horaire d'un modèle Open-Meteo (ICON-D2 / EU par défaut) au sol et en altitude : temps,
-  température, humidité et nuages selon l'altitude, précipitations, neige, température et
+  température, nuages selon l'altitude, précipitations, neige, température et
   vent en altitude (isotherme 0 °C), vent et rafales.
 - **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`) : tous
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
@@ -802,7 +802,7 @@ même axe du temps (un réticule et une infobulle communs) :
 |---|---|
 | Pictogrammes | temps prévu (codes WMO), toutes les 1 à 6 h selon la largeur |
 | Température à 2 m | courbe colorée selon la température (paliers de 3 °C), min. et max. de chaque jour |
-| Humidité et nébulosité selon l'altitude | humidité relative ≥ 70 % (bleus), nuages (gris, plus foncé = plus couvert), altitude de l'isotherme 0 °C (tirets), jusqu'à `top_humidity` m |
+| Couverture nuageuse selon l'altitude | nuages (gris, plus foncé = plus couvert), altitude de l'isotherme 0 °C (tirets), jusqu'à `top_humidity` m |
 | Précipitations | quantité par heure, dont averses ; cumul sur la période dans le titre et dans l'infobulle |
 | Neige | chute de neige par heure et épaisseur au sol (sinon « pas de neige prévue ») |
 | Température et vent en altitude | température (bleus sous 0 °C, du jaune au rouge au-dessus), isothermes tous les 2 °C, isotherme 0 °C en trait épais, flèches de vent (vers où il souffle, longueur selon la force), jusqu'à `top_temperature` m |
@@ -810,7 +810,7 @@ même axe du temps (un réticule et une infobulle communs) :
 
 Les coupes en altitude sont interpolées, heure par heure, entre la valeur au sol et les
 niveaux de pression du modèle (1000 à 200 hPa, altitude géopotentielle) ; dans ces panneaux,
-l'infobulle donne aussi la température, l'humidité, la nébulosité et le vent à l'altitude
+l'infobulle donne aussi la température, la nébulosité et le vent à l'altitude
 pointée. Sur petit écran, le météogramme défile horizontalement.
 
 ```ini
@@ -819,7 +819,7 @@ pointée. Sur petit écran, le météogramme défile horizontalement.
         model = icon_seamless     # ICON-D2 (2 j), puis ICON-EU (5 j), puis ICON global
         days = 4                  # 1 à 16 jours
         cache = 3600              # secondes
-        top_humidity = 12000      # m, sommet du panneau humidité / nuages
+        top_humidity = 12000      # m, sommet du panneau des nuages
         top_temperature = 4500    # m, sommet du panneau température / vent
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
 ```
@@ -828,8 +828,8 @@ Autres modèles possibles (identifiants Open-Meteo) : `meteofrance_seamless` (AR
 ARPEGE), `best_match`, `ecmwf_ifs025`, `gfs_seamless`, `gem_seamless`, `ukmo_seamless`,
 `meteoswiss_icon_ch1`… Tous les modèles ne fournissent pas toutes les variables en altitude
 (nébulosité par niveau, par exemple) : les valeurs absentes laissent la zone vide. Une
-requête compte pour une dizaine d'appels dans le quota gratuit d'Open-Meteo (environ 90
-variables) : avec le cache d'une heure, environ 240 par jour.
+requête compte pour huit appels environ dans le quota gratuit d'Open-Meteo (environ 80
+variables) : avec le cache d'une heure, environ 200 par jour.
 
 ## 12. Couleurs des températures
 
