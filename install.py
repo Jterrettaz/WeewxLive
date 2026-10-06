@@ -9,7 +9,7 @@ def loader():
 class WeewxLiveInstaller(ExtensionInstaller):
     def __init__(self):
         super(WeewxLiveInstaller, self).__init__(
-            version="1.42",
+            version="1.43",
             name="weewx-live",
             description="Tableau de bord météo temps réel (MQTT ou archive), pages de détail et records, en JSON statique",
             author="Jacques",
@@ -35,6 +35,7 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/live/extras.js",
                     "skins/WeewxLive/live/climate.js",
                     "skins/WeewxLive/live/astro.js",
+                    "skins/WeewxLive/live/archive.js",
                     "skins/WeewxLive/live/extremes.html",
                     "skins/WeewxLive/live/extremes.js",
                     "skins/WeewxLive/live/style.css",
@@ -42,8 +43,11 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/live/minichart.js",
                     "skins/WeewxLive/live/config.json.tmpl",
                 ]),
-                ("skins/WeewxLive/live/days", [
-                    "skins/WeewxLive/live/days/day-%Y-%m-%d.html.tmpl",
+                ("skins/WeewxLive/live/archive", [
+                    "skins/WeewxLive/live/archive/header.inc",
+                    "skins/WeewxLive/live/archive/day-%Y-%m-%d.html.tmpl",
+                    "skins/WeewxLive/live/archive/month-%Y-%m.html.tmpl",
+                    "skins/WeewxLive/live/archive/year-%Y.html.tmpl",
                 ]),
                 ("skins/WeewxLive/live/vendor/leaflet", [
                     "skins/WeewxLive/live/vendor/leaflet/leaflet.js",

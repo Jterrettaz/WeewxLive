@@ -26,15 +26,15 @@
   // pages supplémentaires du menu « Données », après les paramètres
   const EXTRA = [{ id: "extremes", label: "Extrêmes", page: "extremes.html" }];
 
-  // pages situées dans un sous-dossier (pages « jour » : days/) : préfixe des liens
+  // pages situées dans un sous-dossier (pages d'archives : archive/) : préfixe des liens
   const BASE = (document.body && document.body.dataset.base) || "";
-  const isDay = /\/days\/day-\d{4}-\d{2}-\d{2}\.html$/.test(location.pathname);
+  const isArchive = /\/archive\/(day|month|year)-[\d-]+\.html$/.test(location.pathname);
 
   const q = new URLSearchParams(location.search);
   const demo = q.has("demo");
   const isDetail = /detail\.html$/.test(location.pathname);
   const extra = EXTRA.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
-  let current = isDay ? "days" : extra ? extra.id
+  let current = isArchive ? "archives" : extra ? extra.id
     : isDetail ? (q.get("period") ? "period:" + q.get("period") : q.get("p") || "outTemp") : "home";
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -49,11 +49,14 @@
     return BASE + "detail.html?" + p.toString().replace(/demo=(&|$)/, "demo$1");
   }
 
-  // Pages « jour » (si générées) : entrée vers la page du jour en cours
-  function setDayPages(cfg) {
-    if (!cfg || !cfg.dayPages || !cfg.dayPages.enable || EXTRA.some((e) => e.id === "days")) return;
-    const d = new Date(), iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    EXTRA.push({ id: "days", label: "Pages par jour", page: `days/day-${iso}.html` });
+  // Archives (pages jour / mois / année, si générées) : page la plus fine disponible
+  // pour la date du jour
+  function setArchives(cfg) {
+    const a = cfg && cfg.archives;
+    if (!a || EXTRA.some((e) => e.id === "archives")) return;
+    const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
+    const page = a.day ? `archive/day-${y}-${m}-${dd}.html` : a.month ? `archive/month-${y}-${m}.html` : a.year ? `archive/year-${y}.html` : "";
+    if (page) EXTRA.push({ id: "archives", label: "Archives", page });
   }
 
   const CHEVRON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg>';
@@ -143,14 +146,14 @@
 
   function apply(cfg) {
     if (!cfg) return;
-    setDayPages(cfg);
+    setArchives(cfg);
     setParams(cfg.parameters);
     setBrand(cfg);
   }
   if (window.WEEWX_CONFIG) {
     // tableau de bord généré par weewx : configuration intégrée à la page
     window.weewxConfig = Promise.resolve(window.WEEWX_CONFIG);
-    setDayPages(window.WEEWX_CONFIG);
+    setArchives(window.WEEWX_CONFIG);
     setParams(window.WEEWX_CONFIG.parameters);
   } else if (!demo) {
     // requête partagée avec les autres scripts de la page (window.weewxConfig)

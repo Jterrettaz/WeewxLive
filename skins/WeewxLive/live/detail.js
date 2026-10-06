@@ -1,7 +1,9 @@
 /* weewx-live — pages de détail (fichiers data/p*.json générés par weewx) :
  *   detail.html?p=<paramètre>   un paramètre (ou un panneau groupé) : statistiques +
  *                               graphique sur 24 h, 7, 30, 365 et 730 jours, l'une sous l'autre ;
- *   detail.html?period=<24h|7d|30d|365d>   une période : une section par paramètre. */
+ *   detail.html?period=<24h|7d|30d|365d>   une période : une section par paramètre ;
+ *   archive/month-AAAA-MM.html, year-AAAA.html : idem pour un mois ou une année, données
+ *   intégrées à la page (window.WEEWX_PERIOD). */
 (function () {
   "use strict";
 
@@ -18,6 +20,9 @@
     "30d": { label: "30 derniers jours", xTicks: "week" },
     "365d": { label: "365 derniers jours", xTicks: "month" },
     "730d": { label: "730 derniers jours", xTicks: "month" },   // 2 ans
+    // pages d'archives (mois, année) : jamais affichées sur la page d'un paramètre
+    month: { label: "Mois", xTicks: "week", archive: true },
+    year: { label: "Année", xTicks: "month", archive: true },
     // option « only: [ids] » : période réservée à certains paramètres
   };
 
@@ -93,7 +98,7 @@
 
   // « du … au … » d'une période
   function rangeText(period, d) {
-    const long = period === "365d" || period === "730d";
+    const long = period === "365d" || period === "730d" || period === "year";
     return `du ${fr(d.start, { weekday: "short", day: "numeric", month: "short", year: long ? "numeric" : undefined })} ${hm(d.start)}` +
       ` au ${fr(d.stop, { weekday: "short", day: "numeric", month: "short" })} ${hm(d.stop)}`;
   }
@@ -102,7 +107,7 @@
   function Section(period, el, sp) {
     const param = sp, def = P[sp];
     // périodes longues (365 et 730 jours) : pluie en cumuls mensuels, dates avec l'année
-    const LONG = period === "365d" || period === "730d";
+    const LONG = period === "365d" || period === "730d" || period === "year";
     let chart = null;
     const $q = (sel) => el.querySelector(sel);
 
@@ -409,9 +414,10 @@
   // page d'un paramètre : une section par période
   function buildSections() {
     const root = document.getElementById("sections");
-    root.innerHTML = Object.entries(PERIODS).filter(([, p]) => !p.only || p.only.includes(param))
+    root.innerHTML = Object.entries(PERIODS).filter(([, p]) => !p.archive && (!p.only || p.only.includes(param)))
       .map(([r, p]) => sectionHTML("p" + r, esc(p.label), p.label)).join("");
     for (const r of Object.keys(PERIODS)) {
+      if (PERIODS[r].archive) continue;
       const el = document.getElementById("p" + r);
       if (el) sections[r] = Section(r, el, param);
     }
@@ -423,7 +429,8 @@
     const ids = Object.keys(P).filter((k) => !PERIODS[r].only || PERIODS[r].only.includes(k));
     const link = (k) => {
       const h = window.WeewxNav ? WeewxNav.href(k) : "detail.html?p=" + encodeURIComponent(k);
-      return `<a href="${esc(h)}#p${r}">${esc(P[k].title)}</a>`;
+      const anchor = { month: "30d", year: "365d" }[r] || r;
+      return `<a href="${esc(h)}#p${anchor}">${esc(P[k].title)}</a>`;
     };
     root.innerHTML = `<nav class="p-jump" aria-label="Paramètres de la page">${ids.map((k) =>
       `<a href="#s-${esc(k)}"><i style="background:var(${P[k].color})"></i>${esc(P[k].title)}</a>`).join("")}</nav>` +
@@ -432,7 +439,9 @@
     for (const k of ids) sections[k] = Section(r, document.getElementById("s-" + k), k);
   }
 
+  const EMBED = window.WEEWX_PERIOD || null;   // page d'archive : données dans la page
   async function fetchPeriod(r) {
+    if (EMBED) return EMBED.data;
     if (DEMO) return Demo.period(r);
     const res = await fetch(`data/p${r}.json?_=${Math.floor(Date.now() / 60000)}`, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -562,20 +571,20 @@
       P[k].color = safeColor(P[k].color, "--text-2");
       if (P[k].members) P[k].members.forEach((m) => (m.color = safeColor(m.color, "--text-2")));
     }
-    const per = q.get("period");
-    if (per && PAGE_PERIODS.includes(per)) {
+    const per = EMBED ? EMBED.kind : q.get("period");
+    if (per && (EMBED || PAGE_PERIODS.includes(per))) {
       // page d'une période : tous les paramètres
       byPeriod = per;
-      if (window.WeewxNav) WeewxNav.setCurrent("period:" + per);
+      if (window.WeewxNav) WeewxNav.setCurrent(EMBED ? "archives" : "period:" + per);
       if (!Object.keys(P).length) {
         document.getElementById("sections").innerHTML = '<p class="banner">Aucun paramètre à afficher (voir [[parameters]] dans skin.conf).</p>';
         return;
       }
       document.body.classList.add("by-period");
-      document.getElementById("p-title").innerHTML = `<span class="sw" style="background:var(--text-2)"></span>${esc(PERIODS[per].label)}`;
+      if (!EMBED) document.getElementById("p-title").innerHTML = `<span class="sw" style="background:var(--text-2)"></span>${esc(PERIODS[per].label)}`;
       document.getElementById("p-last").textContent = "";
       if (DEMO) document.getElementById("mode").textContent = " · mode démo (données simulées)";
-      document.title = `${PERIODS[per].label} — ${(cfg && cfg.stationName) || "Station météo"}`;
+      if (!EMBED) document.title = `${PERIODS[per].label} — ${(cfg && cfg.stationName) || "Station météo"}`;
       buildPeriodSections(per);
       loadAll();
       matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Object.values(sections).forEach((x) => x.redraw()));
@@ -599,5 +608,5 @@
     // thème clair / sombre : légendes (couleurs de température) reconstruites
     matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Object.values(sections).forEach((x) => x.redraw()));
   })();
-  setInterval(loadAll, REFRESH);
+  if (!window.WEEWX_PERIOD) setInterval(loadAll, REFRESH);
 })();

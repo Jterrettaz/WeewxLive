@@ -589,3 +589,20 @@ button.fc-day:focus-visible, .fh-close:focus-visible { outline: 2px solid var(--
 .day-prev:hover, .day-next:hover { color: var(--text); text-decoration: underline; }
 .day-note { max-width: 1280px; margin: 6px auto 8px; padding: 0 16px; font-size: 12px; color: var(--text-3); text-align: center; }
 @media (max-width: 520px) { .day-title { font-size: 17px; } }
+
+/* ---------- Pages d'archives : sélecteur de date ---------- */
+.arch-bar { max-width: 1280px; margin: 6px auto 4px; padding: 10px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.arch-bar label { font-size: 14px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .03em; }
+.arch-bar input[type="date"] { font: inherit; font-size: 15px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); color-scheme: light dark; }
+.arch-bar input[type="date"]:focus-visible { outline: 2px solid var(--wind); outline-offset: 1px; }
+.arch-see { color: var(--text-2); font-size: 14px; }
+.arch-bar button { font: inherit; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 6px 14px;
+  border-radius: 8px; border: 1px solid var(--hum); background: var(--surface); color: var(--hum); cursor: pointer; }
+.arch-bar button:hover { background: color-mix(in srgb, var(--hum) 10%, var(--surface)); }
+.arch-bar button[aria-current="page"] { background: var(--hum); color: var(--surface); }
+.arch-bar button:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+.arch-msg { font-size: 13px; color: var(--bad); }
+.arch-page .page-head { display: none; }
+.arch-page .p-last:empty { display: none; }

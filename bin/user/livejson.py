@@ -11,7 +11,8 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
   $livejson_climate        JSON : « ce jour / ce mois au fil des ans »
   $livejson_extremes       JSON : records de la station (page « Extrêmes »)
   $livejson_astro          JSON : soleil et lune du jour (almanach weewx)
-  $livejson_day, $livejson_day_info : pages « jour » (days/day-AAAA-MM-JJ.html, SummaryByDay)
+  $livejson_day, $livejson_span, $livejson_arch : pages d'archives (archive/day-AAAA-MM-JJ,
+                           month-AAAA-MM, year-AAAA.html : SummaryByDay / Month / Year)
   $livejson_period.p24h …  JSON : pages de détail (24 h, 7, 30, 365 et 730 jours)
   $livejson_params, $livejson_station, $livejson_logo, $livejson_hardware,
   $livejson_refresh, $livejson_fc_days : valeurs pour le gabarit index.html.tmpl
@@ -43,7 +44,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.42"
+VERSION = "1.43"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -200,6 +201,19 @@ def _unit_info(column):
     target, label = GROUP_TARGET.get(group, (None, ""))
     decimals = 0 if group in ("group_percent", "group_radiation", "group_direction") else 1
     return target, label, decimals
+
+
+def _archive_options(opts):
+    """[LiveJSON] [[archives]] : pages d'archives (jour, mois, année). Compatibilité avec
+    l'ancienne section [[day_pages]] (enable, days)."""
+    old = opts.get("day_pages", {})
+    a = opts.get("archives", {})
+    return {
+        "day": to_bool(a.get("day", old.get("enable", True))),
+        "days": _int(a.get("days", old.get("days")), 365, 0, 100000),   # 0 = toutes
+        "month": to_bool(a.get("month", True)),
+        "year": to_bool(a.get("year", True)),
+    }
 
 
 def _parse_params(opts):
@@ -389,6 +403,33 @@ class _Lazy(object):
         return self._cache
 
 
+class _LazyDict(object):
+    """Dictionnaire calculé au premier accès ($livejson_arch.label dans un gabarit)."""
+
+    def __init__(self, fn):
+        self._fn = fn
+        self._d = None
+
+    def _get(self):
+        if self._d is None:
+            self._d = self._fn()
+        return self._d
+
+    def __getattr__(self, k):
+        if k.startswith("_"):
+            raise AttributeError(k)
+        try:
+            return self._get()[k]
+        except KeyError:
+            raise AttributeError(k)
+
+    def __getitem__(self, k):
+        return self._get()[k]
+
+    def has_key(self, k):
+        return k in self._get()
+
+
 class LiveJSON(SearchList):
 
     def __init__(self, generator):
@@ -406,9 +447,7 @@ class LiveJSON(SearchList):
         self.radar = dict(opts.get("radar", {}))
         self.satellite = dict(opts.get("satellite", {}))
         self.astro = dict(opts.get("astro", {}))
-        dp = opts.get("day_pages", {})
-        self.day_pages = to_bool(dp.get("enable", True))
-        self.day_pages_days = _int(dp.get("days"), 365, 0, 100000)    # 0 = depuis le début
+        self.arch = _archive_options(opts)
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
         # mm : pluie journalière minimale d'un jour de « période de pluie »
@@ -489,7 +528,10 @@ class LiveJSON(SearchList):
             "livejson_astro": _Lazy(lambda: self._dump(self.astro_data(stop, db_lookup))),
             # pages « jour » (gabarit days/day-%Y-%m-%d.html.tmpl, timespan = la journée)
             "livejson_day": _Lazy(lambda: self._dump(self.day_data(timespan, db_lookup)).replace("</", "<\\/")),
-            "livejson_day_info": self.day_info(timespan),
+            # pages « mois » et « année » : statistiques et séries journalières de la période
+            "livejson_span": _Lazy(lambda: self._dump(self.span_data(timespan, db_lookup)).replace("</", "<\\/")),
+            # dates, titres et liens des pages d'archives (sélecteur de date compris)
+            "livejson_arch": _LazyDict(lambda: self.arch_info(timespan, db_lookup)),
             # gabarit index.html.tmpl : paramètres (chaînes déjà échappées pour le HTML),
             # nom de la station et configuration à intégrer dans la page
             "livejson_params": self.template_params(),
@@ -562,7 +604,7 @@ class LiveJSON(SearchList):
             "latitude": lat,
             "longitude": lon,
             # pages « jour » : days/day-AAAA-MM-JJ.html
-            "dayPages": {"enable": self.day_pages, "days": self.day_pages_days},
+            "archives": {k: self.arch[k] for k in ("day", "days", "month", "year")},
             # « Soleil et Lune » : almanach weewx (data/astro.json)
             "astro": {"enable": to_bool(self.astro.get("enable", True))},
             "forecast": {
@@ -758,7 +800,7 @@ class LiveJSON(SearchList):
         t1 = time.time()
         dbm = db_lookup(self.binding)
         day_span = self._day_span_of(timespan)
-        stop = min(int(day_span.stop), int(timespan.stop))
+        stop = min(int(day_span.stop), int(timespan.stop), int(dbm.lastGoodStamp() or day_span.stop))
         series = self._raw_series(TimeSpan(day_span.start, stop), dbm)
         out = {
             "version": VERSION, "generated": int(time.time()), "stop": stop,
@@ -769,23 +811,54 @@ class LiveJSON(SearchList):
         log.debug("livejson: page jour générée en %.2f s", time.time() - t1)
         return out
 
-    def day_info(self, timespan):
-        """Date de la page « jour » et liens vers la veille / le lendemain."""
-        day_span = self._day_span_of(timespan)
-        d = datetime.date.fromtimestamp(day_span.start + 43200)
-        name = lambda x: "day-%s.html" % x.strftime("%Y-%m-%d")
-        prev_d, next_d = d - datetime.timedelta(days=1), d + datetime.timedelta(days=1)
-        today = datetime.date.fromtimestamp(getattr(self.generator, "gen_ts", None) or time.time())
-        first = None
-        if self.day_pages_days:
-            first = today - datetime.timedelta(days=self.day_pages_days - 1)
-        return {
-            "label": "%s %d %s %d" % (WEEKDAYS[d.weekday()], d.day, MONTHS[d.month - 1], d.year),
-            "iso": d.isoformat(),
-            "prev": name(prev_d) if first is None or prev_d >= first else "",
-            "next": name(next_d) if next_d <= today else "",
-            "today": name(today),
-        }
+    def span_data(self, timespan, db_lookup):
+        """Pages « mois » / « année » : même structure que les pages de détail (résolution
+        journalière), du début de la période à sa fin (ou à la dernière archive)."""
+        t1 = time.time()
+        dbm = db_lookup(self.binding)
+        last = dbm.lastGoodStamp() or timespan.stop
+        stop = min(int(timespan.stop), int(last))
+        out = self._period_payload("span", int(timespan.start), stop, "day", dbm)
+        out["end"] = int(timespan.stop)
+        log.debug("livejson: page d'archive générée en %.2f s", time.time() - t1)
+        return out
+
+    def arch_info(self, timespan, db_lookup):
+        """Titre, liens précédent / suivant et bornes du sélecteur de date des pages
+        d'archives (le type de page se déduit de la durée de « timespan »)."""
+        dbm = db_lookup(self.binding)
+        first_ts = dbm.firstGoodStamp() or timespan.start
+        gen = getattr(self.generator, "gen_ts", None) or dbm.lastGoodStamp() or time.time()
+        first = datetime.date.fromtimestamp(first_ts)
+        today = datetime.date.fromtimestamp(gen - 1)
+        a = self.arch
+        day_first = max(first, today - datetime.timedelta(days=a["days"] - 1)) if a["days"] else first
+        d = datetime.date.fromtimestamp(timespan.start + 43200)
+        length = timespan.stop - timespan.start
+
+        def fname(kind, x):
+            return {"day": "day-%04d-%02d-%02d.html" % (x.year, x.month, x.day),
+                    "month": "month-%04d-%02d.html" % (x.year, x.month),
+                    "year": "year-%04d.html" % x.year}[kind]
+
+        info = {"first": first.isoformat(), "today": today.isoformat(), "dayFirst": day_first.isoformat(),
+                "day": a["day"], "month": a["month"], "year": a["year"], "iso": d.isoformat()}
+        if length <= 90000:                                  # journée
+            prev_d, next_d = d - datetime.timedelta(days=1), d + datetime.timedelta(days=1)
+            info.update(kind="day", label="%s %d %s %d" % (WEEKDAYS[d.weekday()], d.day, MONTHS[d.month - 1], d.year),
+                        prev=fname("day", prev_d) if prev_d >= day_first else "",
+                        next=fname("day", next_d) if next_d <= today else "")
+        elif length <= 32 * 86400:                           # mois
+            pm = datetime.date(d.year - (d.month == 1), (d.month - 2) % 12 + 1, 1)
+            nm = datetime.date(d.year + (d.month == 12), d.month % 12 + 1, 1)
+            info.update(kind="month", label="%s %d" % (MONTHS[d.month - 1], d.year),
+                        prev=fname("month", pm) if pm >= first.replace(day=1) else "",
+                        next=fname("month", nm) if nm <= today else "")
+        else:                                                # année
+            info.update(kind="year", label="Année %d" % d.year,
+                        prev=fname("year", datetime.date(d.year - 1, 1, 1)) if d.year > first.year else "",
+                        next=fname("year", datetime.date(d.year + 1, 1, 1)) if d.year < today.year else "")
+        return info
 
     # ------------------------------------------------------------------
     # Pages de détail
@@ -801,10 +874,15 @@ class LiveJSON(SearchList):
             # (un enregistrement de 00:00 appartient à la veille, d'où stop - 1)
             d = datetime.date.fromtimestamp(stop - 1) - datetime.timedelta(days=ndays - 1)
             start = int(time.mktime(d.timetuple()))
-        span = TimeSpan(start, stop)
         # périodes limitées à certaines mesures (PERIOD_SERIES_ONLY) : calculs restreints
-        only = PERIOD_SERIES_ONLY.get(name)
+        out = self._period_payload(name, start, stop, resolution, dbm, PERIOD_SERIES_ONLY.get(name))
+        log.debug("livejson: période %s générée en %.2f s", name, time.time() - t1)
+        return out
 
+    def _period_payload(self, name, start, stop, resolution, dbm, only=None):
+        """Statistiques et séries d'une période [start, stop] (pages de détail, pages
+        « mois » et « année »)."""
+        span = TimeSpan(start, stop)
         out = {
             "version": VERSION,
             "period": name,
@@ -825,7 +903,6 @@ class LiveJSON(SearchList):
                 out["series"] = daily
             out["daily"] = {k: daily.get(k, {}).get("sum", []) for k in self.sum_keys}
             out["days"] = self._day_counts(daily)
-        log.debug("livejson: période %s générée en %.2f s", name, time.time() - t1)
         return out
 
     def _raw_series(self, span, dbm):
@@ -1383,23 +1460,25 @@ class LiveJSON(SearchList):
 
 
 # ----------------------------------------------------------------------
-# Générateur Cheetah du skin : celui de weewx, avec l'option [LiveJSON] [[day_pages]] pour
-# les pages « jour » (section [[SummaryByDay]]) : désactivation (enable = false) ou limite
-# aux N derniers jours (days = N ; 0 = depuis le début des données).
+# Générateur Cheetah du skin : celui de weewx, avec l'option [LiveJSON] [[archives]] pour
+# les pages d'archives (sections [[SummaryByDay]], [[SummaryByMonth]], [[SummaryByYear]]) :
+# désactivation par type (day / month / year = false) et limite des pages « jour » aux N
+# derniers jours (days = N ; 0 = depuis le début des données).
 # ----------------------------------------------------------------------
 class LiveCheetahGenerator(CheetahGenerator):
 
     def generate(self, section, section_name, gen_ts):
-        if section_name != "SummaryByDay":
+        kinds = {"SummaryByDay": "day", "SummaryByMonth": "month", "SummaryByYear": "year"}
+        if section_name not in kinds:
             return CheetahGenerator.generate(self, section, section_name, gen_ts)
-        opts = self.skin_dict.get("LiveJSON", {}).get("day_pages", {})
-        if not to_bool(opts.get("enable", True)):
+        a = _archive_options(self.skin_dict.get("LiveJSON", {}))
+        kind = kinds[section_name]
+        if not a[kind]:
             return 0
-        days = _int(opts.get("days"), 365, 0, 100000)
-        if not days:
+        if kind != "day" or not a["days"]:
             return CheetahGenerator.generate(self, section, section_name, gen_ts)
         ref = gen_ts or time.time()
-        first = datetime.date.fromtimestamp(ref) - datetime.timedelta(days=days - 1)
+        first = datetime.date.fromtimestamp(ref) - datetime.timedelta(days=a["days"] - 1)
         first_ts = int(time.mktime(first.timetuple()))
         gd = CheetahGenerator.generator_dict
         orig = gd["SummaryByDay"]
