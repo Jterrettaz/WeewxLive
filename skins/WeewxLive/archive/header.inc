@@ -2,7 +2,7 @@
 ## date (archive.js) et navigation période précédente / suivante. Variable $a = $livejson_arch.
 #set $prev_txt = {'day': '‹ Veille', 'month': '‹ Mois précédent', 'year': '‹ Année précédente'}[$a.kind]
 #set $next_txt = {'day': 'Lendemain ›', 'month': 'Mois suivant ›', 'year': 'Année suivante ›'}[$a.kind]
-#include "live/archive/brand.inc"
+#include "archive/brand.inc"
 
   <!-- sélecteur de date : page du jour, du mois ou de l'année contenant la date choisie -->
   <form class="arch-bar" id="arch-bar" data-first="$a.first" data-today="$a.today" data-day-first="$a.dayFirst" onsubmit="return false">

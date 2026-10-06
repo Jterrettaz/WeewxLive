@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.54.
+et n'a pas besoin d'être joignable depuis internet. Version 1.55.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -50,8 +50,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.54.
                          │                 │                            ▼
                          └─ rapport        │                       navigateur
                             WeewxLive ─► FTP/RSYNC ─► hébergement web ──┘
-                            (JSON à chaque │   (sortant)   live/index.html
-                             archive)      │               live/data/*.json
+                            (JSON à chaque │   (sortant)   index.html
+                             archive)      │               data/*.json
 ```
 
 Toutes les connexions partent du serveur weewx vers l'extérieur (FTP/rsync, MQTT) :
@@ -64,27 +64,28 @@ aucun port à ouvrir sur votre box.
 | `install.py` | installeur pour `weectl extension install` |
 | `bin/user/livejson.py` | extension weewx (SearchList) : calcule tous les fichiers JSON et les valeurs du gabarit |
 | `skins/WeewxLive/skin.conf` | configuration du rapport : paramètres affichés, MQTT, prévisions, cartes, extrêmes |
-| `skins/WeewxLive/live/panels.inc` | panneaux des paramètres, partagés par le tableau de bord et les pages d'archives « jour » |
-| `skins/WeewxLive/live/astro.inc` | panneau « Soleil et Lune » du tableau de bord |
-| `skins/WeewxLive/live/archive/day-%Y-%m-%d.html.tmpl` | page d'archives « jour » (une par journée) |
-| `skins/WeewxLive/live/archive/month-%Y-%m.html.tmpl`, `year-%Y.html.tmpl` | pages d'archives « mois » et « année » |
-| `skins/WeewxLive/live/archive/header.inc`, `archive.js` | en-tête commun des archives : menu, sélecteur de date, précédent / suivant |
-| `skins/WeewxLive/live/archive/brand.inc` | marque (logo, nom) et menu des pages du dossier `archive/` |
-| `skins/WeewxLive/live/archive/climato-%Y-%m.html.tmpl`, `climato-%Y.html.tmpl`, `climato.js` | tableaux climatologiques mensuel et annuel |
-| `skins/WeewxLive/live/index.html.tmpl`, `app.js` | tableau de bord : gabarit Cheetah (un panneau par paramètre de `[[parameters]]`, configuration intégrée à la page) et script temps réel |
-| `skins/WeewxLive/live/extras.js` | prévisions, radar et satellite du tableau de bord |
-| `skins/WeewxLive/live/climate.js` | « Ce jour et ce mois au fil des ans » |
-| `skins/WeewxLive/live/astro.js` | « Soleil et Lune » (affichage des données de l'almanach weewx) |
-| `skins/WeewxLive/live/detail.html`, `detail.js` | pages de détail par paramètre |
-| `skins/WeewxLive/live/extremes.html`, `extremes.js` | page « Extrêmes » |
-| `skins/WeewxLive/live/ensembles.html`, `ensembles.js` | page « Prévisions — Ensembles » |
-| `skins/WeewxLive/live/nav.js` | menu commun ; nom, sous-titre et logo des pages statiques |
-| `skins/WeewxLive/live/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
-| `skins/WeewxLive/live/style.css` | thème (clair / sombre) |
-| `skins/WeewxLive/live/data/*.json.tmpl`, `config.json.tmpl` | gabarits des fichiers JSON |
-| `skins/WeewxLive/live/vendor/leaflet/` | bibliothèque de cartes Leaflet 1.9.4 (RainViewer / EUMETSAT) |
+| `skins/WeewxLive/panels.inc` | panneaux des paramètres, partagés par le tableau de bord et les pages d'archives « jour » |
+| `skins/WeewxLive/astro.inc` | panneau « Soleil et Lune » du tableau de bord |
+| `skins/WeewxLive/archive/day-%Y-%m-%d.html.tmpl` | page d'archives « jour » (une par journée) |
+| `skins/WeewxLive/archive/month-%Y-%m.html.tmpl`, `year-%Y.html.tmpl` | pages d'archives « mois » et « année » |
+| `skins/WeewxLive/archive/header.inc`, `archive.js` | en-tête commun des archives : menu, sélecteur de date, précédent / suivant |
+| `skins/WeewxLive/archive/brand.inc` | marque (logo, nom) et menu des pages du dossier `archive/` |
+| `skins/WeewxLive/archive/climato-%Y-%m.html.tmpl`, `climato-%Y.html.tmpl`, `climato.js` | tableaux climatologiques mensuel et annuel |
+| `skins/WeewxLive/index.html.tmpl`, `app.js` | tableau de bord : gabarit Cheetah (un panneau par paramètre de `[[parameters]]`, configuration intégrée à la page) et script temps réel |
+| `skins/WeewxLive/extras.js` | prévisions, radar et satellite du tableau de bord |
+| `skins/WeewxLive/climate.js` | « Ce jour et ce mois au fil des ans » |
+| `skins/WeewxLive/astro.js` | « Soleil et Lune » (affichage des données de l'almanach weewx) |
+| `skins/WeewxLive/detail.html`, `detail.js` | pages de détail par paramètre |
+| `skins/WeewxLive/extremes.html`, `extremes.js` | page « Extrêmes » |
+| `skins/WeewxLive/ensembles.html`, `ensembles.js` | page « Prévisions — Ensembles » |
+| `skins/WeewxLive/nav.js` | menu commun ; nom, sous-titre et logo des pages statiques |
+| `skins/WeewxLive/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
+| `skins/WeewxLive/style.css` | thème (clair / sombre) |
+| `skins/WeewxLive/data/*.json.tmpl`, `config.json.tmpl` | gabarits des fichiers JSON |
+| `skins/WeewxLive/vendor/leaflet/` | bibliothèque de cartes Leaflet 1.9.4 (RainViewer / EUMETSAT) |
 
-weewx produit dans `HTML_ROOT/live/` :
+weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
+[Dossier de sortie](#dossier-de-sortie-html_root)) :
 
 | Fichier | Contenu | Régénération |
 |---|---|---|
@@ -134,6 +135,16 @@ avec weewx 4, déplacez la section à la main.
 `minichart.js`). Placez vos réglages dans `weewx.conf` (voir
 [Conserver ses réglages](#conserver-ses-réglages-lors-des-mises-à-jour-weewxconf)).
 
+**Mise à jour depuis une version antérieure à 1.55** (fichiers du skin déplacés de
+`skins/WeewxLive/live/` vers `skins/WeewxLive/`) :
+
+1. réglez `HTML_ROOT` dans `[[WeewxLive]]` de `weewx.conf` (voir
+   [Dossier de sortie](#dossier-de-sortie-html_root)) ;
+2. déplacez vos fichiers personnels : `live/img/` (logo) vers `skins/WeewxLive/img/`,
+   `live/vendor/mqtt.min.js` vers `skins/WeewxLive/vendor/` ;
+3. supprimez l'ancien dossier `skins/WeewxLive/live/` (il n'est plus utilisé) ;
+4. redémarrez weewx.
+
 ## 2. Envoi vers l'hébergement web
 
 Utilisez le rapport FTP ou RSYNC standard de weewx :
@@ -143,6 +154,7 @@ Utilisez le rapport FTP ou RSYNC standard de weewx :
     [[WeewxLive]]
         skin = WeewxLive
         enable = true
+        HTML_ROOT = public_html/live   # dossier de sortie (voir ci-dessous)
 
     [[FTP]]
         skin = Ftp
@@ -150,7 +162,7 @@ Utilisez le rapport FTP ou RSYNC standard de weewx :
         user = moncompte
         password = ********
         server = ftp.mon-hebergeur.fr
-        path = /www/meteo          # la page sera sur https://mon-site/meteo/live/
+        path = /www/meteo          # avec HTML_ROOT = public_html/live : https://mon-site/meteo/live/
         secure_ftp = true
 ```
 
@@ -166,9 +178,32 @@ ou
         delete = false
 ```
 
-`FTP`/`RSYNC` envoient tout le contenu de `HTML_ROOT`, donc le dossier `live/` avec le reste
-(skin Seasons, etc.). Paquet Debian/Ubuntu : `HTML_ROOT = /var/www/html/weewx`, la page
-locale est alors aussi visible sur `http://serveur-weewx/weewx/live/`.
+`FTP`/`RSYNC` envoient tout le contenu de `HTML_ROOT` (celui de `[StdReport]`), donc le
+dossier de WeewxLive avec le reste (skin Seasons, etc.).
+
+### Dossier de sortie (`HTML_ROOT`)
+
+Depuis la version 1.55, les fichiers du skin sont à la racine de `skins/WeewxLive/` (il n'y a
+plus de sous-dossier `live/`) : weewx génère donc les pages **à la racine du `HTML_ROOT` du
+rapport**. L'installeur ne règle pas ce dossier ; choisissez-le dans `weewx.conf` :
+
+```ini
+[StdReport]
+    HTML_ROOT = public_html            # dossier commun (Seasons, FTP…)
+    [[WeewxLive]]
+        skin = WeewxLive
+        HTML_ROOT = public_html/live   # même adresse qu'avant la 1.55 : …/live/
+```
+
+- Sans `HTML_ROOT` dans `[[WeewxLive]]`, les pages sont écrites directement dans le
+  `HTML_ROOT` commun : `index.html` y **remplace celui du skin Seasons** s'il est actif.
+- Un chemin relatif part de `WEEWX_ROOT` ; avec le paquet Debian/Ubuntu (`HTML_ROOT =
+  /var/www/html/weewx`), indiquez le chemin complet, par exemple
+  `HTML_ROOT = /var/www/html/weewx/live` (page locale sur `http://serveur-weewx/weewx/live/`).
+- Si le dossier choisi est dans le `HTML_ROOT` commun, le rapport FTP / RSYNC l'envoie avec
+  le reste ; sinon, configurez son envoi séparément.
+- Ancienne installation : les fichiers déjà générés dans `…/live/` restent en place ; avec
+  `HTML_ROOT = public_html/live`, ils sont simplement mis à jour.
 
 ### Fréquence
 
@@ -231,11 +266,11 @@ Créez deux comptes sur le broker : `weewx` (écriture sur `weather/#`) et un co
 Sans copie locale, la page charge `mqtt.js` depuis unpkg.com. Pour l'héberger avec la page :
 
 ```bash
-mkdir -p skins/WeewxLive/live/vendor
-curl -L -o skins/WeewxLive/live/vendor/mqtt.min.js https://unpkg.com/mqtt@5/dist/mqtt.min.js
+mkdir -p skins/WeewxLive/vendor
+curl -L -o skins/WeewxLive/vendor/mqtt.min.js https://unpkg.com/mqtt@5/dist/mqtt.min.js
 ```
 
-(le dossier `live/vendor/` est déjà prévu dans `copy_always`).
+(le dossier `vendor/` est déjà prévu dans `copy_always`).
 
 ### Sans MQTT (mise à jour à chaque archive)
 
@@ -288,7 +323,7 @@ Le sous-titre des pages est le modèle de station déclaré par weewx (`[Station
 ### Logo
 
 Un logo peut s'afficher à gauche du nom de la station (toutes les pages) : déposez l'image
-dans `skins/WeewxLive/live/img/` (copiée avec le site) et indiquez-la :
+dans `skins/WeewxLive/img/` (copiée avec le site) et indiquez-la :
 
 ```ini
     logo = img/logo.png        # ou une adresse https://…
@@ -301,10 +336,10 @@ dans `skins/WeewxLive/live/img/` (copiée avec le site) et indiquez-la :
 ```bash
 sudo systemctl restart weewx
 weectl report run WeewxLive        # weewx 5 : génération immédiate, sans attendre l'archive
-ls HTML_ROOT/live/data/
+ls <HTML_ROOT de WeewxLive>/data/
 ```
 
-Puis ouvrir `https://mon-site/…/live/`. Le pied de page indique l'heure de génération de
+Puis ouvrir la page (par exemple `https://mon-site/…/live/` avec le réglage ci-dessus). Le pied de page indique l'heure de génération de
 l'historique ; la pastille en haut à droite l'état de la connexion (« En direct »,
 « Archive weewx », « Pas de données »…).
 
@@ -350,7 +385,7 @@ d'affichage**.
   `--press`…) ; toute autre valeur est ignorée.
 - Un paramètre en °C (ex. température intérieure) a sa courbe colorée selon la température.
 - Le tableau de bord (`index.html`) est **généré par weewx** à partir de
-  `live/index.html.tmpl` : panneaux, titres et ordre suivent `[[parameters]]`, et la
+  `index.html.tmpl` : panneaux, titres et ordre suivent `[[parameters]]`, et la
   configuration est intégrée à la page. Après une modification, la page est régénérée à
   l'archive suivante (ou par `weectl report run WeewxLive`).
 - L'unité est déduite de la colonne weewx et convertie ; `unit = …` impose le libellé.
@@ -517,7 +552,7 @@ Conditions d'utilisation (les mentions sont déjà affichées) :
 - **EUMETSAT** : images sous licence CC BY 4.0, mention « Contains modified EUMETSAT Meteosat data ».
 - **Fond de carte** : © OpenStreetMap, © CARTO (usage non commercial).
 - **Leaflet** (BSD-2, utilisé seulement par RainViewer et EUMETSAT) est inclus dans
-  `live/vendor/leaflet/` ; s'il manque, il est chargé depuis cdnjs.
+  `vendor/leaflet/` ; s'il manque, il est chargé depuis cdnjs.
 
 Les noms des couches EUMETView peuvent évoluer : liste à jour dans le
 [GetCapabilities](https://view.eumetsat.int/geoserver/ows?service=WMS&version=1.3.0&request=GetCapabilities).
@@ -577,9 +612,9 @@ Pages statiques générées dans `archive/` (section `[[SummaryByDay]]`, `[[Summ
 
 | Page | Gabarit | Contenu |
 |---|---|---|
-| `archive/day-AAAA-MM-JJ.html` | `live/archive/day-%Y-%m-%d.html.tmpl` | tous les panneaux du tableau de bord pour ce jour : min. et max. avec l'heure, cumuls, graphique de 0 h à 24 h, rose des vents ; la grande valeur est la dernière mesure de la journée |
-| `archive/month-AAAA-MM.html` | `live/archive/month-%Y-%m.html.tmpl` | une section par paramètre (statistiques puis graphique jour par jour), comme les pages de période |
-| `archive/year-AAAA.html` | `live/archive/year-%Y.html.tmpl` | idem, sur l'année |
+| `archive/day-AAAA-MM-JJ.html` | `archive/day-%Y-%m-%d.html.tmpl` | tous les panneaux du tableau de bord pour ce jour : min. et max. avec l'heure, cumuls, graphique de 0 h à 24 h, rose des vents ; la grande valeur est la dernière mesure de la journée |
+| `archive/month-AAAA-MM.html` | `archive/month-%Y-%m.html.tmpl` | une section par paramètre (statistiques puis graphique jour par jour), comme les pages de période |
+| `archive/year-AAAA.html` | `archive/year-%Y.html.tmpl` | idem, sur l'année |
 
 En haut de chaque page : **« Historique de la station — choix de la date »** (calendrier) et
 boutons **Jour / Mois / Année** qui ouvrent la page du jour, du mois ou de l'année contenant
@@ -614,7 +649,7 @@ ces options), déclaré dans `[Generators]` de `skin.conf`.
 
 ### Climatologie mensuelle
 
-`archive/climato-AAAA-MM.html` (gabarit `live/archive/climato-%Y-%m.html.tmpl`, section
+`archive/climato-AAAA-MM.html` (gabarit `archive/climato-%Y-%m.html.tmpl`, section
 `[[SummaryByMonth]]`, option `climato` de `[[archives]]`), menu **« Climatologie »** →
 **« Climatologie mensuelle »** (mois en cours). Un tableau par mois, une ligne par jour
 (de 0 h à 24 h) :
@@ -641,7 +676,7 @@ kPa) ; celles de la pluie, des mm (conversion depuis in et cm).
 
 ### Climatologie annuelle
 
-`archive/climato-AAAA.html` (gabarit `live/archive/climato-%Y.html.tmpl`, section
+`archive/climato-AAAA.html` (gabarit `archive/climato-%Y.html.tmpl`, section
 `[[SummaryByYear]]`, même option `climato`), menu **« Climatologie »** → **« Climatologie
 année »** (année en cours). Trois tableaux, une ligne par mois (les mois sans données
 affichent « — ») et une ligne « Année » ; l'icône à gauche du mois ouvre le tableau mensuel :
@@ -752,7 +787,7 @@ sont calculés sur 4 valeurs et sont donc moins précis.
 
 ## 11. Couleurs des températures
 
-Les échelles sont définies une seule fois dans **`live/minichart.js`** (`window.TempScale`) :
+Les échelles sont définies une seule fois dans **`minichart.js`** (`window.TempScale`) :
 
 | Échelle | Utilisée par |
 |---|---|
