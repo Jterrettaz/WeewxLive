@@ -72,10 +72,10 @@
         T("frost").map((x) => [`<b>${dur(x.dur)}</b>`, `${day(x.start)}<small>${hm(x.start)}</small>`, `${day(x.end)}<small>${hm(x.end)}</small>`, temp(x.avg), temp(x.min)]), true),
       table(`Les ${top} plus longues périodes de sécheresse`, "Jours consécutifs sans pluie mesurée",
         ["Durée (jours)", "Premier jour sec", "Dernier jour sec"],
-        T("dry").map((x) => [`<b>${x.days}</b>`, day(x.start), day(x.end)])),
+        T("dry").map((x) => [`<b>${esc(x.days)}</b>`, day(x.start), day(x.end)])),
       table(`Les ${top} plus longues périodes de pluie`, `Jours consécutifs avec pluie journalière > ${fmt(th.rainDay ?? 0.2)} mm`,
         ["Durée (jours)", "Premier jour pluvieux", "Dernier jour pluvieux", "Pluie totale de la période"],
-        T("wet").map((x) => [`<b>${x.days}</b>`, day(x.start), day(x.end), mm(x.total)]), true),
+        T("wet").map((x) => [`<b>${esc(x.days)}</b>`, day(x.start), day(x.end), mm(x.total)]), true),
     ];
     $("x-root").innerHTML = `${rec}
       <h3 class="x-h">Jours</h3><div class="x-grid">${days.join("")}</div>
@@ -86,16 +86,18 @@
     $("gen").textContent = d.generated ? " · générés " + new Date(d.generated * 1000).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
   }
 
+  let last = null;   // dernières données (redessin au changement de thème)
   async function load() {
     try {
       const res = await fetch("data/extremes.json?_=" + Math.floor(Date.now() / 60000), { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();
       if (d.error) throw new Error(d.error);
-      window.__extremes = d;
+      last = d;
       render(d);
     } catch (e) {
-      $("x-root").innerHTML = `<p class="banner">Records indisponibles (data/extremes.json : ${esc(e.message)}).</p>`;
+      // relecture en échec : records déjà affichés conservés
+      if (!last) $("x-root").innerHTML = `<p class="banner">Records indisponibles (data/extremes.json : ${esc(e.message)}).</p>`;
     }
   }
 
@@ -108,5 +110,5 @@
   })();
   setInterval(load, REFRESH);
   // thème clair / sombre : couleurs des températures recalculées
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => window.__extremes && render(window.__extremes));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => last && render(last));
 })();

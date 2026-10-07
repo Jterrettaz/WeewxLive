@@ -14,6 +14,7 @@
 
   const dash = document.getElementById("dash");
   if (!dash) return;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const grid = dash.querySelector("main.grid");
 
   // Liste réordonnable : conteneur, éléments, identifiant, clé de stockage
@@ -86,7 +87,6 @@
   // bouton Masquer / Afficher (kind : hb = cadre, hp = panneau)
   const hideButton = (name, kind, id, isHidden) => `<button type="button" class="dash-hide" data-${kind}="${esc(id)}"
     aria-pressed="${isHidden}" aria-label="${isHidden ? "Afficher" : "Masquer"} « ${esc(name)} »">${isHidden ? "Afficher" : "Masquer"}</button>`;
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
   function build(on) {
     BLOCKS.items().forEach((b) => {

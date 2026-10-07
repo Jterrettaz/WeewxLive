@@ -17,7 +17,7 @@
     95: ["Orage", "storm"], 96: ["Orage et grêle", "storm"], 99: ["Orage et grêle", "storm"],
   };
 
-  // Pictogrammes (dessins originaux, couleurs par jetons CSS)
+  // Pictogrammes 48 × 48
   const CLOUD = (dx = 0, dy = 0) => `<path class="i-cloud" transform="translate(${dx} ${dy})" d="M14 36h20a7.5 7.5 0 0 0 .6-15A10.5 10.5 0 0 0 14.4 19 8.5 8.5 0 0 0 14 36z"/>`;
   const SUN = (cx, cy, r) => {
     let rays = "";
@@ -47,9 +47,9 @@
   const MOON = (cx, cy, k) => `<path class="i-moon" transform="translate(${cx - 24 * k} ${cy - 24 * k}) scale(${k})" d="M27 12a12 12 0 1 0 9 19A10 10 0 0 1 27 12z"/>`;
   ICONS.moon = MOON(24, 24, 0.9);
   ICONS.mooncloud = MOON(17, 16, 0.6) + CLOUD(3, 2);
-  // variante de nuit des pictogrammes « dégagé » / « éclaircies »
+  // variante de nuit (is_day = 0) : lune au lieu du soleil ; averses -> pluie
   const nightIcon = (k, isDay) => (isDay === 0 ? ({ sun: "moon", suncloud: "mooncloud", showers: "rain" }[k] || k) : k);
   const icon = (k, label) => `<svg class="wx" viewBox="0 0 48 48" role="img" aria-label="${esc(label)}">${ICONS[k] || ICONS.cloud}</svg>`;
 
-  window.WxIcons = { WMO, ICONS, nightIcon, icon };
+  window.WxIcons = { WMO, nightIcon, icon };
 })();

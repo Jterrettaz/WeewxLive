@@ -1,6 +1,7 @@
-/* weewx-live — « Ce jour et ce mois au fil des ans » (bas du tableau de bord).
- * Données : data/climate.json (weewx, résumés journaliers) ; les valeurs du jour sont
- * complétées en temps réel par les mesures MQTT du tableau de bord (window.weewxLiveState). */
+/* weewx-live — cadre « Ce jour et ce mois au fil des ans » du tableau de bord : records
+ * des mêmes jour et mois des années passées, comparés aux valeurs actuelles ; graphiques
+ * par année. Données : data/climate.json (weewx, résumés journaliers) ; valeurs du jour
+ * complétées par les mesures du tableau de bord (app.js, window.weewxLiveState). */
 (function () {
   "use strict";
 
@@ -9,8 +10,8 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   const B = (v, u, d = 1) => `<b>${fmt(v, d)}${u ? " " + u : ""}</b>`;
-  const hm = (t) => new Date(t * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-  const dmy = (t) => new Date(t * 1000).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const hm = (t) => (isNum(t) ? new Date(t * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "--");
+  const dmy = (t) => (isNum(t) ? new Date(t * 1000).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "--");
   const dmyShort = (t) => new Date(t * 1000).toLocaleDateString("fr-FR");
   const monthName = (m) => new Date(2000, m - 1, 1).toLocaleDateString("fr-FR", { month: "long" });
   const de = (word) => (/^[aeiouyhâéèêîôû]/i.test(word) ? "d'" : "de ") + word;   // « d'octobre », « de mars »

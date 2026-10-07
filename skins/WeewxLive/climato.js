@@ -20,7 +20,7 @@
 
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const num = (v, d = 1) => v.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: d });
+  const num = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: d }) : "—");
   const withUnit = (v, u, d) => `${num(v, d)}<span class="u"> ${esc(u || "")}</span>`;
   const SECT = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
   const sector = (deg) => SECT[Math.round(deg / 45) % 8];
@@ -73,8 +73,6 @@
     const p = Math.round(4 + 18 * Math.min(1, v / max));
     return ` style="background:color-mix(in oklab, var(--text) ${p}%, var(--surface))"`;
   };
-  let windMax = 0;
-  const wStyle = (v) => grey(v, windMax);
   // pluie mensuelle (mm) : vert pâle -> bleu -> violet
   const RAIN_M = [[5, "#9ef0c0"], [20, "#5cc8e8"], [45, "#3a8de8"], [75, "#2525e6"], [110, "#7a1fd0"], [180, "#3b0a70"]];
   const rmFill = (v) => (isNum(v) && rainMm(v) > 0 ? fill(ramp(RAIN_M, rainMm(v))) : "");
@@ -159,10 +157,10 @@
     const has = (k) => days.some((r) => isNum(r[k])) || isNum(T[k]);
     const cols = { temp: has("tmin") || has("tmax"), wind: has("wind") || has("gust"), dir: has("dir"),
                    rain: has("rain"), hum: has("hum"), baro: has("baro") };
-    windMax = Math.max(0, ...days.map((r) => (isNum(r.wind) ? r.wind : 0)));
+    const windMax = Math.max(0, ...days.map((r) => (isNum(r.wind) ? r.wind : 0)));
     const ext = (k, f) => { const v = days.map((r) => r[k]).filter(isNum); return v.length ? f(...v) : null; };
     const lowMin = ext("tmin", Math.min), highMax = ext("tmax", Math.max), topGust = ext("gust", Math.max);
-    const [y, m] = (D.days[0] && D.days[0].iso || "").split("-");
+    const [y, m] = ((days[0] && days[0].iso) || "").split("-");
     const mName = m ? `${MONTHS[+m - 1]} ${y}` : "";
 
     const td = (v, u, d, style, bold) => `<td${style || ""}${bold ? ' class="cm-rec"' : ""}>${isNum(v) ? withUnit(v, u, d) : "—"}</td>`;
@@ -170,7 +168,7 @@
       const w = isNum(r.wind) ? withUnit(r.wind, U.wind, 1) : "—";
       const g = isNum(r.gust) ? ` (${withUnit(r.gust, U.gust, 1)})` : "";
       const rec = !total && isNum(r.gust) && r.gust === topGust;
-      return `<td class="cm-wind${rec ? " cm-rec" : ""}"${total ? "" : wStyle(r.wind)}>${w}${g}</td>`;
+      return `<td class="cm-wind${rec ? " cm-rec" : ""}"${total ? "" : grey(r.wind, windMax)}>${w}${g}</td>`;
     };
     const cells = (r, total) => [
       cols.temp ? td(r.tmin, U.tmin, 1, total ? "" : tFill(r.tmin), !total && r.tmin === lowMin) +
@@ -220,7 +218,7 @@
   }
 
   // ------------------------------------------------------------------
-  // Choix du mois : climato-AAAA-MM.html (si le mois est couvert par les archives)
+  // Choix du mois (climato-AAAA-MM.html) ou de l'année (climato-AAAA.html), si couvert par les archives
   // ------------------------------------------------------------------
   if (bar) {
     const msg = document.getElementById("cm-msg");

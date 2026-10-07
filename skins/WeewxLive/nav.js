@@ -1,10 +1,10 @@
-/* Menu commun aux pages : « Tableau de bord » + menu déroulant « Données » : pages par
- * période (tous les paramètres), une page de détail par paramètre de skin.conf, puis les
- * pages supplémentaires comme « Extrêmes » et « Archives » ; menu déroulant
- * « Climatologie » : tableaux climatologiques (« Climatologie mensuelle », « Climatologie
- * année ») ; menu déroulant « Prévisions » (« Météogramme », « Ensembles »).
- * Sur les pages statiques (detail.html, extremes.html), applique aussi le nom de la
- * station, le sous-titre et le logo lus dans la configuration. */
+/* weewx-live — menu commun aux pages : « Tableau de bord », puis menus déroulants
+ * « Données » (pages par période, une page de détail par paramètre de skin.conf,
+ * « Extrêmes », « Archives »), « Climatologie » (tableaux mensuel et annuel, si
+ * [[archives]] climato) et « Prévisions » (« Météogramme », « Ensembles », si activés).
+ * Fournit la configuration aux autres scripts (window.weewxConfig : intégrée à la page ou
+ * config.json) ; sur les pages statiques (detail, extremes, meteogram, ensembles), applique
+ * aussi le nom de la station, le sous-titre et le logo. */
 (function () {
   "use strict";
 
@@ -157,8 +157,7 @@
   // Liste des paramètres configurés (skin.conf [[parameters]]) : on reconstruit le menu
   // (la direction du vent n'a pas de page de détail ; un groupe a une seule page)
   function setParams(list) {
-    if (!list || !list.length) return;
-    DATA = list.filter((p) => p.id !== "windDir").map((p) => ({ id: p.id, label: p.title || p.id }));
+    if (list && list.length) DATA = list.filter((p) => p.id !== "windDir").map((p) => ({ id: p.id, label: p.title || p.id }));
     render();
   }
   // Paramètre réellement affiché par detail.js (ex. ?p= inconnu -> premier paramètre)

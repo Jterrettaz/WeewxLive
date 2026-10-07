@@ -18,9 +18,8 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
-  const fmtT = (v) => (isNum(v) ? `${fmt(v, 1)} °C` : "—");
-  const dayLabel = (iso) => isoDate(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
   const isoDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+  const dayLabel = (iso) => isoDate(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
   const tOf = (iso) => isoDate(iso).getTime() / 1000;
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const mean = (a) => (a.length ? sum(a) / a.length : null);
@@ -49,17 +48,22 @@
   // Chargement
   // ------------------------------------------------------------------
   async function load() {
+    let d;
     try {
       const opt = { cache: "no-store" };
       if (window.AbortSignal && AbortSignal.timeout) opt.signal = AbortSignal.timeout(30000);
       const r = await fetch("data/ensembles.json?_=" + Math.floor(Date.now() / 600000), opt);
       if (!r.ok) throw new Error("HTTP " + r.status);
-      D = await r.json();
-      if (D.error) throw new Error(D.error);
+      d = await r.json();
+      if (d.error) throw new Error(d.error);
+      if (!Array.isArray(d.models)) throw new Error("aucun modèle");
     } catch (e) {
-      root.innerHTML = `<p class="muted">Prévisions d'ensemble indisponibles (${esc(e.message)}).</p>`;
+      // relecture en échec : prévisions déjà affichées conservées
+      if (!D) root.innerHTML = `<p class="muted">Prévisions d'ensemble indisponibles (${esc(e.message)}).</p>`;
       return;
     }
+    if (D && d.generated && d.generated === D.generated) return;   // fichier inchangé
+    D = d;
     // version de l'extension qui a produit les données (diagnostic)
     if ($("gen") && D.version) $("gen").textContent = ` · calcul weewx-live ${D.version}`;
     MODELS = D.models.filter((m) => !m.error && m.daily && m.daily.dates && m.daily.dates.length);
@@ -67,7 +71,7 @@
     const saved = store.get("sel");
     sel = new Set((Array.isArray(saved) ? saved : []).filter((id) => MODELS.some((m) => m.id === id)));
     if (!sel.size) MODELS.forEach((m) => sel.add(m.id));
-    const hs = D.horizons || [3, 7, 10, 16];
+    const hs = horizons();
     const sh = store.get("h");
     H = hs.includes(sh) ? sh : hs.includes(D.horizon) ? D.horizon : hs[0];
     if (!MODELS.length) {
@@ -77,6 +81,9 @@
     build();
     update();
   }
+
+  // horizons proposés (jours)
+  const horizons = () => (Array.isArray(D.horizons) && D.horizons.length ? D.horizons : [3, 7, 10, 16]);
 
   function errors() {
     const bad = D.models.filter((m) => m.error);
@@ -91,15 +98,15 @@
   function build() {
     // page reconstruite (relecture des données) : anciens graphiques libérés
     Object.keys(charts).forEach((k) => { charts[k].destroy(); delete charts[k]; });
-    const hs = D.horizons || [3, 7, 10, 16];
+    const hs = horizons();
     root.innerHTML = `
       <div class="en-bar">
         <div class="en-chips" role="group" aria-label="Modèles affichés">
           ${MODELS.map((m) => `<button type="button" class="en-chip" data-id="${esc(m.id)}" style="--mc: var(${m.color})" title="${esc(m.label)}">
-            <i></i><b>${esc(m.short)}</b><span>${m.members} membres</span></button>`).join("")}
+            <i></i><b>${esc(m.short)}</b><span>${esc(m.members)} membres</span></button>`).join("")}
         </div>
         <div class="en-hz" role="group" aria-label="Horizon">
-          ${hs.map((h) => `<button type="button" data-h="${h}">${h} jours</button>`).join("")}
+          ${hs.map((h) => `<button type="button" data-h="${esc(h)}">${esc(h)} jours</button>`).join("")}
         </div>
       </div>
       <p class="en-sum" id="en-sum"></p>
@@ -139,19 +146,22 @@
   // ------------------------------------------------------------------
   const selected = () => MODELS.filter((m) => sel.has(m.id));
 
+  // fenêtre affichée : du début des séries à minuit + H jours
   function window_() {
     const S = selected();
-    const start = Math.min(...S.map((m) => m.t0));
+    const start = Math.min(...S.map((m) => m.t0).filter(isNum));
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const day0 = today.getTime() / 1000;
     return { start, day0, end: day0 + H * 86400 };
   }
 
-  // séries d'une variable (temp / wind / press) : membres, moyennes par modèle, groupées
+  // séries d'une variable (temp / wind / press) : membres, moyennes par modèle, groupées.
+  // Un modèle au pas de 3 ou 6 h publie des valeurs nulles entre ses échéances : seuls les
+  // points présents sont gardés, et l'écart toléré entre deux points suit le pas réel le plus long.
   function hourly(key, w) {
     const S = selected();
-    const step = S[0].step;
-    const members = [], perModel = [];
+    let step = 0;
+    const members = [], perModel = [], cover = [];
     const bucket = new Map();     // t -> valeurs de tous les membres
     for (const m of S) {
       const rows = (m.series && m.series[key]) || [];
@@ -160,9 +170,8 @@
         const data = [];
         row.forEach((v, i) => {
           const t = m.t0 + i * m.step;
-          if (t > w.end) return;
+          if (t > w.end || !isNum(v)) return;
           data.push([t, v]);
-          if (!isNum(v)) return;
           if (!bucket.has(t)) bucket.set(t, []);
           bucket.get(t).push(v);
           if (!mm.has(t)) mm.set(t, []);
@@ -170,9 +179,17 @@
         });
         members.push({ m, data });
       }
-      perModel.push({ m, data: [...mm.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, mean(v)]) });
+      const ts = [...mm.keys()].sort((a, b) => a - b);
+      let ms = m.step || 3600;    // pas réel : plus petit écart entre deux échéances présentes
+      for (let j = 1; j < ts.length; j++) ms = j === 1 ? ts[1] - ts[0] : Math.min(ms, ts[j] - ts[j - 1]);
+      step = Math.max(step, ms);
+      if (ts.length) cover.push({ has: mm, t0: ts[0], t1: ts[ts.length - 1] });
+      perModel.push({ m, data: ts.map((t) => [t, mean(mm.get(t))]) });
     }
-    const ts = [...bucket.keys()].sort((a, b) => a - b);
+    // moyenne groupée : échéances communes à tous les modèles qui couvrent cet instant
+    // (évite les dents de scie entre heures « un seul modèle » et heures « tous les modèles »)
+    const ts = [...bucket.keys()].sort((a, b) => a - b)
+      .filter((t) => cover.every((c) => t < c.t0 || t > c.t1 || c.has.has(t)));
     const grp = ts.map((t) => [t, stats(bucket.get(t))]);
     return { members, perModel, step, grp };
   }
@@ -311,7 +328,7 @@
           <th scope="col">Pluie</th><th scope="col">Vent km/h</th><th scope="col">hPa</th><th scope="col">Jours</th></tr></thead>
         <tbody>${cmp.map((c) => `<tr>
           <th scope="row"><span class="en-sq" style="background:var(${c.m.color})"></span><b>${esc(c.m.label)}</b><small>${esc(c.m.origin || "")}</small></th>
-          <td>${c.m.members}</td>
+          <td>${esc(c.m.members)}</td>
           <td>${tcol(c.tmax)}${c === hot ? '<small class="en-hot">le plus chaud</small>' : c === cold ? '<small class="en-cold">le plus frais</small>' : ""}</td>
           <td>${tcol(c.tmin)}</td><td>${isNum(c.rain) ? `${fmt(c.rain, 1)} mm` : "—"}</td>
           <td>${fmt(c.wind, 0)}</td><td>${fmt(c.press, 0)}</td><td>${c.days}/${days.length}</td></tr>`).join("")}</tbody>
@@ -342,6 +359,8 @@
   }
 
   // ------------------------------------------------------------------
+  // Affichage selon les modèles cochés et l'horizon
+  // ------------------------------------------------------------------
   function update() {
     root.querySelectorAll(".en-chip").forEach((b) => b.setAttribute("aria-pressed", sel.has(b.dataset.id) ? "true" : "false"));
     root.querySelectorAll(".en-hz button").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.h === H ? "true" : "false"));
@@ -363,5 +382,5 @@
 
   load();
   // relecture toutes les 30 minutes (données recalculées par weewx)
-  setInterval(() => { if (D) load(); }, 30 * 60 * 1000);
+  setInterval(load, 30 * 60 * 1000);
 })();

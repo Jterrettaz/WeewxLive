@@ -1,8 +1,10 @@
-/* weewx-live — tableau de bord : prévisions Open-Meteo (best match),
- * radar et satellite : cartes Windy.com intégrées (par défaut), ou animations
- * RainViewer (radar) et EUMETSAT / EUMETView (satellite).
- * Prévisions : data/forecast.json publié par weewx (cache), sinon appel direct à
- * Open-Meteo avec cache dans le navigateur. Cartes : services tiers appelés par le navigateur. */
+/* weewx-live — tableau de bord : cadres « Prévisions » et « Radar et satellite ».
+ * Prévisions Open-Meteo sur plusieurs jours, modèle au choix (liste déroulante, choix
+ * mémorisé), détail heure par heure d'un jour : data/forecast.json publié par weewx (cache
+ * serveur), sinon appel direct à Open-Meteo avec cache dans le navigateur.
+ * Radar et satellite : cartes Windy.com intégrées, ou animations Leaflet RainViewer (radar)
+ * et EUMETSAT / EUMETView (satellite) sur un fond de carte configurable ([[basemap]]).
+ * Cartes chargées seulement une fois visibles ; services tiers appelés par le navigateur. */
 (function () {
   "use strict";
 
@@ -50,6 +52,10 @@
   // ==================================================================
   // codes WMO et pictogrammes : wxicons.js (partagés avec le météogramme)
   const { WMO, nightIcon, icon } = window.WxIcons;
+  // état des prévisions affichées (jour ouvert, graphiques horaires, état des modèles…) ;
+  // seq : numéro de la dernière requête (une réponse plus ancienne est ignorée)
+  const fc = { daily: null, hourly: null, open: null, charts: null, f: null, updated: "", list: null, seq: 0 };
+  const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
 
   const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
   const dirName = (d) => (d === null || d === undefined ? "" : DIRS[Math.round(d / 22.5) % 16]);
@@ -150,9 +156,11 @@
   async function loadForecast(cfg) {
     const f = cfg.forecast;
     const model = currentModel(cfg);
+    const seq = ++fc.seq;
     modelSelect(cfg);
     try {
       const j = await getForecast(cfg, model);
+      if (seq !== fc.seq) return;          // modèle changé entre-temps
       fc.updated = "";
       if (j.fetched) {
         const t = new Date(j.fetched * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -162,6 +170,7 @@
       fc.daily = j.daily; fc.hourly = j.hourly;
       if (fc.open !== null) openDay(fc.open, true);
     } catch (e) {
+      if (seq !== fc.seq) return;
       closeDay();
       fc.daily = null; fc.hourly = null;
       $("forecast").innerHTML = `<p class="muted">Prévisions indisponibles pour ce modèle (${esc(e.message)}).</p>`;
@@ -172,7 +181,7 @@
 
   // Couleur des températures : paliers de 3 °C (TempScale.textColor, minichart.js)
   // (valeur arrondie comme à l'affichage : « 0° » reste bleu même pour 0,3 °C)
-  const tcol = (v) => (window.TempScale && v !== null && v !== undefined && !isNaN(v) ? ` style="color:${TempScale.textColor(Math.round(v))}"` : "");
+  const tcol = (v) => (window.TempScale && isNum(v) ? ` style="color:${TempScale.textColor(Math.round(v))}"` : "");
   const tstep = (v) => (window.TempScale ? TempScale.stepColor(v) : "var(--temp)");
 
   function renderForecast(d, f) {
@@ -201,29 +210,26 @@
           <span class="fc-temp"><b${tcol(hi)}>${fmt(hi)}°</b><span${tcol(lo)}>${fmt(lo)}°</span></span>
           <span class="fc-bar" aria-hidden="true"><i style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%;background:linear-gradient(90deg, ${tstep(lo)}, ${tstep(hi)})"></i></span>
           <span class="fc-rain${pr > 0 ? "" : " dry"}"><span>${fmt(pr, 1)} mm</span>${pp !== null && pp !== undefined ? `<span class="pp">${fmt(pp)} %</span>` : ""}</span>
-          <span class="fc-wind">${wd !== null ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}
+          <span class="fc-wind">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}
             ${fmt(d.wind_speed_10m_max[i])} km/h ${esc(dirName(wd))}<span>raf. ${fmt(d.wind_gusts_10m_max[i])}</span></span>
         </button></li>`);
     }
     $("forecast").innerHTML = `<ol class="fc" style="--n:${n}">${days.join("")}</ol>
       <p class="fc-tip">Choisissez un jour pour voir les prévisions heure par heure.</p>`;
-    $("forecast").querySelectorAll(".fc-day").forEach((b) => b.addEventListener("click", () => {
-      const i = +b.dataset.i;
-      if (fc.open === i) closeDay(); else openDay(i);
-    }));
     const i0 = d.time.indexOf(today);
     $("fc-sun").textContent = i0 >= 0
       ? `Lever ${hm(d.sunrise[i0])} · coucher ${hm(d.sunset[i0])}${d.uv_index_max && d.uv_index_max[i0] !== null ? ` · UV max. ${fmt(d.uv_index_max[i0])}` : ""}`
       : "";
     // modèle : liste déroulante (s'il n'y en a qu'un, son nom ici)
-    const one = $("fc-select") && $("fc-select").hidden ? `modèle ${f.model === "best_match" ? "« best match »" : f.model} · ` : "";
+    const m1 = (f.models || []).find((x) => x.id === f.model);
+    const one = $("fc-select") && $("fc-select").hidden
+      ? `modèle ${m1 && m1.label ? m1.label : f.model === "best_match" ? "« best match »" : f.model} · ` : "";
     $("fc-model").textContent = one + (fc.updated || "");
   }
 
   // ------------------------------------------------------------------
   // Détail heure par heure d'un jour
   // ------------------------------------------------------------------
-  const fc = { daily: null, hourly: null, open: null, charts: null, f: null, updated: "", list: null };
 
   function hourlyCharts() {
     if (fc.charts || !window.MiniChart) return fc.charts;
@@ -275,12 +281,12 @@
       const [label, ic] = WMO[h.weather_code[k]] || ["—", "cloud"];
       const pr = h.precipitation[k], pp = h.precipitation_probability ? h.precipitation_probability[k] : null;
       const wd = h.wind_direction_10m[k];
-      return `<li class="fh-hour${t === nowH ? " now" : ""}${t < nowH ? " past" : ""}" data-t="${t}">
+      return `<li class="fh-hour${t === nowH ? " now" : ""}${t < nowH ? " past" : ""}">
         <span class="fh-h">${t === nowH ? "Maint." : new Date(t * 1000).getHours() + " h"}</span>
         ${icon(nightIcon(ic, h.is_day ? h.is_day[k] : 1), label)}
         <b class="fh-t"${tcol(h.temperature_2m[k])}>${fmt(h.temperature_2m[k])}°</b>
         <span class="fh-r${pr > 0 ? "" : " dry"}">${fmt(pr, 1)} mm${pp !== null && pp !== undefined ? `<small>${fmt(pp)} %</small>` : ""}</span>
-        <span class="fh-w">${wd !== null ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}${fmt(h.wind_speed_10m[k])}<small>raf. ${fmt(h.wind_gusts_10m[k])}</small></span>
+        <span class="fh-w">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}${fmt(h.wind_speed_10m[k])}<small>raf. ${fmt(h.wind_gusts_10m[k])}</small></span>
         <span class="fh-hu">${fmt(h.relative_humidity_2m[k])} %</span>
       </li>`;
     }).join("");
@@ -555,12 +561,21 @@
     if (cfg.latitude === null || cfg.latitude === undefined) { cfg.latitude = DEFAULTS.latitude; cfg.longitude = DEFAULTS.longitude; }
 
     $("fh-close").addEventListener("click", closeDay);
+    // choix d'un jour : détail heure par heure (écouteur unique, jours redessinés à chaque lecture)
+    $("forecast").addEventListener("click", (e) => {
+      const b = e.target.closest(".fc-day");
+      if (!b) return;
+      const i = +b.dataset.i;
+      if (fc.open === i) closeDay(); else openDay(i);
+    });
     if (cfg.forecast.enable) {
       loadForecast(cfg);
       // relecture régulière ; les caches évitent tout appel superflu à Open-Meteo
       setInterval(() => loadForecast(cfg), Math.min(Math.max(60, +cfg.forecast.cache || 3600), 900) * 1000);
-    } else $("fc-card").hidden = true;
+    } else $("fc-card").closest("section").hidden = true;
 
+    // cadre « Radar et satellite » masqué si les deux cartes sont désactivées
+    if (!cfg.radar.enable && !cfg.satellite.enable) $("radar-card").closest("section").hidden = true;
     const maps = [];
     if (!cfg.radar.enable) $("radar-card").hidden = true;
     else if (cfg.radar.provider === "windy") whenVisible($("radar-card"), () => initWindy(cfg, cfg.radar, "radar", "Carte radar Windy"));

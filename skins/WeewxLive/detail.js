@@ -96,18 +96,19 @@
   // couleur d'un paramètre : nom de variable CSS uniquement (ex. --temp)
   const safeColor = (c, d) => (/^--[\w-]+$/.test(c || "") ? c : d);
 
+  // périodes longues (365, 730 jours, année) : pluie en cumuls mensuels, dates avec l'année
+  const isLong = (period) => period === "365d" || period === "730d" || period === "year";
+
   // « du … au … » d'une période
   function rangeText(period, d) {
-    const long = period === "365d" || period === "730d" || period === "year";
-    return `du ${fr(d.start, { weekday: "short", day: "numeric", month: "short", year: long ? "numeric" : undefined })} ${hm(d.start)}` +
+    return `du ${fr(d.start, { weekday: "short", day: "numeric", month: "short", year: isLong(period) ? "numeric" : undefined })} ${hm(d.start)}` +
       ` au ${fr(d.stop, { weekday: "short", day: "numeric", month: "short" })} ${hm(d.stop)}`;
   }
 
   // Section : statistiques + graphique d'un paramètre (sp) sur une période
   function Section(period, el, sp) {
     const param = sp, def = P[sp];
-    // périodes longues (365 et 730 jours) : pluie en cumuls mensuels, dates avec l'année
-    const LONG = period === "365d" || period === "730d" || period === "year";
+    const LONG = isLong(period);
     let chart = null;
     const $q = (sel) => el.querySelector(sel);
 
@@ -128,9 +129,15 @@
     // Statistiques (tuiles)
     // ------------------------------------------------------------------
     function tiles(d) {
-      const st = d.stats || {}, days = d.days, u = def.unit, n = def.dec;
+      const st = d.stats || {}, S = d.series || {}, days = d.days, th = (days && days.thresholds) || {};
+      const u = def.unit, n = def.dec;
       const T = [];
       const add = (label, value, unit, sub, dec = n) => T.push({ label, value: fmt(value, dec), unit: isNum(value) ? unit : "", sub: sub || "" });
+      // pluie sur 24 h : plus forte heure [début, mm, fin]
+      const maxHour = (hours) => {
+        const best = hours.reduce((a, b) => (!a || b[1] > a[1] ? b : a), null);
+        add("Max. en 1 h", best ? best[1] : 0, u, best ? `${fr(best[0], { weekday: "short" })} ${hm(best[0])} – ${hm(best[2])}` : "");
+      };
 
       if (def.kind === "band") {
         const s = st[def.obs] || {};
@@ -141,11 +148,11 @@
           add(param === "outTemp" ? "Amplitude" : "Écart", isNum(s.max) && isNum(s.min) ? s.max - s.min : null, u, "entre min. et max.");
         }
         if (param === "outTemp" && days) {
-          add("Jours de gel", days.frostDays, "", `min. < ${fmt(days.thresholds.frost, 0)} °C · sur ${days.days} j`, 0);
-          add("Jours chauds", days.hotDays, "", `max. ≥ ${fmt(days.thresholds.hot, 0)} °C · sur ${days.days} j`, 0);
+          add("Jours de gel", days.frostDays, "", `min. < ${fmt(th.frost, 0)} °C · sur ${days.days} j`, 0);
+          add("Jours chauds", days.hotDays, "", `max. ≥ ${fmt(th.hot, 0)} °C · sur ${days.days} j`, 0);
         }
         if (param === "radiation" && d.resolution === "day") {
-          const mx = ((d.series.radiation || {}).max || []).map((p) => p[1]);
+          const mx = ((S.radiation || {}).max || []).map((p) => p[1]);
           if (mx.length) add("Moyenne des maxima", mx.reduce((a, b) => a + b, 0) / mx.length, u, "maximum journalier moyen");
         }
       } else if (def.kind === "wind") {
@@ -159,7 +166,7 @@
         add("Maximum", s.max, u, when(s.maxTime));
         add("Moyenne", s.avg, u);
         if (d.resolution === "day") {
-          const mx = (((d.series || {})[def.obs] || {}).max || []).map((p) => p[1]);
+          const mx = ((S[def.obs] || {}).max || []).map((p) => p[1]);
           if (mx.length) add("Moyenne des maxima", mx.reduce((a, b) => a + b, 0) / mx.length, u, "maximum journalier moyen");
         }
       } else if (def.kind === "rain" && def.generic) {
@@ -170,22 +177,19 @@
           add("Max. journalier", best ? best[1] : null, u, best && best[1] ? dayLabel(best[0]) : "");
           add("Jours non nuls", daily.filter((x) => x[1] > 0).length, "", `sur ${daily.length} j`, 0);
         } else {
-          const hours = rainBuckets(d).filter((b) => b[1] > 0);
-          const best = hours.reduce((a, b) => (!a || b[1] > a[1] ? b : a), null);
-          add("Max. en 1 h", best ? best[1] : 0, u, best ? `${fr(best[0], { weekday: "short" })} ${hm(best[0])} – ${hm(best[2])}` : "");
+          maxHour(rainBuckets(d).filter((b) => b[1] > 0));
         }
       } else if (def.kind === "rain") {
         const r = st.rain || {}, rr = st.rainRate || {};
         add("Cumul", r.sum, u);
         add("Intensité max.", rr.max, "mm/h", rr.max ? when(rr.maxTime) : "");
         if (days) {
-          add("Jours de pluie", days.rainDays, "", `≥ ${fmt(days.thresholds.rain, 1)} mm · sur ${days.days} j`, 0);
+          add("Jours de pluie", days.rainDays, "", `≥ ${fmt(th.rain, 1)} mm · sur ${days.days} j`, 0);
           const m = days.maxDailyRain;
           add("Max. journalier", m ? m.value : null, u, m && m.value ? dayLabel(m.time) : "");
         } else {
           const hours = rainBuckets(d).filter((b) => b[1] > 0);
-          const best = hours.reduce((a, b) => (!a || b[1] > a[1] ? b : a), null);
-          add("Max. en 1 h", best ? best[1] : 0, u, best ? `${fr(best[0], { weekday: "short" })} ${hm(best[0])} – ${hm(best[2])}` : "");
+          maxHour(hours);
           add("Heures de pluie", hours.length, "", "au moins une averse", 0);
         }
       }
@@ -223,7 +227,7 @@
     function rainBuckets(d) {
       if (d.resolution === "raw") {
         const m = new Map();
-        for (const [t, v] of (d.series[def.sumKey] || [])) {
+        for (const [t, v] of ((d.series || {})[def.sumKey] || [])) {
           const h = Math.floor((t - 1) / 3600) * 3600;   // horodatage weewx = fin d'intervalle
           m.set(h, (m.get(h) || 0) + v);
         }
@@ -238,7 +242,7 @@
 
     function rainCumul(d) {
       const fine = d.resolution === "raw"
-        ? (d.series[def.sumKey] || []).map(([t, v]) => [t, v])
+        ? ((d.series || {})[def.sumKey] || [])
         : ((d.daily && d.daily[def.sumKey]) || []).map(([t, v]) => [nextMidnight(t), v]);
       const out = [[d.start, 0]];
       let s = 0;
@@ -403,7 +407,7 @@
       <section class="period" id="${id}" aria-labelledby="h-${id}">
         <div class="period-head"><h3 id="h-${id}">${head}</h3><span class="p-range"></span></div>
         <p class="p-msg banner" hidden></p>
-        <div class="stats" aria-label="Statistiques"></div>
+        <div class="stats" role="group" aria-label="Statistiques"></div>
         <div class="card big">
           <header><h4 class="chart-title">--</h4></header>
           <div class="chart chart-big" role="img" aria-label="Graphique ${esc(label)}"></div>
@@ -447,6 +451,7 @@
     if (!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
   }
+  const failText = (r, e) => `Données indisponibles (${EMBED ? "données de la page" : `data/p${r}.json`} : ${e.message}).`;
   // page d'un paramètre : un fichier par période
   async function loadOne(r) {
     try {
@@ -454,7 +459,7 @@
       sections[r].render(d);
       return d;
     } catch (e) {
-      sections[r].fail(`Données indisponibles (data/p${r}.json : ${e.message}).`);
+      sections[r].fail(failText(r, e));
       return null;
     }
   }
@@ -466,7 +471,7 @@
       document.getElementById("p-last").textContent = rangeText(r, d);
       return [d];
     } catch (e) {
-      for (const x of Object.values(sections)) x.fail(`Données indisponibles (data/p${r}.json : ${e.message}).`);
+      for (const x of Object.values(sections)) x.fail(failText(r, e));
       return [];
     }
   }
@@ -520,7 +525,7 @@
       stats.rain = { sum: agg("rain", samples).sum };
       stats.windDir = { vecdir: 232 };
 
-      const group = (size, fn) => {
+      const group = (fn) => {
         const m = new Map();
         for (const s of samples) { const k = fn(s[0] - 1); if (!m.has(k)) m.set(k, []); m.get(k).push(s); }
         const out = {};
@@ -539,9 +544,9 @@
         return out;
       }
       const dayKey = (t) => { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); return d.getTime() / 1000; };
-      const daily = group(86400, dayKey);
+      const daily = group(dayKey);
       out.resolution = r === "7d" ? "hour" : "day";
-      out.series = r === "7d" ? group(3600, (t) => Math.floor(t / 3600) * 3600) : daily;
+      out.series = r === "7d" ? group((t) => Math.floor(t / 3600) * 3600) : daily;
       out.daily = { rain: daily.rain.sum };
       out.days = {
         days: daily.outTemp.max.length,
@@ -559,6 +564,12 @@
   // ------------------------------------------------------------------
   // Démarrage
   // ------------------------------------------------------------------
+  function start() {
+    loadAll();
+    if (!EMBED) setInterval(loadAll, REFRESH);   // page d'archive : données figées
+    // thème clair / sombre : légendes (couleurs de température) reconstruites
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Object.values(sections).forEach((x) => x.redraw()));
+  }
   (async () => {
     let cfg = null;
     if (!DEMO) {
@@ -586,8 +597,7 @@
       if (DEMO) document.getElementById("mode").textContent = " · mode démo (données simulées)";
       if (!EMBED) document.title = `${PERIODS[per].label} — ${(cfg && cfg.stationName) || "Station météo"}`;
       buildPeriodSections(per);
-      loadAll();
-      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Object.values(sections).forEach((x) => x.redraw()));
+      start();
       return;
     }
     const wanted = q.get("p");
@@ -604,9 +614,6 @@
     if (DEMO) document.getElementById("mode").textContent = " · mode démo (données simulées)";
     document.title = `${def.title} — ${(cfg && cfg.stationName) || "Station météo"}`;
     buildSections();
-    loadAll();
-    // thème clair / sombre : légendes (couleurs de température) reconstruites
-    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Object.values(sections).forEach((x) => x.redraw()));
+    start();
   })();
-  if (!window.WEEWX_PERIOD) setInterval(loadAll, REFRESH);
 })();

@@ -7,15 +7,24 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
   $livejson_history        JSON : séries des dernières 24 h + extrêmes et cumuls du jour
   $livejson_config         JSON : configuration de la page (MQTT, paramètres, prévisions…)
   $livejson_config_inline  idem, prêt à être intégré dans un <script> (index.html.tmpl)
-  $livejson_forecast       JSON : prévisions Open-Meteo (cache en mémoire, 1 h par défaut)
+  $livejson_forecast       JSON : prévisions Open-Meteo de plusieurs modèles (cache en
+                           mémoire, 1 h par défaut)
+  $livejson_meteogram      JSON : météogramme Open-Meteo multi-modèle (sol et altitude)
+  $livejson_ensembles      JSON : prévisions d'ensemble Open-Meteo (membres de chaque modèle)
   $livejson_climate        JSON : « ce jour / ce mois au fil des ans »
   $livejson_extremes       JSON : records de la station (page « Extrêmes »)
   $livejson_astro          JSON : soleil et lune du jour (almanach weewx)
   $livejson_day, $livejson_span, $livejson_arch : pages d'archives (archive/day-AAAA-MM-JJ,
                            month-AAAA-MM, year-AAAA.html : SummaryByDay / Month / Year)
+  $livejson_climato, $livejson_climato_year : tableaux climatologiques mensuel et annuel
+                           (archive/climato-AAAA-MM.html, climato-AAAA.html)
   $livejson_period.p24h …  JSON : pages de détail (24 h, 7, 30, 365 et 730 jours)
   $livejson_params, $livejson_station, $livejson_logo, $livejson_hardware,
-  $livejson_refresh, $livejson_fc_days : valeurs pour le gabarit index.html.tmpl
+  $livejson_dash_order, $livejson_refresh, $livejson_fc_days : valeurs pour les gabarits
+                           HTML (index.html.tmpl, pages d'archives)
+
+Le générateur LiveCheetahGenerator applique l'option [[archives]] (types de pages
+d'archives produits, nombre de pages « jour »).
 
 Les fichiers sont régénérés par weewx à chaque période d'archive (ou selon stale_age),
 puis envoyés sur le serveur web public par le rapport FTP/RSYNC habituel de weewx : le
@@ -47,7 +56,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.66"
+VERSION = "1.67"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -57,9 +66,6 @@ PERIODS = {
     "365d": (365, "day"),   # 365 jours, agrégats journaliers
     "730d": (730, "day"),   # 730 jours (2 ans), agrégats journaliers
 }
-
-# Périodes dont les séries sont limitées à certaines mesures (fichier plus léger)
-PERIOD_SERIES_ONLY = {}    # ex. {"730d": ("outTemp",)} : période limitée à la température
 
 # Statistiques sur la période : (observation, agrégats)
 PERIOD_AGGREGATES = (
@@ -133,6 +139,9 @@ BUILTIN_PARAMS = {
     "barometer": ("Pression", "barometer", "barometer", "min-max", "barometer"),
 }
 AGGREGATES = ("min-max", "max", "sum")
+GROUP_AGGREGATES = ("min-max", "max")       # agrégats possibles d'un panneau groupé
+# couleurs des courbes d'un panneau groupé (palette catégorielle, dans cet ordre)
+GROUP_PALETTE = ("--wind", "--temp", "--hum", "--sun", "--press")
 
 WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
 MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
@@ -194,12 +203,9 @@ def _color(c, default):
     return c or default
 
 
-GROUP_AGGREGATES = ("min-max", "max")
-# couleurs des courbes d'un panneau groupé (palette catégorielle, dans cet ordre)
-GROUP_PALETTE = ("--wind", "--temp", "--hum", "--sun", "--press")
-
-
 def _unit_info(column):
+    """(unité cible, libellé, décimales par défaut) d'une colonne, d'après son groupe d'unités
+    weewx ; unité cible None si le groupe est inconnu (valeurs publiées sans conversion)."""
     group = weewx.units.obs_group_dict.get(column)
     target, label = GROUP_TARGET.get(group, (None, ""))
     decimals = 0 if group in ("group_percent", "group_radiation", "group_direction") else 1
@@ -216,7 +222,7 @@ def _archive_options(opts):
         "days": _int(a.get("days", old.get("days")), 0, 0, 100000),     # 0 = toutes (défaut)
         "month": to_bool(a.get("month", True)),
         "year": to_bool(a.get("year", True)),
-        "climato": to_bool(a.get("climato", True)),    # tableaux climatologiques mensuels
+        "climato": to_bool(a.get("climato", True)),    # tableaux climatologiques mensuels et annuels
     }
 
 
@@ -377,7 +383,40 @@ def _layers(spec):
 
 
 # ----------------------------------------------------------------------
-# Prévisions Open-Meteo : cache en mémoire du processus weewxd
+# Téléchargements Open-Meteo (prévisions, météogramme, ensembles)
+# ----------------------------------------------------------------------
+# échéance refusée par Open-Meteo (erreur 400 : « … forecast_days … range from 0 to 4 »)
+_DAYS_RANGE_RE = re.compile(r"(?i)forecast.?days.*?\b0\s*(?:to|-|…|\.\.)\s*(\d+)")
+
+
+def _om_fetch(url, timeout):
+    """Requête Open-Meteo -> (données, erreur, raison, échéance maximale) : en cas de succès
+    (données, None, "", None) ; en cas d'échec, données = None, erreur = message pour le
+    journal et le JSON, raison = texte de l'erreur Open-Meteo, échéance maximale = nombre de
+    jours annoncé par une erreur HTTP 400 sur forecast_days (sinon None)."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "weewx-live/%s" % VERSION})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if data.get("error"):
+            raise ValueError(data.get("reason", "erreur Open-Meteo"))
+        return data, None, "", None
+    except urllib.error.HTTPError as e:
+        # raison donnée par Open-Meteo ({"error": true, "reason": "…"})
+        reason = ""
+        try:
+            reason = json.loads(e.read().decode("utf-8")).get("reason", "")
+        except Exception:
+            pass
+        m = _DAYS_RANGE_RE.search(reason) if e.code == 400 else None
+        return (None, "HTTP %s%s" % (e.code, " : " + reason if reason else ""), reason,
+                int(m.group(1)) if m else None)
+    except Exception as e:
+        return None, str(e), "", None
+
+
+# ----------------------------------------------------------------------
+# Prévisions Open-Meteo du tableau de bord : cache en mémoire du processus weewxd
 # (clé = URL de la requête -> (horodatage du téléchargement, données))
 # ----------------------------------------------------------------------
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
@@ -389,7 +428,8 @@ FORECAST_HOURLY = ("temperature_2m", "weather_code", "precipitation", "precipita
                    "is_day")
 _FORECAST_CACHE = {}
 # dernier échec de téléchargement (clé = URL) : pas de nouvel essai avant FORECAST_RETRY s,
-# pour ne pas bloquer chaque rapport quand Open-Meteo est injoignable
+# pour ne pas bloquer chaque rapport quand Open-Meteo est injoignable (délai commun aux
+# prévisions, au météogramme et aux ensembles, borné par leur durée de cache)
 _FORECAST_FAIL = {}
 FORECAST_RETRY = 900
 _FORECAST_MAXDAYS = {}   # modèle -> échéance maximale annoncée par Open-Meteo (erreur 400)
@@ -452,7 +492,8 @@ _ENS_SKIPVARS = {}   # modèle -> variables refusées par Open-Meteo pour ce mod
 
 # ----------------------------------------------------------------------
 # Météogramme (page meteogram.html) : prévision horaire Open-Meteo au sol et en altitude
-# (niveaux de pression), téléchargée au plus une fois par période de cache.
+# (niveaux de pression) de chaque modèle de [[meteogram]] models, téléchargée au plus une
+# fois par période de cache, en mémoire du processus weewxd.
 # ----------------------------------------------------------------------
 METEOGRAM_SURFACE = ("temperature_2m", "relative_humidity_2m", "precipitation", "showers", "snowfall",
                      "snow_depth", "weather_code", "cloud_cover", "wind_speed_10m", "wind_direction_10m",
@@ -472,7 +513,8 @@ METEOGRAM_MODELS = {
     "meteoswiss_icon_ch1": "MeteoSuisse ICON-CH1", "meteoswiss_icon_ch2": "MeteoSuisse ICON-CH2",
     "ukmo_seamless": "Met Office UKMO (UK 2 km, puis global 10 km)",
 }
-# modèles proposés par défaut (liste déroulante de la page ; le premier est affiché)
+# modèles proposés par défaut (liste déroulante de la page ; le premier est affiché) ;
+# METEOGRAM_MODELS sert aussi aux libellés des modèles des prévisions du tableau de bord
 METEOGRAM_DEFAULT_MODELS = "icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless, ukmo_seamless"
 METEOGRAM_MAX_MODELS = 5
 _MG_CACHE = {}       # clé de requête -> (horodatage, réponse)
@@ -566,6 +608,7 @@ class LiveJSON(SearchList):
         self.radar = dict(opts.get("radar", {}))
         self.satellite = dict(opts.get("satellite", {}))
         self.basemap = dict(opts.get("basemap", {}))
+        self.basemap_cfg = self._basemap()        # validé une fois (erreurs journalisées une fois)
         self.astro = dict(opts.get("astro", {}))
         self.ensembles = dict(opts.get("ensembles", {}))
         self.meteogram = dict(opts.get("meteogram", {}))
@@ -574,7 +617,7 @@ class LiveJSON(SearchList):
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
         # mm : pluie journalière minimale d'un jour de « période de pluie »
-        self.ext_wet = max(0.0, _to_float(ext.get("rain_day_threshold"), 0.2))
+        self.ext_wet = max(0.0, _to_float(ext.get("rain_day_threshold"), RAIN_DAY_MM))
         # fraction (0 à 1) du jour couverte par des mesures ; « 75 » est compris comme 75 %
         cov = _to_float(ext.get("min_day_coverage"), 0.75)
         self.ext_cover = min(1.0, max(0.0, cov / 100.0 if cov > 1 else cov))
@@ -589,6 +632,7 @@ class LiveJSON(SearchList):
         self.target = dict(TARGET)
         self.units = dict(UNIT_LABELS)
         self._raw_cache = {}
+        self._first_ts = None             # premier enregistrement de la base (pages d'archives)
         # clé interne -> colonne SQLite (par défaut : la clé elle-même)
         self.cols = {}
         self.series_aggs = {k: list(v) for k, v in SERIES_AGGREGATES.items()}
@@ -724,14 +768,23 @@ class LiveJSON(SearchList):
             return q
         return [esc(p) for p in self.params]
 
-    def config(self):
-        name = self.station_label()
+    def _coords(self, section=None):
+        """Coordonnées (latitude, longitude) : options de « section » ([[meteogram]],
+        [[ensembles]]), sinon de [[forecast]], sinon celles de la station (weewx.conf)."""
         stn = self.generator.stn_info
         lat = _to_float(self.forecast.get("latitude"), getattr(stn, "latitude_f", None))
         lon = _to_float(self.forecast.get("longitude"), getattr(stn, "longitude_f", None))
+        if section:
+            lat = _to_float(section.get("latitude"), lat)
+            lon = _to_float(section.get("longitude"), lon)
+        return lat, lon
+
+    def config(self):
+        lat, lon = self._coords()
         f, r, sat = self.forecast, self.radar, self.satellite
+        fc_models, fc_default = self._fc_models()
         return {
-            "stationName": name,
+            "stationName": self.station_label(),
             "hardware": self.hardware_label(),
             "logo": self.logo,
             "latitude": lat,
@@ -748,14 +801,14 @@ class LiveJSON(SearchList):
             "forecast": {
                 "enable": to_bool(f.get("enable", True)),
                 # modèle par défaut et modèles de la liste déroulante (identifiant, nom)
-                "model": self._fc_models()[1],
-                "models": [{"id": m, "label": METEOGRAM_MODELS.get(m, m)} for m in self._fc_models()[0]],
+                "model": fc_default,
+                "models": [{"id": m, "label": METEOGRAM_MODELS.get(m, m)} for m in fc_models],
                 "days": self._fc_days(),
                 # durée de validité du cache (secondes), côté weewx et côté navigateur
                 "cache": self._forecast_ttl(),
             },
             # fond des cartes RainViewer / EUMETSAT (osm, esri, opentopomap, carto + clé)
-            "basemap": self._basemap(),
+            "basemap": self.basemap_cfg,
             "radar": {
                 "enable": to_bool(r.get("enable", True)),
                 # windy (carte Windy.com intégrée) ou rainviewer (animation Leaflet)
@@ -861,35 +914,19 @@ class LiveJSON(SearchList):
         if now - _FORECAST_FAIL.get(url, 0) < min(ttl, FORECAST_RETRY):
             err = "nouvel essai après un échec récent"
         else:
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "weewx-live/%s" % VERSION})
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                if data.get("error"):
-                    raise ValueError(data.get("reason", "erreur Open-Meteo"))
+            data, err, _reason, maxdays = _om_fetch(url, timeout)
+            if data is not None:
                 _FORECAST_CACHE[url] = (now, data)
                 _FORECAST_FAIL.pop(url, None)
                 log.debug("livejson: prévisions Open-Meteo (%s) téléchargées", model)
                 return data, now, None
-            except urllib.error.HTTPError as e:
-                reason = ""
-                try:
-                    reason = json.loads(e.read().decode("utf-8")).get("reason", "")
-                except Exception:
-                    pass
-                err = "HTTP %s%s" % (e.code, " : " + reason if reason else "")
-                # échéance refusée (« … range 0 to 4 … ») : limite retenue, nouvel essai
-                m = re.search(r"(?i)forecast.?days.*?\b0\s*(?:to|-|…|\.\.)\s*(\d+)", reason)
-                if e.code == 400 and m and model not in _FORECAST_MAXDAYS and 0 < int(m.group(1)) < days:
-                    _FORECAST_MAXDAYS[model] = int(m.group(1))
-                    log.info("livejson: prévisions %s : échéance limitée à %s jours", model, m.group(1))
-                    return self._fc_fetch(model, lat, lon, days, ttl, timeout)
-                _FORECAST_FAIL[url] = now
-                log.error("livejson: échec du téléchargement Open-Meteo (%s) : %s", model, err)
-            except Exception as e:
-                err = str(e)
-                _FORECAST_FAIL[url] = now
-                log.error("livejson: échec du téléchargement Open-Meteo (%s) : %s", model, e)
+            # échéance refusée (« … range 0 to 4 … ») : limite retenue, nouvel essai
+            if maxdays and model not in _FORECAST_MAXDAYS and maxdays < days:
+                _FORECAST_MAXDAYS[model] = maxdays
+                log.info("livejson: prévisions %s : échéance limitée à %s jours", model, maxdays)
+                return self._fc_fetch(model, lat, lon, days, ttl, timeout)
+            _FORECAST_FAIL[url] = now
+            log.error("livejson: échec du téléchargement Open-Meteo (%s) : %s", model, err)
         if cached is not None:
             return cached[1], cached[0], err           # copie précédente conservée
         return None, None, err
@@ -902,9 +939,7 @@ class LiveJSON(SearchList):
         f = self.forecast
         if not to_bool(f.get("enable", True)):
             return {"error": "prévisions désactivées"}
-        stn = self.generator.stn_info
-        lat = _to_float(f.get("latitude"), getattr(stn, "latitude_f", None))
-        lon = _to_float(f.get("longitude"), getattr(stn, "longitude_f", None))
+        lat, lon = self._coords()
         if lat is None or lon is None:
             return {"error": "coordonnées de la station inconnues"}
         models, default = self._fc_models()
@@ -960,7 +995,8 @@ class LiveJSON(SearchList):
         step = _int(e.get("step"), 1, 1, 6)
         if 24 % step:
             step = 1
-        horizons = sorted({_int(h, 0, 1, 35) for h in _as_list(e.get("horizons", "3, 7, 10, 16"))} - {0})
+        # valeurs invalides (texte, 0) écartées avant de borner à 1-35 jours
+        horizons = sorted({min(35, h) for h in (_int(x, 0) for x in _as_list(e.get("horizons", "3, 7, 10, 16"))) if h > 0})
         return {
             "enable": to_bool(e.get("enable", True)),
             "models": models,
@@ -994,45 +1030,28 @@ class LiveJSON(SearchList):
         if now - _ENS_FAIL.get(model, 0) < min(o["cache"], FORECAST_RETRY):
             err = "nouvel essai après un échec récent"
         else:
-            try:
-                req = urllib.request.Request(ENSEMBLE_URL + "?" + key,
-                                             headers={"User-Agent": "weewx-live/%s" % VERSION})
-                with urllib.request.urlopen(req, timeout=o["timeout"]) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                if data.get("error"):
-                    raise ValueError(data.get("reason", "erreur Open-Meteo"))
+            data, err, reason, maxdays = _om_fetch(ENSEMBLE_URL + "?" + key, o["timeout"])
+            if data is not None:
                 _ENS_CACHE[model] = (key, now, data)
                 _ENS_FAIL.pop(model, None)
                 log.debug("livejson: ensemble %s téléchargé", model)
                 return data, now, None
-            except urllib.error.HTTPError as e:
-                # raison donnée par Open-Meteo ({"error": true, "reason": "…"})
-                reason = ""
-                try:
-                    reason = json.loads(e.read().decode("utf-8")).get("reason", "")
-                except Exception:
-                    pass
-                err = "HTTP %s%s" % (e.code, " : " + reason if reason else "")
-                # échéance refusée (« … allowed range 0 to 15 … ») : limite retenue et nouvel
-                # essai immédiat
-                m = re.search(r"(?i)forecast.?days.*?\b0\s*(?:to|-|…|\.\.)\s*(\d+)", reason)
-                if e.code == 400 and m and int(m.group(1)) < fdays and model not in _ENS_MAXDAYS:
-                    _ENS_MAXDAYS[model] = max(1, int(m.group(1)))
-                    log.info("livejson: ensemble %s : échéance limitée à %s jours", model, _ENS_MAXDAYS[model])
-                    return self._ens_fetch(model, lat, lon, days, o)
-                # variable refusée pour ce modèle (nommée dans la raison) : retirée, nouvel essai
-                skip = _ENS_SKIPVARS.setdefault(model, set())
-                bad = [v for _k, v, _d in ENSEMBLE_VARS if v not in skip and re.search(r"\b%s\b" % v, reason)]
-                if e.code == 400 and bad and len(skip) + len(bad) < len(ENSEMBLE_VARS):
-                    skip.update(bad)
-                    log.warning("livejson: ensemble %s : variable(s) non disponible(s) : %s", model, ", ".join(bad))
-                    return self._ens_fetch(model, lat, lon, days, o)
-                _ENS_FAIL[model] = now
-                log.error("livejson: échec du téléchargement de l'ensemble %s : %s", model, err)
-            except Exception as e:
-                err = str(e)
-                _ENS_FAIL[model] = now
-                log.error("livejson: échec du téléchargement de l'ensemble %s : %s", model, e)
+            # échéance refusée (« … allowed range 0 to 15 … ») : limite retenue et nouvel
+            # essai immédiat
+            if maxdays is not None and maxdays < fdays and model not in _ENS_MAXDAYS:
+                _ENS_MAXDAYS[model] = max(1, maxdays)
+                log.info("livejson: ensemble %s : échéance limitée à %s jours", model, _ENS_MAXDAYS[model])
+                return self._ens_fetch(model, lat, lon, days, o)
+            # variable refusée pour ce modèle (nommée dans la raison, erreur 400) : retirée,
+            # nouvel essai
+            skip = _ENS_SKIPVARS.setdefault(model, set())
+            bad = [v for _k, v, _d in ENSEMBLE_VARS if v not in skip and re.search(r"\b%s\b" % v, reason)]
+            if err.startswith("HTTP 400") and bad and len(skip) + len(bad) < len(ENSEMBLE_VARS):
+                skip.update(bad)
+                log.warning("livejson: ensemble %s : variable(s) non disponible(s) : %s", model, ", ".join(bad))
+                return self._ens_fetch(model, lat, lon, days, o)
+            _ENS_FAIL[model] = now
+            log.error("livejson: échec du téléchargement de l'ensemble %s : %s", model, err)
         if cached and cached[0] == key:
             return cached[2], cached[1], err            # données précédentes conservées
         return None, None, err
@@ -1160,12 +1179,10 @@ class LiveJSON(SearchList):
         """Prévision horaire de chaque modèle du météogramme depuis l'heure en cours : valeurs
         au sol et, pour chaque niveau de pression, altitude, température, nébulosité et
         vent ; le navigateur dessine les coupes en altitude et propose le choix du modèle."""
-        g, f = self.meteogram, self.forecast
+        g = self.meteogram
         if not to_bool(g.get("enable", True)):
             return {"error": "météogramme désactivé"}
-        stn = self.generator.stn_info
-        lat = _to_float(g.get("latitude"), _to_float(f.get("latitude"), getattr(stn, "latitude_f", None)))
-        lon = _to_float(g.get("longitude"), _to_float(f.get("longitude"), getattr(stn, "longitude_f", None)))
+        lat, lon = self._coords(g)
         if lat is None or lon is None:
             return {"error": "coordonnées de la station inconnues"}
         models, default = self._mg_models()
@@ -1200,35 +1217,19 @@ class LiveJSON(SearchList):
             if now - _MG_FAIL.get(key, 0) < min(ttl, FORECAST_RETRY):
                 err = "nouvel essai après un échec récent"
             else:
-                try:
-                    req = urllib.request.Request(OPEN_METEO_URL + "?" + key,
-                                                 headers={"User-Agent": "weewx-live/%s" % VERSION})
-                    with urllib.request.urlopen(req, timeout=timeout) as resp:
-                        data = json.loads(resp.read().decode("utf-8"))
-                    if data.get("error"):
-                        raise ValueError(data.get("reason", "erreur Open-Meteo"))
+                data, err, _reason, maxdays = _om_fetch(OPEN_METEO_URL + "?" + key, timeout)
+                if data is not None:
                     cached = (now, data)
                     _MG_CACHE[key] = cached
                     _MG_FAIL.pop(key, None)
-                except urllib.error.HTTPError as e:
-                    reason = ""
-                    try:
-                        reason = json.loads(e.read().decode("utf-8")).get("reason", "")
-                    except Exception:
-                        pass
-                    err = "HTTP %s%s" % (e.code, " : " + reason if reason else "")
-                    # échéance refusée (« … range 0 to 4 … ») : limite retenue, nouvel essai
-                    m = re.search(r"(?i)forecast.?days.*?\b0\s*(?:to|-|…|\.\.)\s*(\d+)", reason)
-                    if e.code == 400 and m and model not in _MG_MAXDAYS and 0 < int(m.group(1)) < days:
-                        _MG_MAXDAYS[model] = int(m.group(1))
-                        log.info("livejson: météogramme %s : échéance limitée à %s jours", model, m.group(1))
-                        return self._mg_model(model, lat, lon, days, ttl, timeout)
+                # échéance refusée (« … range 0 to 4 … ») : limite retenue, nouvel essai
+                elif maxdays and model not in _MG_MAXDAYS and maxdays < days:
+                    _MG_MAXDAYS[model] = maxdays
+                    log.info("livejson: météogramme %s : échéance limitée à %s jours", model, maxdays)
+                    return self._mg_model(model, lat, lon, days, ttl, timeout)
+                else:
                     _MG_FAIL[key] = now
                     log.error("livejson: échec du téléchargement du météogramme (%s) : %s", model, err)
-                except Exception as e:
-                    err = str(e)
-                    _MG_FAIL[key] = now
-                    log.error("livejson: échec du téléchargement du météogramme (%s) : %s", model, e)
         if cached is None:
             return {"error": err or "prévision indisponible"}
         fetched, data = cached
@@ -1236,6 +1237,8 @@ class LiveJSON(SearchList):
         times = h.get("time") or []
         i0 = next((i for i, t in enumerate(times) if t >= now - now % 3600), len(times))
         n = len(times) - i0
+        if n <= 0:
+            return {"error": "prévision vide ou périmée"}
 
         def col(name, dec):
             a = (h.get(name) or [])[i0:]
@@ -1252,8 +1255,6 @@ class LiveJSON(SearchList):
             if any(x is not None for x in lv["z"]) and any(x is not None for x in lv["t"]):
                 lv["p"] = p
                 levels.append(lv)
-        if n <= 0:
-            return {"error": "prévision vide ou périmée"}
         out = {
             "elevation": data.get("elevation"), "fetched": int(fetched),
             "t0": int(times[i0]), "n": n, "surface": surface, "levels": levels,
@@ -1269,10 +1270,7 @@ class LiveJSON(SearchList):
         o = self._ens_options()
         if not o["enable"]:
             return {"error": "prévisions d'ensemble désactivées"}
-        f, e = self.forecast, self.ensembles
-        stn = self.generator.stn_info
-        lat = _to_float(e.get("latitude"), _to_float(f.get("latitude"), getattr(stn, "latitude_f", None)))
-        lon = _to_float(e.get("longitude"), _to_float(f.get("longitude"), getattr(stn, "longitude_f", None)))
+        lat, lon = self._coords(self.ensembles)
         if lat is None or lon is None:
             return {"error": "coordonnées de la station inconnues"}
         if not o["models"]:
@@ -1306,6 +1304,8 @@ class LiveJSON(SearchList):
         }
 
     def history(self, stop, db_lookup):
+        """data/history.json : séries brutes des « hours » dernières heures, extrêmes et cumuls
+        du jour de la station."""
         t1 = time.time()
         dbm = db_lookup(self.binding)
         start = stop - self.hours * 3600
@@ -1399,7 +1399,9 @@ class LiveJSON(SearchList):
         """Titre, liens précédent / suivant et bornes du sélecteur de date des pages
         d'archives (le type de page se déduit de la durée de « timespan »)."""
         dbm = db_lookup(self.binding)
-        first_ts = dbm.firstGoodStamp() or timespan.start
+        if self._first_ts is None:                    # une requête pour toutes les pages
+            self._first_ts = dbm.firstGoodStamp() or 0
+        first_ts = self._first_ts or timespan.start
         gen = getattr(self.generator, "gen_ts", None) or dbm.lastGoodStamp() or time.time()
         first = datetime.date.fromtimestamp(first_ts)
         today = datetime.date.fromtimestamp(gen - 1)
@@ -1446,7 +1448,8 @@ class LiveJSON(SearchList):
     # humidité et pression moyennes) et une ligne de synthèse du mois.
     # ------------------------------------------------------------------
     CLIMATO_COLS = (
-        # clé de sortie, mesure (unités), colonne du résumé journalier, valeur
+        # clé de sortie, mesure (unités), résumé journalier (colonne de [[parameters]] le cas
+        # échéant), valeur
         ("tmin", "outTemp", "outTemp", "min"), ("tavg", "outTemp", "outTemp", "avg"),
         ("tmax", "outTemp", "outTemp", "max"), ("wind", "windSpeed", "windSpeed", "avg"),
         ("gust", "windGust", "windGust", "max"), ("rain", "rain", "rain", "sum"),
@@ -1494,7 +1497,7 @@ class LiveJSON(SearchList):
 
         cols = {}
         for key, obs, col, how in self.CLIMATO_COLS:
-            cols.setdefault((obs, col), []).append((key, how))
+            cols.setdefault((obs, self.col(col)), []).append((key, how))
         for (obs, col), wanted in cols.items():
             def pick(r, conv, wanted=wanted):
                 mn, mx, ws, st, sm = r
@@ -1523,7 +1526,7 @@ class LiveJSON(SearchList):
         total = {}
         for key, obs, col, how in self.CLIMATO_COLS:
             try:
-                vt = self._conv(weewx.xtypes.get_aggregate(col, span, how, dbm), obs)
+                vt = self._conv(weewx.xtypes.get_aggregate(self.col(col), span, how, dbm), obs)
                 if vt is not None and vt.value is not None:
                     total[key] = _round(vt.value, 1)
             except Exception as e:
@@ -1665,6 +1668,7 @@ class LiveJSON(SearchList):
     # Pages de détail
     # ------------------------------------------------------------------
     def period(self, name, stop, db_lookup):
+        """Pages de détail (data/pNNN.json) : 24 h glissantes ou N jours civils (PERIODS)."""
         t1 = time.time()
         dbm = db_lookup(self.binding)
         ndays, resolution = PERIODS[name]
@@ -1675,12 +1679,11 @@ class LiveJSON(SearchList):
             # (un enregistrement de 00:00 appartient à la veille, d'où stop - 1)
             d = datetime.date.fromtimestamp(stop - 1) - datetime.timedelta(days=ndays - 1)
             start = int(time.mktime(d.timetuple()))
-        # périodes limitées à certaines mesures (PERIOD_SERIES_ONLY) : calculs restreints
-        out = self._period_payload(name, start, stop, resolution, dbm, PERIOD_SERIES_ONLY.get(name))
+        out = self._period_payload(name, start, stop, resolution, dbm)
         log.debug("livejson: période %s générée en %.2f s", name, time.time() - t1)
         return out
 
-    def _period_payload(self, name, start, stop, resolution, dbm, only=None):
+    def _period_payload(self, name, start, stop, resolution, dbm):
         """Statistiques et séries d'une période [start, stop] (pages de détail, pages
         « mois » et « année »)."""
         span = TimeSpan(start, stop)
@@ -1692,14 +1695,14 @@ class LiveJSON(SearchList):
             "start": int(start),
             "stop": int(stop),
             "units": self.units,
-            "stats": self._period_stats(span, dbm, only),
+            "stats": self._period_stats(span, dbm),
         }
         if resolution == "raw":
             out["series"] = self._raw_series(span, dbm)
         elif resolution == "hour":
             out["series"] = self._agg_series(span, dbm, 3600)
         if resolution != "raw":
-            daily = self._daily(start, stop, dbm, only)
+            daily = self._daily(start, stop, dbm)
             if resolution == "day":
                 out["series"] = daily
             out["daily"] = {k: daily.get(k, {}).get("sum", []) for k in self.sum_keys}
@@ -1709,7 +1712,7 @@ class LiveJSON(SearchList):
     def _raw_series(self, span, dbm):
         series = {}
         ck = (int(span.start), int(span.stop))
-        if ck in self._raw_cache:            # history.json et p24h.json : même fenêtre
+        if ck in self._raw_cache:            # history.json et p24h.json (même fenêtre si hours = 24)
             return self._raw_cache[ck]
         for obs in self.raw_keys:
             try:
@@ -1856,12 +1859,6 @@ class LiveJSON(SearchList):
     # phase de la lune, hauteurs et azimuts toutes les 10 min pour le graphique. Sans
     # PyEphem : seulement lever / coucher du soleil et phase de la lune.
     # ------------------------------------------------------------------
-    def _coords(self):
-        stn = self.generator.stn_info
-        lat = _to_float(self.forecast.get("latitude"), getattr(stn, "latitude_f", None))
-        lon = _to_float(self.forecast.get("longitude"), getattr(stn, "longitude_f", None))
-        return lat, lon
-
     def astro_data(self, stop, db_lookup):
         t1 = time.time()
         if not to_bool(self.astro.get("enable", True)):
@@ -1997,17 +1994,19 @@ class LiveJSON(SearchList):
         rec = {}
         if tdays:
             lo = min(tdays, key=lambda d: d[1])
-            hi = max((d for d in tdays if d[3] is not None), key=lambda d: d[3])
+            hi = max((d for d in tdays if d[3] is not None), key=lambda d: d[3], default=None)
             rec["tmin"] = {"v": r1(lo[1]), "t": lo[2]}
-            rec["tmax"] = {"v": r1(hi[3]), "t": hi[4]}
+            if hi:
+                rec["tmax"] = {"v": r1(hi[3]), "t": hi[4]}
         for obs, k, cols in (("barometer", "p", ("min", "mintime", "max", "maxtime")),):
             rows, conv = self._day_table(dbm, obs, cols)
             rows = [r for r in rows if r[1] is not None]
             if rows:
                 lo = min(rows, key=lambda r: r[1])
-                hi = max(rows, key=lambda r: r[3])
+                hi = max((r for r in rows if r[3] is not None), key=lambda r: r[3], default=None)
                 rec[k + "min"] = {"v": r1(conv(lo[1])), "t": lo[2]}
-                rec[k + "max"] = {"v": r1(conv(hi[3])), "t": hi[4]}
+                if hi:
+                    rec[k + "max"] = {"v": r1(conv(hi[3])), "t": hi[4]}
         rows, conv = self._day_table(dbm, "windGust", ("max", "maxtime"))
         rows = [r for r in rows if r[1] is not None]
         if rows:
@@ -2169,14 +2168,12 @@ class LiveJSON(SearchList):
         return ([{"start": a, "end": b, "days": n} for a, b, n in dry[:top]],
                 [{"start": a, "end": b, "days": n, "total": round(t, 1)} for a, b, n, t in wet[:top]])
 
-    def _daily(self, start, stop, dbm, only=None):
+    def _daily(self, start, stop, dbm):
         """Valeurs journalières lues directement dans les résumés journaliers
         (une requête par observation : rapide même sur 365 jours). Mesure sans résumé
         journalier (type dérivé xtypes…) : agrégats journaliers calculés par weewx."""
         series = {}
         for obs, aggs in self.series_aggs.items():
-            if only and obs not in only:
-                continue
             table = "%s_day_%s" % (dbm.table_name, self.col(obs))
             sql = ("SELECT dateTime, min, max, wsum, sumtime, sum FROM %s "
                    "WHERE dateTime >= ? AND dateTime < ? ORDER BY dateTime" % table)
@@ -2224,11 +2221,10 @@ class LiveJSON(SearchList):
             out["maxDailyRain"] = {"value": v, "time": ts}
         return out
 
-    def _period_stats(self, span, dbm, only=None):
+    def _period_stats(self, span, dbm):
+        """Extrêmes (avec l'heure), moyennes et cumuls de la période, direction dominante."""
         stats = {}
         for obs, aggs in self.period_aggs.items():
-            if only and obs not in only:
-                continue
             d = {}
             for agg in aggs:
                 try:
@@ -2243,8 +2239,6 @@ class LiveJSON(SearchList):
                     log.debug("livejson: agrégat %s.%s indisponible : %s", obs, agg, e)
             if d:
                 stats[obs] = d
-        if only:
-            return stats
         for key in self.sum_keys:
             try:
                 vt = self._conv(weewx.xtypes.get_aggregate(self.col(key), span, "sum", dbm), key)
@@ -2280,7 +2274,8 @@ class LiveCheetahGenerator(CheetahGenerator):
         if section_name != "SummaryByDay" or not a["day"] or not a["days"]:
             return CheetahGenerator.generate(self, section, section_name, gen_ts)
         ref = gen_ts or time.time()
-        first = datetime.date.fromtimestamp(ref) - datetime.timedelta(days=a["days"] - 1)
+        # jour du rapport (un rapport de 00:00 appartient à la veille, comme dans arch_info)
+        first = datetime.date.fromtimestamp(ref - 1) - datetime.timedelta(days=a["days"] - 1)
         first_ts = int(time.mktime(first.timetuple()))
         gd = CheetahGenerator.generator_dict
         orig = gd["SummaryByDay"]

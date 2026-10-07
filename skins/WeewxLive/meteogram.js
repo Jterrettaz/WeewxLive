@@ -31,7 +31,7 @@
     set(v) { try { localStorage.setItem("weewx-mg-model", v); } catch (e) { /* stockage indisponible */ } },
   };
   const panels = [];
-  let hover = null;                              // { i, panel, y }
+  let hover = null, raf = 0;                     // hover : { i, panel, y, cx, cy }
 
   // ------------------------------------------------------------------
   // Échelles de couleur
@@ -112,7 +112,8 @@
         const x = p.clientX - r.left, y = p.clientY - r.top;
         const i = Math.round(((x - L) / this.pw) * (N - 1));
         hover = i >= 0 && i < N ? { i, panel: this, y, cx: p.clientX, cy: p.clientY } : null;
-        redrawAll(); showTip();
+        // un seul dessin par image (requestAnimationFrame)
+        if (!raf) raf = requestAnimationFrame(() => { raf = 0; redrawAll(); showTip(); });
       };
       this.canvas.addEventListener("mousemove", move);
       this.canvas.addEventListener("touchstart", move, { passive: true });
@@ -134,6 +135,7 @@
       b.font = "11px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
       this.o.draw(b, this);
       timeAxis(b, this);
+      this.cross = css("--text");                // couleur du réticule (lue une fois par rendu)
       this.overlay();
     }
     overlay() {
@@ -144,7 +146,7 @@
       if (!hover) return;
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       const x = Math.round(this.X(hover.i)) + 0.5;
-      c.strokeStyle = css("--text"); c.globalAlpha = 0.55; c.lineWidth = 1;
+      c.strokeStyle = this.cross; c.globalAlpha = 0.55; c.lineWidth = 1;
       c.beginPath(); c.moveTo(x, TOP); c.lineTo(x, TOP + this.ph); c.stroke();
       if (hover.panel === this && this.o.yOf && hover.y > TOP && hover.y < TOP + this.ph) {
         c.beginPath(); c.moveTo(L, hover.y + 0.5); c.lineTo(L + this.pw, hover.y + 0.5); c.stroke();
@@ -231,7 +233,7 @@
   }
 
   // coupe verticale dessinée pixel par pixel ; pix(r, c) -> [r, g, b, a] ou null
-  function raster(ctx, p, top, rows, pix) {
+  function raster(ctx, p, rows, pix) {
     const w = Math.max(1, Math.round(p.pw)), h = Math.max(1, Math.round(p.ph));
     const img = ctx.createImageData(w, h);
     for (let y = 0; y < h; y++) {
@@ -267,14 +269,15 @@
     return { Y };
   }
 
+  // grilles interpolées du modèle affiché (calculées au premier dessin, gardées au redimensionnement)
   let CLD = null, TMP = null;
   // couverture nuageuse : gris d'autant plus opaque que le ciel est couvert (≥ 5 %)
   const cloudRGB = () => (dark() ? [205, 205, 200] : [92, 92, 90]);
   function drawClouds(ctx, p) {
-    const top = D.top.humidity;
+    const top = D.top.humidity;                  // sommet du panneau (option top_humidity)
     CLD = CLD || grid(["cc"], top, 110);
     const cloud = cloudRGB();
-    raster(ctx, p, top, CLD.zs.length, (r, c) => {
+    raster(ctx, p, CLD.zs.length, (r, c) => {
       const cc = bilin(CLD.g.cc, r, c);
       if (!isNum(cc) || cc < 5) return null;
       return [cloud[0], cloud[1], cloud[2], Math.round(Math.min(1, cc / 100) * 0.9 * 255)];
@@ -320,7 +323,7 @@
     const top = D.top.temperature;
     TMP = TMP || grid(["t", "u", "v"], top, 90);
     const rows = TMP.zs.length;
-    raster(ctx, p, top, rows, (r, c) => {
+    raster(ctx, p, rows, (r, c) => {
       const t = bilin(TMP.g.t, r, c);
       if (!isNum(t)) return null;
       const col = ramp(T_STOPS, t);
@@ -376,7 +379,8 @@
       ctx.fill();
     });
   }
-  // cumul des précipitations depuis le début de la prévision
+  // cumul des précipitations depuis le début de la prévision (calculé dans show())
+  let CUM = [];
   const cumul = () => { let c = 0; return S.precipitation.map((v) => (c += isNum(v) ? v : 0)); };
   function drawRain(ctx, p) {
     const pr = S.precipitation, sh = S.showers;
@@ -385,7 +389,7 @@
     bars(ctx, p, Y, pr, css("--rain"));
     bars(ctx, p, Y, sh.map((v, i) => (isNum(v) && isNum(pr[i]) ? Math.min(v, pr[i]) : v)), css("--text-3"), 0.5);
     // cumul : courbe, échelle de droite (mm)
-    const cu = cumul(), cmax = Math.max(1, cu[cu.length - 1] || 0);
+    const cu = CUM, cmax = Math.max(1, cu[cu.length - 1] || 0);
     const step = niceStep(cmax, 3), hi = Math.ceil(cmax / step) * step;
     const Yc = (v) => TOP + (1 - v / hi) * p.ph;
     const col = css("--press");
@@ -464,9 +468,7 @@
   function showTip() {
     const tip = $("tip");
     if (!hover) { tip.hidden = true; return; }
-    const i = hover.i, t = T0 + i * 3600;
-    let cum = 0;
-    for (let j = 0; j <= i; j++) cum += isNum(S.precipitation[j]) ? S.precipitation[j] : 0;
+    const i = hover.i, t = T0 + i * 3600, cum = CUM[i];
     const rows = [
       ["Température", isNum(S.temperature_2m[i]) ? `${fmt(S.temperature_2m[i], 1)} °C` : "—", window.TempScale && isNum(S.temperature_2m[i]) ? TempScale.stepColor(S.temperature_2m[i]) : css("--temp")],
       ["Humidité", isNum(S.relative_humidity_2m[i]) ? `${fmt(S.relative_humidity_2m[i], 0)} %` : "—", css("--hum")],
@@ -484,7 +486,7 @@
       const tz = interp(pts, "t", z), cc = interp(pts, "cc", z), u = interp(pts, "u", z), v = interp(pts, "v", z);
       const sp = isNum(u) && isNum(v) ? Math.hypot(u, v) : null;
       const from = isNum(u) && isNum(v) ? (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360 : null;
-      rows.push([`À ${Math.round(z / 10) * 10} m`, [isNum(tz) ? `${fmt(tz, 1)} °C` : "",
+      rows.push([`À ${(Math.round(z / 10) * 10).toLocaleString("fr-FR")} m`, [isNum(tz) ? `${fmt(tz, 1)} °C` : "",
         isNum(cc) ? `nuages ${fmt(cc, 0)} %` : "", isNum(sp) ? `vent ${fmt(sp, 0)} km/h ${dirName(from)}` : ""].filter(Boolean).join(" · "), css("--text")]);
     }
     tip.innerHTML = `<div class="t">${new Date(t * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>` +
@@ -501,7 +503,7 @@
   // Construction
   // ------------------------------------------------------------------
   function build() {
-    const total = S.precipitation.reduce((a, v) => a + (isNum(v) ? v : 0), 0);
+    const total = CUM[N - 1] || 0;
     const snowy = S.snowfall.some((v) => v > 0) || S.snow_depth.some((v) => v > 0);
     const fetched = new Date(D.fetched * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     $("mg-sub").textContent = `Open-Meteo · altitude du modèle ${isNum(D.elevation) ? Math.round(D.elevation) + " m" : "inconnue"} · données du ${fetched}`;
@@ -515,9 +517,9 @@
     root.innerHTML = `
       ${D.stale ? `<p class="en-warn">Prévision précédente conservée (téléchargement en échec : ${esc(D.warning || "")}).</p>` : ""}
       <div class="mg-scroll"><div class="mg-inner">
-        <div class="mg-icons" id="mg-icons" aria-label="Temps prévu"></div>
+        <div class="mg-icons" id="mg-icons" role="group" aria-label="Temps prévu"></div>
         ${sec("mg-temp", "Température à 2 m (°C)", "", 170)}
-        ${sec("mg-hum", "Couverture nuageuse selon l'altitude (m)",
+        ${sec("mg-cloud", "Couverture nuageuse selon l'altitude (m)",
           li(`linear-gradient(90deg,rgba(${cloudRGB()},.15),rgba(${cloudRGB()},.9))`, "nuages : de 10 à 100 % (plus foncé = plus couvert)") +
           li("var(--wind)", "isotherme 0 °C", "dash"), 200)}
         ${sec("mg-rain", "Précipitations (mm par heure)", li("var(--rain)", "précipitations") + li("var(--text-3)", "dont averses") +
@@ -532,10 +534,10 @@
       </div></div>
       <p class="en-foot">Prévision automatique d'un modèle numérique, sans expertise humaine. Les coupes en altitude sont interpolées
         entre les niveaux de pression du modèle (${D.levels.length} niveaux, de ${D.levels[0] ? D.levels[0].p : "?"} à ${D.levels.length ? D.levels[D.levels.length - 1].p : "?"} hPa).</p>`;
-    panels.length = 0; CLD = null; TMP = null;
+    panels.length = 0;
     const add = (id, draw) => { const el = $(id); if (el) panels.push(new Panel(el, { draw })); };
     add("mg-temp", drawTemp);
-    add("mg-hum", drawClouds);
+    add("mg-cloud", drawClouds);
     add("mg-rain", drawRain);
     add("mg-snow", drawSnow);
     add("mg-up", drawUpperTemp);
@@ -544,20 +546,22 @@
   }
   function renderAll() { icons(); panels.forEach((p) => p.render()); }
 
-  // liste déroulante des modèles (modèles en erreur : désactivés)
+  // liste déroulante des modèles (modèles en erreur : désactivés), reconstruite à chaque
+  // relecture du fichier seulement (le focus reste sur la liste au changement de modèle)
   function modelBar() {
     const bar = $("mg-bar");
     if (!bar) return;
     bar.innerHTML = `<label for="mg-model">Modèle</label>
-      <select id="mg-model">${ALL.models.map((m) => `<option value="${esc(m.id)}"${m.error ? " disabled" : ""}${m === D ? " selected" : ""}>${esc(m.label)}${m.error ? " (indisponible)" : ""}</option>`).join("")}</select>`;
+      <select id="mg-model">${ALL.models.map((m) => `<option value="${esc(m.id)}"${m.error ? " disabled" : ""}>${esc(m.label)}${m.error ? " (indisponible)" : ""}</option>`).join("")}</select>`;
     $("mg-model").addEventListener("change", (e) => { store.set(e.target.value); show(e.target.value); });
   }
   // affiche un modèle (identifiant) ; à défaut : modèle par défaut, puis premier disponible
   function show(id) {
-    const ok = ALL.models.filter((m) => !m.error && m.n);
+    const ok = ALL.models.filter((m) => !m.error && m.n > 1 && m.surface);
     D = ok.find((m) => m.id === id) || ok.find((m) => m.id === ALL.default) || ok[0] || null;
-    hover = null;
-    modelBar();
+    hover = null; CLD = null; TMP = null;
+    const selEl = $("mg-model");
+    if (selEl && D) selEl.value = D.id;
     if (!D) {
       const errs = ALL.models.map((m) => `${esc(m.label)} : ${esc(m.error || "prévision vide")}`).join(" ; ");
       root.innerHTML = `<p class="muted">Météogramme indisponible (${errs}).</p>`;
@@ -565,6 +569,7 @@
     }
     D.top = ALL.top;
     S = D.surface; N = D.n; T0 = D.t0;
+    CUM = cumul();
     build();
   }
 
@@ -575,18 +580,25 @@
       const all = await r.json();
       if (all.error) throw new Error(all.error);
       if (!Array.isArray(all.models) || !all.models.length) throw new Error("aucun modèle");
+      if (ALL && all.generated && all.generated === ALL.generated) return;   // fichier inchangé
       ALL = all;
     } catch (e) {
       if (!ALL) root.innerHTML = `<p class="muted">Météogramme indisponible (${esc(e.message)}).</p>`;
       return;
     }
     if ($("gen") && ALL.version) $("gen").textContent = ` · calcul weewx-live ${ALL.version}`;
+    modelBar();
     // modèle : celui déjà affiché, sinon ?model= dans l'adresse, sinon le dernier choisi
     show((D && D.id) || new URLSearchParams(location.search).get("model") || store.get());
   }
 
-  let rt = 0;
-  new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => { if (D) renderAll(); }, 120); }).observe(root);
+  // largeur modifiée : panneaux redessinés (pas de nouveau calcul des grilles)
+  let rt = 0, rw = root.clientWidth;
+  new ResizeObserver(() => {
+    if (root.clientWidth === rw) return;
+    rw = root.clientWidth;
+    clearTimeout(rt); rt = setTimeout(() => { if (D) renderAll(); }, 120);
+  }).observe(root);
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (D) build(); });
   addEventListener("scroll", () => { if (hover) { hover = null; redrawAll(); showTip(); } }, { passive: true, capture: true });
   load();

@@ -1,6 +1,8 @@
-/* weewx-live — tableau de bord : valeurs en temps réel (MQTT, weewx-mqtt) ou mises à jour
+/* weewx-live — panneaux de mesures du tableau de bord (index.html) et des pages « jour »
+ * (archive/day-AAAA-MM-JJ.html) : valeurs en temps réel (MQTT, weewx-mqtt) ou mises à jour
  * à chaque archive weewx (MQTT désactivé), historique 24 h (data/history.json), panneaux
- * configurés dans skin.conf [[parameters]] (standard, génériques, groupés). */
+ * configurés dans skin.conf [[parameters]] (standard, génériques, groupés), panneaux
+ * réduits / développés. Mode démo : ?demo. */
 (function () {
   "use strict";
 
@@ -120,6 +122,8 @@
   const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
   const dirName = (d) => d === null || d === undefined ? "—" : DIRS[Math.round(d / 22.5) % 16];
   const midnightOf = (t) => { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); return d.getTime() / 1000; };
+  const round = (v) => Math.round(v * 100) / 100;
+  const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
 
   const DEC = { outTemp: 1, outHumidity: 0, barometer: 1, windSpeed: 0, windGust: 0, rain: 1, rainRate: 1, radiation: 0 };
 
@@ -139,6 +143,7 @@
     acc: {},                 // accumulateurs par minute
     lastPacket: 0,
     lastArchive: 0,          // horodatage du dernier enregistrement d'archive (history.json)
+    tempTime: 0,             // horodatage de la température actuelle (écarts sur 1 h / 24 h)
   };
   // Mode « archive » : MQTT désactivé ([[mqtt]] enable = false) ou non configuré ; les
   // valeurs affichées sont celles du dernier enregistrement d'archive weewx.
@@ -148,14 +153,19 @@
   // ------------------------------------------------------------------
   // Graphiques
   // ------------------------------------------------------------------
-  const chartEl = (k) => document.querySelector(`[data-chart="${CSS.escape(k)}"]`);
-  // graphique créé seulement si son panneau figure sur la page (paramètres de skin.conf)
-  // (pas pour un panneau générique qui reprend l'id d'un paramètre standard)
+  // zone de graphique « k » du panneau « pid » (un panneau générique peut avoir pour clé
+  // celle d'un graphique standard, ex. « rain » : recherche limitée au panneau)
+  const cardChart = (pid, k) => {
+    const c = document.querySelector(`main.grid > .card[data-param="${CSS.escape(pid)}"]`);
+    return c && c.querySelector(`[data-chart="${CSS.escape(k)}"]`);
+  };
+  // graphique standard créé seulement si son panneau figure sur la page (paramètres de
+  // skin.conf), pas pour un panneau générique qui reprend l'id d'un paramètre standard
   const mkChart = (k, opts) => {
-    const el = chartEl(k);
+    const el = cardChart(k, k);
     return el && !el.closest("[data-generic]") ? new MiniChart(el, opts) : null;
   };
-  // courbes en °C : couleur selon la valeur (échelle TEMP_STOPS des barres Hi-Low)
+  // courbes en °C : couleur selon la valeur (paliers de 3 °C, TempScale de minichart.js)
   const lineChart = (k, color, label, unit, opt = {}) => mkChart(k, Object.assign({
     unit, decimals: DEC[k], series: [{ label, color, type: "line", fill: true, tempScale: unit === "°C", data: S.series[k] }],
   }, opt));
@@ -272,7 +282,6 @@
     PARAMS = list && list.length ? list : DEFAULT_PARAMS;
     setAliases(PARAMS);
     const grid = document.querySelector("main.grid");
-    const wanted = new Map(PARAMS.map((p, i) => [p.id, i]));
     // panneaux standard : masqués s'ils ne sont pas configurés (ou remplacés par un panneau générique)
     grid.querySelectorAll(":scope > .card").forEach((c) => {
       const p = PARAMS.find((x) => x.id === c.dataset.param);
@@ -294,16 +303,16 @@
       if (p.aggregate === "sum") { genericSum.add(p.key); sumHourly[p.key] = new Map(); daySum[p.key] = null; }
       // panneau déjà produit par le gabarit weewx ; sinon (page statique, démo) on le crée
       if (!grid.querySelector(`:scope > .card[data-param="${CSS.escape(p.id)}"]`)) grid.appendChild(genericCard(p));
+      const el = cardChart(p.id, p.key);
+      if (!el) continue;
       const opts = { unit: p.unit, decimals: p.decimals };
       charts["g:" + p.key] = p.aggregate === "sum"
-        ? new MiniChart(chartEl(p.key), Object.assign(opts, { floor: 0, minRange: 1, maxGap: 1e9, series: [
+        ? new MiniChart(el, Object.assign(opts, { floor: 0, minRange: 1, maxGap: 1e9, series: [
           { label: "Cumul horaire", color: p.color, type: "bar", bucket: 3600, data: [] },
           { label: "Cumul 24 h", color: "--text-2", type: "line", data: [] }] }))
-        : new MiniChart(chartEl(p.key), Object.assign(opts, { minRange: 1, series: [
+        : new MiniChart(el, Object.assign(opts, { minRange: 1, series: [
           { label: p.title, color: p.color, type: "line", fill: true, tempScale: p.unit === "°C", data: S.series[p.key] }] }));
     }
-    // ordre d'affichage = ordre de skin.conf
-    grid.querySelectorAll(":scope > .card").forEach((c) => (c.dataset.idx = wanted.get(c.dataset.param) ?? 99));
     // graphiques des panneaux retirés : libérés
     for (const [k, c] of Object.entries(charts)) if (c && !c.el.isConnected) { c.destroy(); charts[k] = null; }
   }
@@ -324,7 +333,7 @@
       S.series[m.key] = S.series[m.key] || [];
     });
     if (!grid.querySelector(`:scope > .card[data-param="${CSS.escape(p.id)}"]`)) grid.appendChild(groupCard(p));
-    const el = chartEl(p.key);
+    const el = cardChart(p.id, p.key);
     if (!el) return;
     const units = new Set(p.members.map((m) => m.unit));
     charts["grp:" + p.key] = new MiniChart(el, {
@@ -348,13 +357,13 @@
   }
 
   function refreshCharts() {
+    const now = nowS();
     for (const p of GENERIC) {
       if (p.aggregate !== "sum") continue;
-      const { bars, cum } = genericSumSeries(p.key, nowS());
+      const { bars, cum } = genericSumSeries(p.key, now);
       const ch = charts["g:" + p.key];
-      ch.series[0].data = bars; ch.series[1].data = cum;
+      if (ch) { ch.series[0].data = bars; ch.series[1].data = cum; }
     }
-    const now = nowS();
     if (charts.rain) {
       charts.rain.series[0].data = [...S.rainHourly.entries()].sort((a, b) => a[0] - b[0]);
       charts.rain.series[1].data = rainCumul(now);
@@ -382,11 +391,9 @@
   // ------------------------------------------------------------------
   // Rose des vents 24 h : 16 secteurs, fréquence par classe de vitesse
   // ------------------------------------------------------------------
+  // classes de vitesse (légende : panels.inc)
   const ROSE_CLASSES = [
-    { max: 10, label: "< 10", color: "--ws1" },
-    { max: 20, label: "10–20", color: "--ws2" },
-    { max: 30, label: "20–30", color: "--ws3" },
-    { max: Infinity, label: "≥ 30 km/h", color: "--ws4" },
+    { max: 10, color: "--ws1" }, { max: 20, color: "--ws2" }, { max: 30, color: "--ws3" }, { max: Infinity, color: "--ws4" },
   ];
   const CALM = 1;   // km/h : en dessous, vent calme (direction non significative)
 
@@ -471,12 +478,12 @@
   // éléments mis à jour à chaque paquet : recherche DOM mise en cache
   const elCache = new Map();
   function field(p, k) {
-    const id = p + "|" + k;
-    let el = elCache.get(id);
+    const ck = p + "|" + k;
+    let el = elCache.get(ck);
     if (el === undefined || (el && !el.isConnected)) {
       const c = card(p);
       el = (c && c.querySelector(`[data-k="${CSS.escape(k)}"]`)) || null;
-      elCache.set(id, el);
+      elCache.set(ck, el);
     }
     return el;
   }
@@ -551,9 +558,8 @@
     set("rain", "rate", fmt(c.rainRate, 1));
     const rr = S.day.rainRate || {};
     set("rain", "max", fmt(rr.max, 1)); set("rain", "maxTime", rr.max ? hhmm(rr.maxTime) : "");
-    const t0 = nowS() - SPAN;
     // même calcul que la courbe de cumul du graphique (dernière valeur)
-    const cum = rainCumul(t0 + SPAN), s24 = cum.length ? cum[cum.length - 1][1] : 0;
+    const cum = rainCumul(nowS()), s24 = cum.length ? cum[cum.length - 1][1] : 0;
     set("rain", "sum24", fmt(s24, 1));
     // Variations de température sur 1 h et 24 h
     set("outTemp", "d1h", tempDelta("outTemp1h", 3600));
@@ -690,9 +696,6 @@
     render();
     scheduleDraw();
   }
-  const round = (v) => Math.round(v * 100) / 100;
-  const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
-
   function trim() {
     if (DAY) return;
     const t0 = Date.now() / 1000 - SPAN - 3600;
@@ -1065,10 +1068,9 @@
   }
   const ICON_REDUCE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10l5-5 5 5"/></svg>';
   const ICON_EXPAND = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5"/></svg>';
+  // panneaux réduits affichés en tête (style.css), sinon ordre du document (layout.js)
   function applyCompact(cardEl, compact) {
     cardEl.classList.toggle("compact", compact);
-    // ordre : panneaux réduits d'abord, puis développés, chacun dans l'ordre de skin.conf
-    cardEl.style.order = (compact ? 0 : 100) + (+cardEl.dataset.idx || 0);
     const b = cardEl.querySelector(".size-btn");
     const title = cardEl.querySelector("h2").textContent.trim();
     b.innerHTML = compact ? ICON_EXPAND : ICON_REDUCE;

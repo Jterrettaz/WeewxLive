@@ -1,5 +1,6 @@
-/* MiniChart — petit moteur de graphiques canvas (ligne, aire, bande min–max, barres)
- * avec réticule et infobulle. Aucune dépendance.
+/* MiniChart — petit moteur de graphiques canvas (ligne, aire, bande min–max, barres,
+ * points, barres « Hi-Low ») avec réticule et infobulle (#tip), commun à toutes les pages ;
+ * échelles de couleur des températures (window.TempScale). Aucune dépendance.
  *
  * Séries (communs : label, color = variable CSS ex. "--temp") :
  *   { type: "line", data: [[t, v], …], fill, width, endDot, tempScale }
@@ -22,7 +23,9 @@
 (function () {
   "use strict";
 
-  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  // styles calculés de la racine (objet « vivant » : suit le thème clair / sombre)
+  let rootStyle = null;
+  const css = (name) => (rootStyle || (rootStyle = getComputedStyle(document.documentElement))).getPropertyValue(name).trim();
   // couleur utilisable par le canvas : « var(--x) » ou « --x » -> valeur de la variable CSS
   const canvasColor = (c) => {
     const m = /^(?:var\()?(--[\w-]+)\)?$/.exec(c || "");
@@ -81,6 +84,7 @@
   }
 
   const tip = () => document.getElementById("tip");
+  const hideTip = () => { const el = tip(); if (el) el.hidden = true; };
 
   class MiniChart {
     constructor(el, o) {
@@ -108,7 +112,7 @@
       };
       const leave = () => {
         if (this.hover === null) return;
-        this.hover = null; tip().hidden = true; this.draw();
+        this.hover = null; hideTip(); this.draw();
       };
       this._leave = leave;
       addEventListener("scroll", leave, { passive: true, capture: true });
@@ -123,7 +127,7 @@
     setRange(t0, t1) { this.o.range = [t0, t1]; }
     setSeries(series, opts) {
       this.series = series; if (opts) Object.assign(this.o, opts);
-      if (this.hover !== null) { this.hover = null; tip().hidden = true; }
+      if (this.hover !== null) { this.hover = null; hideTip(); }
     }
     // libère les observateurs (graphique recréé ou retiré de la page)
     destroy() {
@@ -391,6 +395,7 @@
 
     showTip(e) {
       const el = tip();
+      if (!el) return;
       if (!this._hits || !this._hits.length) { el.hidden = true; return; }
       const { s, p } = this._hits[0];
       const d = this.o.decimals, u = esc(this.o.unit || "");
@@ -528,7 +533,7 @@
     const r = /rgba?\(([^)]+)\)/.exec(c);
     return r ? r[1].split(",").slice(0, 3).map(Number) : [128, 128, 128];
   };
-  const textRgb = () => rgbOf(getComputedStyle(document.documentElement).getPropertyValue("--text") || "#000");
+  const textRgb = () => rgbOf(css("--text") || "#000");
   function lineColor(v, k = 0.95, b = textRgb()) {
     const a = rgbOf(stepColor(v));
     return `rgb(${a.map((x, i) => Math.round(x * k + b[i] * (1 - k))).join(",")})`;
@@ -569,7 +574,6 @@
     return `<span class="tscale"><span class="tscale-bar" style="background:linear-gradient(90deg, ${grad})"></span>` +
       `<span class="tscale-lab">${ticks}</span></span> couleur : tranches de 3 °C`;
   }
-    return { color, stepColor, textColor, lineColor, gradient, swatch, hiloSwatch, legend, stepLegend, darkMode,
-             STOPS: TEMP_STOPS, STEPS: TEMP_STEPS };
+  return { color, stepColor, textColor, lineColor, gradient, swatch, hiloSwatch, legend, stepLegend, darkMode };
   })();
 })();

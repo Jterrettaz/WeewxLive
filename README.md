@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.66.
+et n'a pas besoin d'être joignable depuis internet. Version 1.67.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -16,8 +16,10 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.66.
     « Tout développer ».
   - **Soleil et Lune** : lever / coucher du soleil et de la lune, durée du jour et écart avec
     la veille, phase de la lune, courbes de hauteur et position actuelle.
-  - **Prévisions Open-Meteo** (7 jours, détail heure par heure), **radar** et **satellite**
-    (cartes Windy, ou RainViewer / EUMETSAT).
+  - **Prévisions Open-Meteo** (7 jours, détail heure par heure, modèle au choix parmi 5),
+    **radar** et **satellite** (cartes Windy, ou RainViewer / EUMETSAT).
+  - Ordre des cadres choisi par l'administrateur ; chaque visiteur peut **réorganiser** et
+    **masquer** cadres et panneaux.
   - **Ce jour et ce mois au fil des ans** : records de chaque année pour la date du jour et le
     mois en cours, comparés aux valeurs actuelles.
 - **Une page par paramètre** (menu « Données » ou titre d'un panneau) : statistiques et
@@ -27,21 +29,21 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.66.
   365 derniers jours, avec une section par paramètre (statistiques et graphique).
 - **Archives** (`archive/day-AAAA-MM-JJ.html`, `month-AAAA-MM.html`, `year-AAAA.html`) :
   une page par jour (tous les panneaux du tableau de bord), par mois et par année (une section
-  par paramètre), avec sélecteur de date et navigation précédent / suivant (désactivables).
+  par paramètre), avec sélecteur de date et navigation précédent / suivant (chaque type de
+  page est désactivable).
 - **Climatologie** (menu « Climatologie ») : tableau **mensuel** (`archive/climato-AAAA-MM.html`,
   une ligne par jour : températures, vent, secteur, pluie, humidité, pression ; lien vers la
   page d'archives de chaque jour) et **annuel** (`archive/climato-AAAA.html`, une ligne par
   mois : températures et nombres de jours de gel / sans dégel / forte chaleur, pluie, vent ;
   lien vers le tableau de chaque mois). Cellules colorées.
 - **Météogramme** (menu « Prévisions » → « Météogramme », `meteogram.html`) : prévision
-  horaire au sol et en altitude, au choix parmi 5 modèles Open-Meteo (ICON, Météo-France,
-  ECMWF, GFS, Met Office par défaut) : temps,
-  température, nuages selon l'altitude, précipitations, neige, température et
-  vent en altitude (isotherme 0 °C), vent et rafales.
+  horaire au sol et en altitude, modèle au choix (par défaut ICON, Météo-France, ECMWF, GFS
+  et Met Office) : temps, température, nuages selon l'altitude, précipitations et cumul,
+  neige, température et vent en altitude (isotherme 0 °C), vent et rafales.
 - **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`) : tous
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
   groupée, pluie et probabilité par jour, comparaison des modèles, tableau jour après jour ;
-  modèles configurables.
+  modèles et horizons configurables.
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -62,6 +64,18 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.66.
 Toutes les connexions partent du serveur weewx vers l'extérieur (FTP/rsync, MQTT) :
 aucun port à ouvrir sur votre box.
 
+**Sommaire** : [Contenu](#contenu) · [1. Installer](#1-installer-lextension) ·
+[2. Envoi](#2-envoi-vers-lhébergement-web) · [3. MQTT](#3-temps-réel--mqtt-facultatif) ·
+[4. Configurer la page](#4-configurer-la-page) ·
+[5. Paramètres affichés](#5-paramètres-affichés-parameters) ·
+[6. Soleil et Lune, prévisions, cartes](#6-soleil-et-lune-prévisions-radar-et-satellite-tableau-de-bord) ·
+[7. Au fil des ans](#7-ce-jour-et-ce-mois-au-fil-des-ans) ·
+[8. Détail, archives, climatologie](#8-pages-de-détail) ·
+[9. Extrêmes](#9-page--extrêmes--records-de-la-station) ·
+[10. Ensembles](#10-prévisions-densemble-ensembleshtml) ·
+[11. Météogramme](#11-météogramme-meteogramhtml) ·
+[12. Couleurs](#12-couleurs-des-températures) · [Notes](#notes)
+
 ## Contenu
 
 | Fichier | Rôle |
@@ -74,9 +88,9 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/layout.js` | ordre et masquage des cadres et des panneaux de mesures du tableau de bord (bouton « Réorganiser ») |
 | `skins/WeewxLive/archive/day-%Y-%m-%d.html.tmpl` | page d'archives « jour » (une par journée) |
 | `skins/WeewxLive/archive/month-%Y-%m.html.tmpl`, `year-%Y.html.tmpl` | pages d'archives « mois » et « année » |
-| `skins/WeewxLive/archive/header.inc`, `archive.js` | en-tête commun des archives : menu, sélecteur de date, précédent / suivant |
+| `skins/WeewxLive/archive/header.inc`, `skins/WeewxLive/archive.js` | en-tête commun des archives : menu, sélecteur de date, précédent / suivant |
 | `skins/WeewxLive/archive/brand.inc` | marque (logo, nom) et menu des pages du dossier `archive/` |
-| `skins/WeewxLive/archive/climato-%Y-%m.html.tmpl`, `climato-%Y.html.tmpl`, `climato.js` | tableaux climatologiques mensuel et annuel |
+| `skins/WeewxLive/archive/climato-%Y-%m.html.tmpl`, `climato-%Y.html.tmpl`, `skins/WeewxLive/climato.js` | tableaux climatologiques mensuel et annuel |
 | `skins/WeewxLive/index.html.tmpl`, `app.js` | tableau de bord : gabarit Cheetah (un panneau par paramètre de `[[parameters]]`, configuration intégrée à la page) et script temps réel |
 | `skins/WeewxLive/extras.js` | prévisions, radar et satellite du tableau de bord |
 | `skins/WeewxLive/climate.js` | « Ce jour et ce mois au fil des ans » |
@@ -91,6 +105,7 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/style.css` | thème (clair / sombre) |
 | `skins/WeewxLive/data/*.json.tmpl`, `config.json.tmpl` | gabarits des fichiers JSON |
 | `skins/WeewxLive/vendor/leaflet/` | bibliothèque de cartes Leaflet 1.9.4 (RainViewer / EUMETSAT) |
+| `skins/WeewxLive/img/`, `vendor/mqtt.min.js` | à créer soi-même : logo ([Logo](#logo)) et copie locale de mqtt.js ([mqtt.js en local](#mqttjs-en-local-recommandé)) |
 
 weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 [Dossier de sortie](#dossier-de-sortie-html_root)) :
@@ -313,7 +328,9 @@ Dans `skins/WeewxLive/skin.conf` (dossier skins de weewx, ex. `/etc/weewx/skins/
 [LiveJSON]
     hours = 24                   # profondeur de l'historique du tableau de bord (1 à 72 h)
     station_name = ""            # vide = [Station] location de weewx.conf
-    page_refresh = 300           # rechargement complet du tableau de bord (s, 0 = jamais)
+    page_refresh = 300           # rechargement complet du tableau de bord (s, 0 = jamais, max. 86400)
+    data_binding = wx_binding    # base de données weewx lue
+    pretty = false               # true : JSON indenté (débogage)
     [[mqtt]]
         enable = true
         url = wss://broker.example.org:8884/mqtt
@@ -348,9 +365,10 @@ weectl report run WeewxLive        # weewx 5 : génération immédiate, sans att
 ls <HTML_ROOT de WeewxLive>/data/
 ```
 
-Puis ouvrir la page (par exemple `https://mon-site/…/live/` avec le réglage ci-dessus). Le pied de page indique l'heure de génération de
-l'historique ; la pastille en haut à droite l'état de la connexion (« En direct »,
-« Archive weewx », « Pas de données »…).
+Puis ouvrir la page (par exemple `https://mon-site/meteo/live/` avec l'exemple de la
+section 2). Le pied de page indique l'heure de génération de l'historique ; la pastille en
+haut à droite, l'état de la connexion (« En direct », « Archive weewx », « Pas de
+données »…).
 
 `?demo` à la fin de l'adresse du tableau de bord ou d'une page de détail : données simulées,
 sans broker.
@@ -378,9 +396,10 @@ affiché sur le tableau de bord (un cadre radar et satellite masqué n'est pas c
 **« Terminer »**. Ordres et éléments masqués sont mémorisés par son navigateur et appliqués
 dès le chargement ; **« Par défaut »** revient aux ordres de l'administrateur
 (`[[dashboard]] order` pour les cadres, ordre de `[[parameters]]` ou option `order` pour les
-panneaux) et réaffiche tout. (Pour retirer un élément pour tous les visiteurs : `enable =
-false` du bloc concerné, ou retrait du paramètre de `[[parameters]]`.) (Déplacer le cadre radar et
-satellite recharge les cartes Windy.)
+panneaux) et réaffiche tout. Déplacer le cadre radar et satellite recharge les cartes Windy.
+Pour retirer un élément pour tous les visiteurs : `enable = false` dans `[[forecast]]`,
+`[[radar]]`, `[[satellite]]`, `[[astro]]` ou dans le paramètre de `[[parameters]]` (le cadre
+« au fil des ans » n'a pas d'option de désactivation).
 
 ## 5. Paramètres affichés (`[[parameters]]`)
 
@@ -505,7 +524,8 @@ et ils sont prioritaires (ajouter un niveau de crochets à chaque section).
 
 ### Soleil et Lune
 
-Avant les prévisions, un panneau donne pour aujourd'hui :
+Un cadre du tableau de bord (après le radar et le satellite, dans l'ordre par défaut) donne
+pour aujourd'hui :
 
 - **Soleil** : heures de lever et de coucher, durée du jour, écart de durée avec la veille
   (vert quand les jours rallongent), midi solaire et hauteur maximale, position actuelle
@@ -534,6 +554,8 @@ Pour masquer le panneau :
         enable = false
 ```
 
+### Prévisions, radar et satellite
+
 | Bloc | Source | Détails |
 |---|---|---|
 | **Prévisions** | [Open-Meteo](https://open-meteo.com/), **modèle au choix** (liste déroulante de l'en-tête, 5 modèles au plus ; `best_match` par défaut) | temps (pictogramme), max./min., pluie et probabilité, vent dominant et rafales ; lever/coucher du soleil et UV du jour. **Un clic sur un jour ouvre le détail heure par heure** : courbe de température, barres de précipitations et bandeau des 24 heures. |
@@ -550,9 +572,8 @@ UV (valeurs alors absentes).
 **Cache des prévisions** (1 heure par défaut, `cache` en secondes dans `[[forecast]]`) :
 weewx télécharge les prévisions de chaque modèle au plus une fois par période et les publie
 toutes dans `data/forecast.json` (environ 25 Ko par modèle) ; tous les visiteurs lisent ce
-fichier. Si le téléchargement échoue, la
-copie précédente est conservée et weewx ne réessaie qu'après 15 minutes (le rapport n'est
-pas ralenti). Si le fichier est inutilisable, le navigateur interroge Open-Meteo lui-même et
+fichier. Si le téléchargement échoue, la copie précédente est conservée et weewx ne
+réessaie qu'après 15 minutes (le rapport n'est pas ralenti). Si le fichier est inutilisable, le navigateur interroge Open-Meteo lui-même et
 garde la réponse en cache local pendant la même durée. L'heure de mise à jour est affichée
 dans l'en-tête du bloc.
 
@@ -567,24 +588,33 @@ celles de `[Station]` dans `weewx.conf`, ou `latitude`/`longitude` dans `[[forec
         models = best_match, icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless
         model = best_match
         days = 7                  # 1 à 16
-        cache = 3600              # secondes
+        cache = 3600              # secondes (60 à 86400)
+        # timeout = 15            # délai de réponse d'Open-Meteo (s, 2 à 60)
+        # latitude / longitude : par défaut celles de [Station]
     [[radar]]
         enable = true
         provider = windy          # ou rainviewer
         windy_overlay = radar     # autre couche Windy possible : satellite, rain, wind…
         windy_product = radar     # radar, satellite, ecmwf, gfs, icon…
         windy_url = ""            # ou l'adresse de l'iframe copiée depuis https://embed.windy.com
-        zoom = 7
+        zoom = 7                  # 1 à 12 (RainViewer : 7 au plus)
+        # avec provider = rainviewer :
+        frames = 13               # images de l'animation (2 à 13)
+        frame_delay = 500         # ms entre deux images (100 à 5000)
     [[satellite]]
         enable = true
         provider = windy          # ou eumetsat
         windy_overlay = satellite
         windy_product = satellite
         windy_url = ""
-        zoom = 5
+        zoom = 5                  # 1 à 12
         # avec provider = eumetsat :
+        url = https://view.eumetsat.int/geoserver/wms
         layers = "mtg_fd:ir105_hrfi|Infrarouge", "mtg_fd:rgb_truecolour|Couleurs vraies"
-        latency_minutes = 30      # délai de mise en ligne des images EUMETSAT
+        frames = 12               # images de l'animation (2 à 36)
+        step_minutes = 10         # minutes entre deux images (5 à 60)
+        latency_minutes = 30      # délai de mise en ligne des images EUMETSAT (0 à 240)
+        frame_delay = 400         # ms entre deux images (100 à 5000)
 ```
 
 Conditions d'utilisation (les mentions sont déjà affichées) :
@@ -704,16 +734,15 @@ qu'une fois (si le fichier n'existe pas déjà).
         days = 0          # pages « jour » produites en remontant depuis aujourd'hui (0 = toutes, défaut)
 ```
 
-L'ancienne section `[[day_pages]]` (`enable`, `days`, versions 1.41-1.42) reste reconnue.
-Les pages « jour » des versions précédentes étaient dans `days/` : ce dossier peut être
-supprimé du serveur.
-
 Par défaut (`days = 0`), la première génération produit une page pour chaque journée de la
 base (plusieurs milliers sur une base de plusieurs années, environ 40 à 90 Ko chacune) : elle
 peut prendre du temps et le premier envoi FTP sera volumineux ; les suivantes ne produisent
-que la page du jour. Pour limiter, par exemple, aux 365 derniers jours : `days = 365`. Le skin utilise pour cela son
-propre générateur (`user.livejson.LiveCheetahGenerator`, le générateur Cheetah de weewx avec
-ces options), déclaré dans `[Generators]` de `skin.conf`.
+que la page du jour. Pour limiter, par exemple, aux 365 derniers jours : `days = 365`. Ces
+options sont appliquées par le générateur du skin (`user.livejson.LiveCheetahGenerator`, le
+générateur Cheetah de weewx avec ces options), déclaré dans `[Generators]` de `skin.conf`.
+
+L'ancienne section `[[day_pages]]` (`enable`, `days`, versions 1.41-1.42) reste reconnue ;
+l'ancien dossier `days/` de ces versions peut être supprimé du serveur.
 
 ### Climatologie mensuelle
 
@@ -735,8 +764,8 @@ En gras : température la plus basse, la plus haute et rafale la plus forte du m
 ligne « Mois » : minimum, moyenne et maximum, vent moyen (rafale max.), secteur dominant,
 cumul de pluie, humidité et pression moyennes. Une colonne sans données (pas de baromètre…)
 est masquée. En haut : choix du mois et de l'année (« Afficher »), mois précédent / suivant,
-liens vers les graphiques du mois et le tableau climatologique de l'année. Les pages « mois » des archives ont
-un lien « Tableau climatologique du mois ». Sur petit écran, le tableau défile
+liens vers les graphiques du mois et le tableau climatologique de l'année. Les pages
+« mois » des archives ont un lien « Tableau climatologique du mois ». Sur petit écran, le tableau défile
 horizontalement (colonne « Jour » fixe).
 
 Les couleurs de la pression supposent des hPa (conversion automatique depuis inHg, mmHg,
@@ -783,7 +812,7 @@ en mm quelles que soient les unités affichées.
     [[extremes]]
         top = 10                    # lignes par classement (3 à 50)
         rain_day_threshold = 0.2    # mm (valeur incluse) : jour d'une période de pluie
-        min_day_coverage = 0.75     # fraction du jour mesurée (0 à 1)
+        min_day_coverage = 0.75     # fraction du jour mesurée (0 à 1 ; « 75 » = 75 %)
 ```
 
 ## 10. Prévisions d'ensemble (`ensembles.html`)
@@ -809,22 +838,23 @@ digitalurban) :
   certains modèles ne vont pas jusqu'à ce jour).
 
 weewx télécharge chaque modèle au plus une fois par `cache` (3 h ; les modèles sont recalculés
-toutes les 6 à 12 h) et publie dans `data/ensembles.json` (environ 1 Mo pour 5 modèles et
-207 membres avec `step = 1`, 400 Ko avec `step = 3`) les membres de température, vent et pression (un point toutes les `step`
-heures) et les valeurs journalières de chaque membre (max., min., pluie, vent max.,
-pression moyenne, jour local de la station). Le navigateur fait tous les calculs, selon les
-modèles cochés et l'horizon.
+toutes les 6 à 12 h) et publie dans `data/ensembles.json` les membres de température, vent
+et pression (un point toutes les `step` heures) et les valeurs journalières de chaque membre
+(max., min., pluie, vent max., pression moyenne, jour local de la station) : environ 1 Mo
+pour les 5 modèles par défaut (207 membres) avec `step = 1`, 400 Ko avec `step = 3`. Le
+navigateur fait tous les calculs, selon les modèles cochés et l'horizon.
 
 ```ini
     [[ensembles]]
         enable = true
         models = ecmwf_ifs025, gfs_seamless, icon_seamless_eps, gem_global, google_weathernext2_ensemble
-        days = 16                 # échéance téléchargée (limitée par chaque modèle)
-        horizons = 3, 7, 10, 16   # boutons d'horizon (jours)
-        default_horizon = 10
+        days = 16                 # échéance téléchargée (1 à 35, limitée par chaque modèle)
+        horizons = 3, 7, 10, 16   # boutons d'horizon (jours, 1 à 35)
+        default_horizon = 10      # horizon affiché d'abord (sinon le premier bouton)
         step = 1                  # heures entre deux points des courbes (1, 2, 3, 4 ou 6)
-        cache = 10800             # secondes (minimum 1800)
+        cache = 10800             # secondes (1800 à 86400)
         rain_threshold = 0.2      # mm : pluie « mesurable » (risque de pluie)
+        # timeout = 30            # délai de réponse d'Open-Meteo (s, 5 à 120)
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
 ```
 
@@ -837,8 +867,8 @@ WeatherNext 2, IA, 64, 15 j), `ukmo_global_ensemble_20km` (Met Office, 18, 8 j),
 `ncep_gefs05`, `ncep_aigefs025`, `ecmwf_ifs_europe_ensemble`, `meteoswiss_icon_ch1`,
 `meteoswiss_icon_ch2`… (liste complète dans la documentation d'Open-Meteo). Les identifiants
 erronés des versions 1.49 à 1.52 (`ecmwf_ifs_025`, `weathernext_ensemble_2`…) sont convertis
-automatiquement. Un modèle inconnu de l'extension est accepté
-et affiché sous son identifiant. Plus de modèles = plus de membres à dessiner et un
+automatiquement. Un modèle inconnu de l'extension est accepté et affiché sous son
+identifiant. Plus de modèles = plus de membres à dessiner et un
 `ensembles.json` plus gros.
 
 Chaque modèle est demandé au plus jusqu'à sa propre échéance (`days` est limité pour
@@ -846,8 +876,8 @@ chacun) ; si Open-Meteo refuse quand même l'échéance (erreur 400), l'extensio
 limite indiquée dans la réponse et refait la demande ; de même, une variable refusée pour
 un modèle (pression, par exemple) est retirée pour ce modèle. Le bas de la page indique la
 version de l'extension qui a calculé `data/ensembles.json` (après une mise à jour,
-redémarrer weewx ; le fichier est recalculé au plus toutes les 30 minutes). La raison des erreurs renvoyée par
-Open-Meteo est écrite dans le journal de weewx.
+redémarrer weewx ; le fichier est recalculé au plus toutes les 30 minutes). La raison des
+erreurs renvoyée par Open-Meteo est écrite dans le journal de weewx.
 
 Usage gratuit de l'API d'Open-Meteo réservé aux usages non commerciaux (une requête par
 modèle et par période de cache). Pour les modèles au pas de 6 h, les min. / max. journaliers
@@ -884,9 +914,10 @@ pointée. Sur petit écran, le météogramme défile horizontalement.
         models = icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless, ukmo_seamless
         model = icon_seamless     # ICON-D2 (2 j), puis ICON-EU (5 j), puis ICON global
         days = 4                  # 1 à 16 jours (limité par l'échéance de chaque modèle)
-        cache = 3600              # secondes
-        top_humidity = 12000      # m, sommet du panneau des nuages
-        top_temperature = 4500    # m, sommet du panneau température / vent
+        cache = 3600              # secondes (600 à 86400)
+        top_humidity = 12000      # m, sommet du panneau des nuages (3000 à 16000)
+        top_temperature = 4500    # m, sommet du panneau température / vent (1500 à 12000)
+        # timeout = 30            # délai de réponse d'Open-Meteo (s, 5 à 120)
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
 ```
 
@@ -943,7 +974,6 @@ const TEMP_STEPS = {
 
 ## Notes
 
-- Les journées (min/max, cumul du jour) suivent le fuseau horaire du serveur weewx.
 - Capteur absent (pas de capteur solaire, etc.) : la carte correspondante reste à « -- ».
 - Accessibilité : graphiques annoncés comme images avec une description, menu utilisable au
   clavier (flèches, Début / Fin, Échap), bandeaux annoncés aux lecteurs d'écran.
