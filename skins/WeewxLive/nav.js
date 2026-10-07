@@ -14,7 +14,6 @@
     { id: "outTemp", label: "Température" },
     { id: "wind", label: "Vent" },
     { id: "rain", label: "Pluie" },
-    { id: "radiation", label: "Rayonnement solaire" },
     { id: "outHumidity", label: "Humidité" },
     { id: "barometer", label: "Pression" },
   ];

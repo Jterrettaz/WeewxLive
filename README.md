@@ -2,14 +2,14 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.69.
+et n'a pas besoin d'être joignable depuis internet. Version 1.70.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
   **chaque archive weewx** si MQTT est désactivé.
   - Panneaux spécialisés : température (écarts sur 1 h et 24 h, durée du gel en cours), vent (boussole, rafales),
     direction du vent (rose des vents et graphique de la direction sur 24 h), pluie (barres
-    horaires + courbe de cumul), rayonnement, humidité, pression (tendance sur 3 h).
+    horaires + courbe de cumul), humidité, pression (tendance sur 3 h).
   - Paramètres supplémentaires et **panneaux groupés** (ex. particules PM1 / PM2.5 / PM10).
   - Chaque panneau peut être **réduit** (valeurs seules) ; les panneaux réduits sont regroupés
     en tête, en tuiles. Choix mémorisé par panneau dans le navigateur ; « Tout réduire » /
@@ -450,12 +450,15 @@ d'affichage**.
 | `max` | valeur, max. du jour, courbe 24 h | max., moyenne, moyenne des maxima ; courbe des maxima |
 | `sum` | cumul du jour, cumul 24 h, barres horaires + cumul | cumul, max. journalier ; barres (heure / jour / mois) + cumul |
 
-- Les 7 paramètres standard (`outTemp`, `wind`, `windDir`, `rain`, `radiation`,
-  `outHumidity`, `barometer`) gardent leur panneau spécialisé tant que leur agrégat n'est pas
+- Les 6 paramètres standard (`outTemp`, `wind`, `windDir`, `rain`, `outHumidity`,
+  `barometer`) gardent leur panneau spécialisé tant que leur agrégat n'est pas
   modifié ; leurs `title`, `column` et `mqtt` sont modifiables. Changer leur agrégat les
   transforme en panneau générique.
 - Supprimer une sous-section (ou `enable = false`) retire le paramètre partout. Sans aucune
-  sous-section, les 7 paramètres standard sont affichés.
+  sous-section, les 6 paramètres standard sont affichés.
+- Le rayonnement solaire n'est plus un paramètre standard (version 1.70) : pour l'afficher,
+  ajoutez-le comme paramètre supplémentaire (exemple commenté `[[[radiation]]]` dans
+  `skin.conf` : `aggregate = max`, `color = --sun`).
 - `color` : nom d'une variable CSS du thème (`--temp`, `--wind`, `--rain`, `--sun`, `--hum`,
   `--press`…) ; toute autre valeur est ignorée.
 - Un paramètre en °C (ex. température intérieure) a sa courbe colorée selon la température.
@@ -520,8 +523,8 @@ et ils sont prioritaires (ajouter un niveau de crochets à chaque section).
                 username = lecteur
                 password = ********
             [[[[parameters]]]]
-                order = outTemp, particules, wind, windDir, rain, outHumidity, barometer
-                [[[[[radiation]]]]]
+                order = outTemp, particules, wind, windDir, rain, outHumidity
+                [[[[[barometer]]]]]
                     enable = false
                 [[[[[particules]]]]]
                     title = Particules fines
@@ -704,7 +707,6 @@ l'une sous l'autre (statistiques puis graphique) ; ancres : `#p24h`, `#p7d`, `#p
 | Température | minimum, maximum (date et heure), moyenne, amplitude ; jours de gel (min. < 0 °C) et jours chauds (max. ≥ 25 °C) à partir de 7 jours |
 | Humidité | minimum, maximum, moyenne |
 | Pression | minimum, maximum, moyenne, écart |
-| Rayonnement | maximum, moyenne, moyenne des maxima journaliers |
 | Vent | vent moyen, vent max., rafale max., direction dominante (vecteur moyen) |
 | Pluie | cumul, intensité max. ; jours de pluie (≥ 0,2 mm) et maximum journalier à partir de 7 jours, max. en 1 h et heures de pluie sur 24 h |
 | Groupe | tableau min. / max. / moyenne par mesure |

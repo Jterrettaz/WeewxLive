@@ -35,7 +35,7 @@
     microgram_per_meter_cubed: id, degree_C_day: id,
   };
   const OBS = ["dateTime", "outTemp", "outHumidity", "barometer", "windSpeed", "windGust",
-               "windDir", "rain", "rainRate", "dayRain", "radiation"];
+               "windDir", "rain", "rainRate", "dayRain"];
 
   // Clés MQTT des températures passées (réglables : [[mqtt]] temp_1h_key / temp_24h_key)
   // clé en minuscules -> champ du paquet normalisé
@@ -125,7 +125,7 @@
   const round = (v) => Math.round(v * 100) / 100;
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
 
-  const DEC = { outTemp: 1, outHumidity: 0, barometer: 1, windSpeed: 0, windGust: 0, rain: 1, rainRate: 1, radiation: 0 };
+  const DEC = { outTemp: 1, outHumidity: 0, barometer: 1, windSpeed: 0, windGust: 0, rain: 1, rainRate: 1 };
 
   // ------------------------------------------------------------------
   // État
@@ -139,7 +139,7 @@
     cur: {},
     day: {},                 // extrêmes du jour {obs: {min,minTime,max,maxTime}}
     dayRain: null,
-    series: { outTemp: [], outHumidity: [], barometer: [], windSpeed: [], windGust: [], windDir: [], radiation: [] },
+    series: { outTemp: [], outHumidity: [], barometer: [], windSpeed: [], windGust: [], windDir: [] },
     rainHourly: new Map(),   // début d'heure -> mm
     rainPoints: [],          // [t, mm] : enregistrements d'archive + paquets LOOP (pour la courbe de cumul)
     acc: {},                 // accumulateurs par minute
@@ -176,7 +176,6 @@
     outTemp: lineChart("outTemp", "--temp", "Température", "°C", { minRange: 2 }),
     outHumidity: lineChart("outHumidity", "--hum", "Humidité", "%", { ceil: 100, minRange: 10 }),
     barometer: lineChart("barometer", "--press", "Pression", "hPa", { minRange: 4 }),
-    radiation: lineChart("radiation", "--sun", "Rayonnement", "W/m²", { floor: 0, minRange: 50 }),
     wind: mkChart("wind", {
       unit: "km/h", decimals: 0, floor: 0, minRange: 10,
       series: [
@@ -205,7 +204,7 @@
   // ------------------------------------------------------------------
   const DEFAULT_PARAMS = [
     ["outTemp", "outTemp", "Température"], ["wind", "windSpeed", "Vent"], ["windDir", "windDir", "Direction du vent"],
-    ["rain", "rain", "Pluie"], ["radiation", "radiation", "Rayonnement solaire"],
+    ["rain", "rain", "Pluie"],
     ["outHumidity", "outHumidity", "Humidité relative"], ["barometer", "barometer", "Pression"],
   ].map(([pid, key, title]) => ({ id: pid, key, title, mqtt: key, builtin: true }));
   const GENERIC_COLORS = ["--press", "--hum", "--sun", "--temp", "--wind"];
@@ -532,7 +531,7 @@
   function render() {
     renderGeneric();
     const c = S.cur;
-    for (const o of ["outTemp", "outHumidity", "barometer", "radiation"]) {
+    for (const o of ["outTemp", "outHumidity", "barometer"]) {
       set(o, "value", fmt(c[o], DEC[o]));
       setExt(o, o);
     }
@@ -667,10 +666,10 @@
 
     if (p.outTemp !== undefined && p.outTemp !== null) S.tempTime = t;
     if (isNum(p.outTemp) && p.outTemp >= 0) markAbove(t);
-    for (const o of ["outTemp", "outTemp1h", "outTemp24h", "outHumidity", "barometer", "windSpeed", "windGust", "windDir", "rainRate", "radiation"]) {
+    for (const o of ["outTemp", "outTemp1h", "outTemp24h", "outHumidity", "barometer", "windSpeed", "windGust", "windDir", "rainRate"]) {
       if (o in p) S.cur[o] = p[o];
     }
-    for (const o of ["outTemp", "outHumidity", "barometer", "radiation", "windSpeed"]) extreme(o, p[o], t);
+    for (const o of ["outTemp", "outHumidity", "barometer", "windSpeed"]) extreme(o, p[o], t);
     extreme("windGust", p.windGust ?? p.windSpeed, t, true);
     extreme("rainRate", p.rainRate, t, true);
 
@@ -759,7 +758,7 @@
       return { m, lastT };
     };
 
-    for (const k of ["outTemp", "outHumidity", "barometer", "windSpeed", "windGust", "windDir", "radiation"]) merge(k, hs[k] || []);
+    for (const k of ["outTemp", "outHumidity", "barometer", "windSpeed", "windGust", "windDir"]) merge(k, hs[k] || []);
 
     // Jour de la station : un fichier encore daté de la veille (juste après minuit) ne
     // remplace pas les extrêmes du nouveau jour
@@ -820,7 +819,7 @@
 
     // Valeurs « courantes » provisoires avant le premier paquet MQTT (mode archive : toujours)
     if (!S.lastPacket) {
-      for (const o of ["outTemp", "outHumidity", "barometer", "windSpeed", "windGust", "radiation", "windDir", "rainRate"]) {
+      for (const o of ["outTemp", "outHumidity", "barometer", "windSpeed", "windGust", "windDir", "rainRate"]) {
         const a = hs[o];
         if (a && a.length) S.cur[o] = a[a.length - 1][1];
         if (o === "outTemp" && a && a.length) S.tempTime = a[a.length - 1][0];

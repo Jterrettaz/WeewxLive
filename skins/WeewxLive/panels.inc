@@ -90,21 +90,6 @@
         <ul class="legend"><li><i style="background:var(--rain)"></i>Pluie horaire</li><li><i style="background:var(--rainsum)"></i>Cumul 24 h</li></ul>
       </div>
     </article>
-#elif $p.builtin and $p.id == "radiation"
-    <!-- Rayonnement solaire -->
-    <article class="card" data-param="radiation" style="--c: var(--sun)">
-      <div class="card-main">
-        <header><h2><a class="more" data-detail="radiation" href="detail.html?p=radiation">$p.title</a></h2><span class="hint">global</span></header>
-        <div class="now"><span class="val" data-k="value">--</span><span class="unit">W/m²</span></div>
-        <dl class="ext">
-          <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
-          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
-        </dl>
-      </div>
-      <div class="card-side">
-        <div class="chart" data-chart="radiation" role="img" aria-label="Rayonnement solaire #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
-      </div>
-    </article>
 #elif $p.builtin and $p.id == "outHumidity"
     <!-- Humidité -->
     <article class="card" data-param="outHumidity" style="--c: var(--hum)">

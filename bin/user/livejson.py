@@ -57,7 +57,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.69"
+VERSION = "1.70"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -73,7 +73,6 @@ PERIOD_AGGREGATES = (
     ("outTemp", ("min", "max", "avg")),
     ("outHumidity", ("min", "max", "avg")),
     ("barometer", ("min", "max", "avg")),
-    ("radiation", ("max", "avg")),
     ("windSpeed", ("max", "avg")),
     ("windGust", ("max",)),
     ("rainRate", ("max",)),
@@ -84,7 +83,6 @@ SERIES_AGGREGATES = {
     "outTemp": ("min", "max", "avg"),
     "outHumidity": ("min", "max", "avg"),
     "barometer": ("min", "max", "avg"),
-    "radiation": ("min", "max", "avg"),
     "windSpeed": ("avg",),
     "windGust": ("max",),
     "rain": ("sum",),
@@ -105,12 +103,11 @@ TARGET = {
     "windDir": "degree_compass",
     "rain": "mm",
     "rainRate": "mm_per_hour",
-    "radiation": "watt_per_meter_squared",
 }
 
 UNIT_LABELS = {
     "outTemp": "°C", "outHumidity": "%", "barometer": "hPa", "windSpeed": "km/h",
-    "windGust": "km/h", "windDir": "°", "rain": "mm", "rainRate": "mm/h", "radiation": "W/m²",
+    "windGust": "km/h", "windDir": "°", "rain": "mm", "rainRate": "mm/h",
 }
 
 # Extrêmes du jour : (observation, agrégats)
@@ -118,7 +115,6 @@ DAY_AGGREGATES = (
     ("outTemp", ("min", "max")),
     ("outHumidity", ("min", "max")),
     ("barometer", ("min", "max")),
-    ("radiation", ("min", "max")),
     ("windSpeed", ("min", "max")),
     ("windGust", ("max",)),
     ("rainRate", ("max",)),
@@ -135,7 +131,6 @@ BUILTIN_PARAMS = {
     "wind": ("Vent", "windSpeed", "windSpeed", "min-max", "windSpeed"),
     "windDir": ("Direction du vent", "windDir", "windDir", "direction", "windDir"),
     "rain": ("Pluie", "rain", "rain", "sum", "rain"),
-    "radiation": ("Rayonnement solaire", "radiation", "radiation", "min-max", "radiation"),
     "outHumidity": ("Humidité relative", "outHumidity", "outHumidity", "min-max", "outHumidity"),
     "barometer": ("Pression", "barometer", "barometer", "min-max", "barometer"),
 }
@@ -282,7 +277,7 @@ def _archive_options(opts):
 
 
 def _parse_params(opts):
-    """Liste ordonnée des paramètres à afficher, d'après [[parameters]] (sinon : les 7 standard).
+    """Liste ordonnée des paramètres à afficher, d'après [[parameters]] (sinon : les 6 standard).
 
     Une sous-section contenant elle-même des sous-sections décrit un panneau groupé
     (plusieurs mesures dans un même panneau, ex. particules PM1 / PM2.5 / PM10) :
@@ -724,7 +719,7 @@ class LiveJSON(SearchList):
         """Mesures brutes utiles aux panneaux configurés (évite les requêtes inutiles)."""
         aux = {"outTemp": ("outTemp",), "wind": ("windSpeed", "windGust", "windDir"),
                "windDir": ("windDir", "windSpeed"), "rain": ("rain", "rainRate"),
-               "radiation": ("radiation",), "outHumidity": ("outHumidity",), "barometer": ("barometer",)}
+               "outHumidity": ("outHumidity",), "barometer": ("barometer",)}
         keys = []
         for p in self.measures:
             for k in (aux.get(p["id"], ()) if p["builtin"] else (p["key"],)):

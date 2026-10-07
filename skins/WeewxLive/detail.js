@@ -30,7 +30,6 @@
     outTemp: { title: "Température", hint: "extérieure", unit: "°C", dec: 1, color: "--temp", kind: "band", obs: "outTemp", minRange: 2 },
     wind: { title: "Vent", hint: "vitesse moyenne et rafales", unit: "km/h", dec: 0, color: "--wind", kind: "wind", floor: 0, minRange: 10 },
     rain: { title: "Pluie", hint: "précipitations", unit: "mm", dec: 1, color: "--rain", kind: "rain", sumKey: "rain", floor: 0, minRange: 1 },
-    radiation: { title: "Rayonnement solaire", hint: "global", unit: "W/m²", dec: 0, color: "--sun", kind: "band", obs: "radiation", floor: 0, minRange: 50 },
     outHumidity: { title: "Humidité relative", hint: "extérieure", unit: "%", dec: 0, color: "--hum", kind: "band", obs: "outHumidity", ceil: 100, minRange: 10 },
     barometer: { title: "Pression", hint: "niveau de la mer", unit: "hPa", dec: 1, color: "--press", kind: "band", obs: "barometer", minRange: 4 },
   };
@@ -142,7 +141,7 @@
 
       if (def.kind === "band") {
         const s = st[def.obs] || {};
-        if (param !== "radiation") add("Minimum", s.min, u, when(s.minTime));
+        add("Minimum", s.min, u, when(s.minTime));
         add("Maximum", s.max, u, when(s.maxTime));
         add("Moyenne", s.avg, u);
         if (param === "outTemp" || param === "barometer") {
@@ -151,10 +150,6 @@
         if (param === "outTemp" && days) {
           add("Jours de gel", days.frostDays, "", `min. < ${fmt(th.frost, 0)} °C · sur ${days.days} j`, 0);
           add("Jours chauds", days.hotDays, "", `max. ≥ ${fmt(th.hot, 0)} °C · sur ${days.days} j`, 0);
-        }
-        if (param === "radiation" && d.resolution === "day") {
-          const mx = ((S.radiation || {}).max || []).map((p) => p[1]);
-          if (mx.length) add("Moyenne des maxima", mx.reduce((a, b) => a + b, 0) / mx.length, u, "maximum journalier moyen");
         }
       } else if (def.kind === "wind") {
         const s = st.windSpeed || {}, g = st.windGust || {}, dir = (st.windDir || {}).vecdir;
