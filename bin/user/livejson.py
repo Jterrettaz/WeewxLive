@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.59"
+VERSION = "1.61"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -917,9 +917,9 @@ class LiveJSON(SearchList):
         if bad:
             log.error("livejson: ensembles : modèle(s) ignoré(s) : %s", ", ".join(bad))
         models = [m for i, m in enumerate(models) if ENSEMBLE_MODEL_RE.match(m) and m not in models[:i]]
-        step = _int(e.get("step"), 3, 1, 6)
+        step = _int(e.get("step"), 1, 1, 6)
         if 24 % step:
-            step = 3
+            step = 1
         horizons = sorted({_int(h, 0, 1, 35) for h in _as_list(e.get("horizons", "3, 7, 10, 16"))} - {0})
         return {
             "enable": to_bool(e.get("enable", True)),
@@ -929,7 +929,7 @@ class LiveJSON(SearchList):
             "cache": _int(e.get("cache"), 10800, 1800, 86400),
             "timeout": _int(e.get("timeout"), 30, 5, 120),
             "horizons": horizons or [3, 7, 10, 16],
-            "horizon": _int(e.get("default_horizon"), 3, 1, 35),
+            "horizon": _int(e.get("default_horizon"), 10, 1, 35),
             # mm : pluie « mesurable » (risque de pluie)
             "threshold": max(0.0, _to_float(e.get("rain_threshold"), RAIN_DAY_MM)),
         }

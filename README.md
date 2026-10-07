@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.59.
+et n'a pas besoin d'être joignable depuis internet. Version 1.61.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -759,8 +759,8 @@ digitalurban) :
   certains modèles ne vont pas jusqu'à ce jour).
 
 weewx télécharge chaque modèle au plus une fois par `cache` (3 h ; les modèles sont recalculés
-toutes les 6 à 12 h) et publie dans `data/ensembles.json` (environ 400 Ko pour 5 modèles et
-207 membres) les membres de température, vent et pression (un point toutes les `step`
+toutes les 6 à 12 h) et publie dans `data/ensembles.json` (environ 1 Mo pour 5 modèles et
+207 membres avec `step = 1`, 400 Ko avec `step = 3`) les membres de température, vent et pression (un point toutes les `step`
 heures) et les valeurs journalières de chaque membre (max., min., pluie, vent max.,
 pression moyenne, jour local de la station). Le navigateur fait tous les calculs, selon les
 modèles cochés et l'horizon.
@@ -771,8 +771,8 @@ modèles cochés et l'horizon.
         models = ecmwf_ifs025, gfs_seamless, icon_seamless_eps, gem_global, google_weathernext2_ensemble
         days = 16                 # échéance téléchargée (limitée par chaque modèle)
         horizons = 3, 7, 10, 16   # boutons d'horizon (jours)
-        default_horizon = 3
-        step = 3                  # heures entre deux points des courbes (1, 2, 3, 4 ou 6)
+        default_horizon = 10
+        step = 1                  # heures entre deux points des courbes (1, 2, 3, 4 ou 6)
         cache = 10800             # secondes (minimum 1800)
         rain_threshold = 0.2      # mm : pluie « mesurable » (risque de pluie)
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
