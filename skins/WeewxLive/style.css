@@ -742,7 +742,18 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 .dash-editing .dash-block { margin: 0 8px 12px; padding-top: 10px; border: 2px dashed var(--border); border-radius: 14px; }
 .grid-tools #dash-edit[aria-pressed="true"] { color: var(--bg); background: var(--text); border-color: var(--text); }
 /* pendant la réorganisation, cadres repliés : seule la barre (nom, flèches) est affichée */
-.dash-editing .dash-block > :not(.dash-bar) { display: none !important; }
+.dash-editing .dash-block > :not(.dash-bar):not(.dash-sub) { display: none !important; }
+/* panneaux de mesures (sous-liste du cadre « Mesures de la station ») */
+.dash-sub { list-style: none; margin: 0 16px 10px; padding: 0; display: grid; gap: 4px; }
+.dash-sub li { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 8px; padding: 5px 8px 5px 12px;
+  border-radius: 9px; background: var(--surface); border: 1px solid var(--border); }
+.dash-sub .dash-pname { margin-right: auto; font-size: 14px; color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-sub button { flex: none; }
+@media (max-width: 520px) { .dash-sub .w { display: none; } .dash-sub button { padding: 3px 12px; } }
+.dash-sub button { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 7px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); cursor: pointer; }
+.dash-sub button:disabled { opacity: .4; cursor: default; }
+.dash-sub button:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
 .dash-editing .dash-block { padding: 8px 0 0; margin-bottom: 8px; }
 .dash-editing .dash { max-width: 760px; margin: 0 auto; }
 @media (max-width: 520px) { .dash-bar .dash-name { flex: 1 1 100%; } }
