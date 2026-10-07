@@ -1,11 +1,11 @@
 /* weewx-live — page « Météogramme » (meteogram.html).
  * Données : data/meteogram.json, produit par weewx (livejson.meteogram_data) à partir de
- * l'API de prévision d'Open-Meteo ([LiveJSON] [[meteogram]] model, icon_seamless par défaut) :
- * valeurs horaires au sol et, pour chaque niveau de pression, altitude géopotentielle,
- * température, nébulosité et vent.
+ * l'API de prévision d'Open-Meteo pour chaque modèle de [LiveJSON] [[meteogram]] models
+ * (liste déroulante de la page, choix mémorisé par le navigateur) : valeurs horaires au sol
+ * et, pour chaque niveau de pression, altitude géopotentielle, température, nébulosité et vent.
  * Panneaux (axe du temps commun, réticule et infobulle partagés) :
  *   pictogrammes du temps · température à 2 m (min. / max. de chaque jour) ·
- *   couverture nuageuse selon l'altitude · précipitations horaires (dont averses)
+ *   couverture nuageuse selon l'altitude · précipitations horaires (dont averses) et cumul
  *   · neige · température et vent en altitude (isotherme 0 °C) · vent moyen et rafales au sol.
  * Les coupes en altitude sont interpolées entre les niveaux de pression (et la valeur au
  * sol), puis dessinées pixel par pixel ; les isothermes par « marching squares ». */
@@ -23,9 +23,13 @@
   const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
   const dirName = (d) => (isNum(d) ? DIRS[Math.round(d / 22.5) % 16] : "");
   const dark = () => (window.TempScale ? TempScale.darkMode() : matchMedia("(prefers-color-scheme: dark)").matches);
-  const L = 50, R = 14, TOP = 8, BOT = 20;      // marges des graphiques (px)
+  const L = 50, R = 44, TOP = 8, BOT = 20;      // marges des graphiques (px ; à droite : axe du cumul de pluie)
 
-  let D = null, S = null, N = 0, T0 = 0;
+  let ALL = null, D = null, S = null, N = 0, T0 = 0;   // ALL : fichier ; D : modèle affiché
+  const store = {
+    get() { try { return localStorage.getItem("weewx-mg-model"); } catch (e) { return null; } },
+    set(v) { try { localStorage.setItem("weewx-mg-model", v); } catch (e) { /* stockage indisponible */ } },
+  };
   const panels = [];
   let hover = null;                              // { i, panel, y }
 
@@ -372,12 +376,25 @@
       ctx.fill();
     });
   }
+  // cumul des précipitations depuis le début de la prévision
+  const cumul = () => { let c = 0; return S.precipitation.map((v) => (c += isNum(v) ? v : 0)); };
   function drawRain(ctx, p) {
     const pr = S.precipitation, sh = S.showers;
     const mx = Math.max(1, ...pr.filter(isNum));
     const { Y } = yAxis(ctx, p, 0, mx, { floor: 0, ticks: 3 });
     bars(ctx, p, Y, pr, css("--rain"));
-    bars(ctx, p, Y, sh.map((v, i) => (isNum(v) && isNum(pr[i]) ? Math.min(v, pr[i]) : v)), css("--press"), 0.5);
+    bars(ctx, p, Y, sh.map((v, i) => (isNum(v) && isNum(pr[i]) ? Math.min(v, pr[i]) : v)), css("--text-3"), 0.5);
+    // cumul : courbe, échelle de droite (mm)
+    const cu = cumul(), cmax = Math.max(1, cu[cu.length - 1] || 0);
+    const step = niceStep(cmax, 3), hi = Math.ceil(cmax / step) * step;
+    const Yc = (v) => TOP + (1 - v / hi) * p.ph;
+    const col = css("--press");
+    ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = col;
+    for (let v = 0; v <= hi + step * 1e-6; v += step) ctx.fillText(fmt(v, step < 1 ? 1 : 0), L + p.pw + 6, Yc(v));
+    ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.lineJoin = "round";
+    ctx.beginPath();
+    cu.forEach((v, i) => (i ? ctx.lineTo(p.X(i), Yc(v)) : ctx.moveTo(p.X(i), Yc(v))));
+    ctx.stroke();
   }
   function drawSnow(ctx, p) {
     const sf = S.snowfall, sd = S.snow_depth.map((v) => (isNum(v) ? v * 100 : null));
@@ -454,7 +471,8 @@
       ["Température", isNum(S.temperature_2m[i]) ? `${fmt(S.temperature_2m[i], 1)} °C` : "—", window.TempScale && isNum(S.temperature_2m[i]) ? TempScale.stepColor(S.temperature_2m[i]) : css("--temp")],
       ["Humidité", isNum(S.relative_humidity_2m[i]) ? `${fmt(S.relative_humidity_2m[i], 0)} %` : "—", css("--hum")],
       ["Nébulosité", isNum(S.cloud_cover[i]) ? `${fmt(S.cloud_cover[i], 0)} %` : "—", css("--text-3")],
-      ["Précipitations", `${fmt(S.precipitation[i], 1)} mm${S.showers[i] > 0 ? ` (dont averses ${fmt(S.showers[i], 1)})` : ""} · cumul ${fmt(cum, 1)} mm`, css("--rain")],
+      ["Précipitations", `${fmt(S.precipitation[i], 1)} mm${S.showers[i] > 0 ? ` (dont averses ${fmt(S.showers[i], 1)})` : ""}`, css("--rain")],
+      ["Cumul depuis le début", `${fmt(cum, 1)} mm`, css("--press")],
     ];
     if (S.snowfall[i] > 0 || S.snow_depth[i] > 0) rows.push(["Neige", `${fmt(S.snowfall[i], 1)} cm · au sol ${fmt((S.snow_depth[i] || 0) * 100, 0)} cm`, css("--wind")]);
     rows.push(["Vent", `${fmt(S.wind_speed_10m[i], 0)} km/h ${dirName(S.wind_direction_10m[i])} · rafales ${fmt(S.wind_gusts_10m[i], 0)} km/h`, css("--bad")]);
@@ -486,7 +504,7 @@
     const total = S.precipitation.reduce((a, v) => a + (isNum(v) ? v : 0), 0);
     const snowy = S.snowfall.some((v) => v > 0) || S.snow_depth.some((v) => v > 0);
     const fetched = new Date(D.fetched * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-    $("mg-sub").textContent = `Modèle ${D.modelLabel} · Open-Meteo · altitude du modèle ${isNum(D.elevation) ? Math.round(D.elevation) + " m" : "inconnue"} · données du ${fetched}`;
+    $("mg-sub").textContent = `Modèle ${D.label} · Open-Meteo · altitude du modèle ${isNum(D.elevation) ? Math.round(D.elevation) + " m" : "inconnue"} · données du ${fetched}`;
     const sec = (id, title, legend, h, extra = "") => `
       <section class="mg-panel">
         <h3>${title}${extra}</h3>
@@ -502,7 +520,8 @@
         ${sec("mg-hum", "Couverture nuageuse selon l'altitude (m)",
           li(`linear-gradient(90deg,rgba(${cloudRGB()},.15),rgba(${cloudRGB()},.9))`, "nuages : de 10 à 100 % (plus foncé = plus couvert)") +
           li("var(--wind)", "isotherme 0 °C", "dash"), 200)}
-        ${sec("mg-rain", "Précipitations (mm par heure)", li("var(--rain)", "précipitations") + li("var(--press)", "dont averses"), 130,
+        ${sec("mg-rain", "Précipitations (mm par heure)", li("var(--rain)", "précipitations") + li("var(--text-3)", "dont averses") +
+          li("var(--press)", "cumul depuis le début (mm, échelle de droite)"), 140,
           ` <span class="mg-tot">cumul sur la période : <b>${fmt(total, 1)} mm</b></span>`)}
         ${snowy ? sec("mg-snow", "Neige (cm)", li("var(--wind)", "chute de neige (cm par heure)") + li("var(--press)", "épaisseur au sol"), 100)
                 : `<section class="mg-panel"><h3>Neige</h3><p class="muted mg-none">Pas de neige prévue sur la période.</p></section>`}
@@ -525,25 +544,50 @@
   }
   function renderAll() { icons(); panels.forEach((p) => p.render()); }
 
+  // liste déroulante des modèles (modèles en erreur : désactivés)
+  function modelBar() {
+    const bar = $("mg-bar");
+    if (!bar) return;
+    bar.innerHTML = `<label for="mg-model">Modèle</label>
+      <select id="mg-model">${ALL.models.map((m) => `<option value="${esc(m.id)}"${m.error ? " disabled" : ""}${m === D ? " selected" : ""}>${esc(m.label)}${m.error ? " (indisponible)" : ""}</option>`).join("")}</select>`;
+    $("mg-model").addEventListener("change", (e) => { store.set(e.target.value); show(e.target.value); });
+  }
+  // affiche un modèle (identifiant) ; à défaut : modèle par défaut, puis premier disponible
+  function show(id) {
+    const ok = ALL.models.filter((m) => !m.error && m.n);
+    D = ok.find((m) => m.id === id) || ok.find((m) => m.id === ALL.default) || ok[0] || null;
+    hover = null;
+    modelBar();
+    if (!D) {
+      const errs = ALL.models.map((m) => `${esc(m.label)} : ${esc(m.error || "prévision vide")}`).join(" ; ");
+      root.innerHTML = `<p class="muted">Météogramme indisponible (${errs}).</p>`;
+      return;
+    }
+    D.top = ALL.top;
+    S = D.surface; N = D.n; T0 = D.t0;
+    build();
+  }
+
   async function load() {
     try {
       const r = await fetch("data/meteogram.json?_=" + Math.floor(Date.now() / 600000), { cache: "no-store" });
       if (!r.ok) throw new Error("HTTP " + r.status);
-      D = await r.json();
-      if (D.error) throw new Error(D.error);
-      if (!D.n) throw new Error("prévision vide");
+      const all = await r.json();
+      if (all.error) throw new Error(all.error);
+      if (!Array.isArray(all.models) || !all.models.length) throw new Error("aucun modèle");
+      ALL = all;
     } catch (e) {
-      root.innerHTML = `<p class="muted">Météogramme indisponible (${esc(e.message)}).</p>`;
+      if (!ALL) root.innerHTML = `<p class="muted">Météogramme indisponible (${esc(e.message)}).</p>`;
       return;
     }
-    S = D.surface; N = D.n; T0 = D.t0;
-    if ($("gen") && D.version) $("gen").textContent = ` · calcul weewx-live ${D.version}`;
-    build();
+    if ($("gen") && ALL.version) $("gen").textContent = ` · calcul weewx-live ${ALL.version}`;
+    // modèle : celui déjà affiché, sinon ?model= dans l'adresse, sinon le dernier choisi
+    show((D && D.id) || new URLSearchParams(location.search).get("model") || store.get());
   }
 
   let rt = 0;
-  new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => { if (D && !D.error) renderAll(); }, 120); }).observe(root);
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (D && !D.error) build(); });
+  new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => { if (D) renderAll(); }, 120); }).observe(root);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (D) build(); });
   addEventListener("scroll", () => { if (hover) { hover = null; redrawAll(); showTip(); } }, { passive: true, capture: true });
   load();
   setInterval(load, 30 * 60 * 1000);

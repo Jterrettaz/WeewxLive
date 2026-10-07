@@ -718,3 +718,9 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 .mg-panel .legend { margin: 2px 0 0 50px; }
 .mg-none { margin: 2px 0 6px 50px; font-size: 13px; }
 .legend i.dash { height: 0; border-top: 2px dashed var(--wind); background: none !important; }
+.mg-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.mg-bar:empty { display: none; }
+.mg-bar label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.mg-bar select { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); min-width: 0; max-width: 100%; flex: 0 1 auto; text-overflow: ellipsis; }
+.mg-bar select:focus-visible { outline: 2px solid var(--wind); outline-offset: 1px; }

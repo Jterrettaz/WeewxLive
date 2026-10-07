@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.57.
+et n'a pas besoin d'être joignable depuis internet. Version 1.58.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -34,7 +34,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.57.
   mois : températures et nombres de jours de gel / sans dégel / forte chaleur, pluie, vent ;
   lien vers le tableau de chaque mois). Cellules colorées.
 - **Météogramme** (menu « Prévisions » → « Météogramme », `meteogram.html`) : prévision
-  horaire d'un modèle Open-Meteo (ICON-D2 / EU par défaut) au sol et en altitude : temps,
+  horaire au sol et en altitude, au choix parmi 5 modèles Open-Meteo (ICON, Météo-France,
+  ECMWF, GFS, Met Office par défaut) : temps,
   température, nuages selon l'altitude, précipitations, neige, température et
   vent en altitude (isotherme 0 °C), vent et rafales.
 - **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`) : tous
@@ -105,7 +106,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/extremes.json` | records | 1 h max. |
 | `data/forecast.json` | prévisions Open-Meteo (cache) | à chaque archive, téléchargement 1 fois par heure |
 | `data/astro.json` | soleil et lune du jour (almanach weewx) | à chaque archive |
-| `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression) | toutes les 30 min, téléchargement au plus une fois par heure |
+| `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression, 5 modèles) | toutes les 30 min, téléchargement au plus une fois par heure et par modèle |
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
 | `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
@@ -796,14 +797,17 @@ sont calculés sur 4 valeurs et sont donc moins précis.
 
 Menu **« Prévisions » → « Météogramme »** : prévision horaire d'un modèle de l'API de
 prévision d'Open-Meteo, du moment présent jusqu'à `days` jours, en panneaux alignés sur le
-même axe du temps (un réticule et une infobulle communs) :
+même axe du temps (un réticule et une infobulle communs). Une **liste déroulante** en haut
+de la page permet de choisir le modèle parmi ceux de `models` (5 au plus) ; le choix est
+mémorisé par le navigateur (lien direct possible : `meteogram.html?model=gfs_seamless`). Un
+modèle en échec de téléchargement apparaît « (indisponible) » dans la liste.
 
 | Panneau | Contenu |
 |---|---|
 | Pictogrammes | temps prévu (codes WMO), toutes les 1 à 6 h selon la largeur |
 | Température à 2 m | courbe colorée selon la température (paliers de 3 °C), min. et max. de chaque jour |
 | Couverture nuageuse selon l'altitude | nuages (gris, plus foncé = plus couvert), altitude de l'isotherme 0 °C (tirets), jusqu'à `top_humidity` m |
-| Précipitations | quantité par heure, dont averses ; cumul sur la période dans le titre et dans l'infobulle |
+| Précipitations | quantité par heure (barres), dont averses ; **courbe du cumul** depuis le début de la prévision (échelle de droite, en mm) ; total de la période dans le titre |
 | Neige | chute de neige par heure et épaisseur au sol (sinon « pas de neige prévue ») |
 | Température et vent en altitude | température (bleus sous 0 °C, du jaune au rouge au-dessus), isothermes tous les 2 °C, isotherme 0 °C en trait épais, flèches de vent (vers où il souffle, longueur selon la force), jusqu'à `top_temperature` m |
 | Vent à 10 m | vent moyen, rafales (plus forte rafale de chaque jour), direction |
@@ -816,20 +820,28 @@ pointée. Sur petit écran, le météogramme défile horizontalement.
 ```ini
     [[meteogram]]
         enable = true
+        # modèles de la liste déroulante (5 au plus) et modèle affiché par défaut
+        models = icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless, ukmo_seamless
         model = icon_seamless     # ICON-D2 (2 j), puis ICON-EU (5 j), puis ICON global
-        days = 4                  # 1 à 16 jours
+        days = 4                  # 1 à 16 jours (limité par l'échéance de chaque modèle)
         cache = 3600              # secondes
         top_humidity = 12000      # m, sommet du panneau des nuages
         top_temperature = 4500    # m, sommet du panneau température / vent
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]
 ```
 
-Autres modèles possibles (identifiants Open-Meteo) : `meteofrance_seamless` (AROME puis
-ARPEGE), `best_match`, `ecmwf_ifs025`, `gfs_seamless`, `gem_seamless`, `ukmo_seamless`,
-`meteoswiss_icon_ch1`… Tous les modèles ne fournissent pas toutes les variables en altitude
-(nébulosité par niveau, par exemple) : les valeurs absentes laissent la zone vide. Une
-requête compte pour huit appels environ dans le quota gratuit d'Open-Meteo (environ 80
-variables) : avec le cache d'une heure, environ 200 par jour.
+Modèles possibles (identifiants Open-Meteo) : `icon_seamless` (DWD ICON-D2, puis ICON-EU,
+puis global), `meteofrance_seamless` (AROME, puis ARPEGE ; 4 jours), `ecmwf_ifs025`,
+`gfs_seamless`, `ukmo_seamless` (Met Office UK 2 km, puis global), `best_match`,
+`gem_seamless`, `meteoswiss_icon_ch2`… Si `days` dépasse l'échéance d'un modèle, la limite
+indiquée par Open-Meteo est retenue pour ce modèle. Tous les modèles ne fournissent pas
+toutes les variables en altitude (nébulosité par niveau, par exemple) : les valeurs absentes
+laissent la zone vide.
+
+Quota : chaque modèle est téléchargé au plus une fois par `cache` ; une requête compte pour
+huit appels environ dans le quota gratuit d'Open-Meteo (environ 80 variables), soit environ
+1 000 appels par jour pour 5 modèles avec le cache d'une heure (limite gratuite : 10 000 par
+jour). `data/meteogram.json` pèse environ 150 Ko pour 5 modèles sur 4 jours.
 
 ## 12. Couleurs des températures
 

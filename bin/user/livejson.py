@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.57"
+VERSION = "1.58"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -459,17 +459,21 @@ METEOGRAM_LEVELS = (1000, 975, 950, 925, 900, 850, 800, 700, 600, 500, 400, 300,
 METEOGRAM_LVARS = (("z", "geopotential_height", 0), ("t", "temperature", 1), ("cc", "cloud_cover", 0),
                    ("ws", "wind_speed", 0), ("wd", "wind_direction", 0))
 METEOGRAM_MODELS = {
-    "icon_seamless": "DWD ICON (D2, puis EU, puis global)",
+    "icon_seamless": "DWD ICON (ICON-D2, puis ICON-EU, puis global)",
     "icon_d2": "DWD ICON-D2", "icon_eu": "DWD ICON-EU", "icon_global": "DWD ICON global",
     "best_match": "meilleur modèle Open-Meteo pour le lieu",
     "meteofrance_seamless": "Météo-France (AROME, puis ARPEGE)",
     "meteofrance_arome_france": "Météo-France AROME", "meteofrance_arpege_europe": "Météo-France ARPEGE",
     "ecmwf_ifs025": "ECMWF IFS", "gfs_seamless": "NOAA GFS", "gem_seamless": "ECCC GEM",
     "meteoswiss_icon_ch1": "MeteoSuisse ICON-CH1", "meteoswiss_icon_ch2": "MeteoSuisse ICON-CH2",
-    "ukmo_seamless": "Met Office UKMO",
+    "ukmo_seamless": "Met Office UKMO (UK 2 km, puis global 10 km)",
 }
+# modèles proposés par défaut (liste déroulante de la page ; le premier est affiché)
+METEOGRAM_DEFAULT_MODELS = "icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless, ukmo_seamless"
+METEOGRAM_MAX_MODELS = 5
 _MG_CACHE = {}       # clé de requête -> (horodatage, réponse)
 _MG_FAIL = {}        # clé de requête -> horodatage du dernier échec
+_MG_MAXDAYS = {}     # modèle -> échéance maximale annoncée par Open-Meteo (erreur 400)
 
 
 def _as_list(v):
@@ -1038,10 +1042,27 @@ class LiveJSON(SearchList):
     # ------------------------------------------------------------------
     # Météogramme (data/meteogram.json, page meteogram.html)
     # ------------------------------------------------------------------
+    def _mg_models(self):
+        """Modèles du météogramme ([[meteogram]] models, 5 au plus) et modèle affiché par
+        défaut (option model, sinon le premier de la liste)."""
+        g = self.meteogram
+        models = []
+        for m in _as_list(g.get("models", METEOGRAM_DEFAULT_MODELS)):
+            m = m.lower()
+            if not ENSEMBLE_MODEL_RE.match(m):
+                log.error("livejson: météogramme : modèle « %s » ignoré", m)
+            elif m not in models:
+                models.append(m)
+        default = str(g.get("model", "") or "").strip().lower()
+        if default and ENSEMBLE_MODEL_RE.match(default) and default not in models:
+            models.insert(0, default)
+        models = models[:METEOGRAM_MAX_MODELS] or ["icon_seamless"]
+        return models, (default if default in models else models[0])
+
     def meteogram_data(self):
-        """Prévision horaire d'un modèle Open-Meteo depuis l'heure en cours : valeurs au sol
-        et, pour chaque niveau de pression, altitude, température, nébulosité et vent ; le
-        navigateur dessine les coupes en altitude."""
+        """Prévision horaire de chaque modèle du météogramme depuis l'heure en cours : valeurs
+        au sol et, pour chaque niveau de pression, altitude, température, nébulosité et
+        vent ; le navigateur dessine les coupes en altitude et propose le choix du modèle."""
         g, f = self.meteogram, self.forecast
         if not to_bool(g.get("enable", True)):
             return {"error": "météogramme désactivé"}
@@ -1050,15 +1071,30 @@ class LiveJSON(SearchList):
         lon = _to_float(g.get("longitude"), _to_float(f.get("longitude"), getattr(stn, "longitude_f", None)))
         if lat is None or lon is None:
             return {"error": "coordonnées de la station inconnues"}
-        model = str(g.get("model", "icon_seamless")).strip().lower()
-        if not ENSEMBLE_MODEL_RE.match(model):
-            log.error("livejson: météogramme : modèle « %s » invalide, icon_seamless utilisé", model)
-            model = "icon_seamless"
+        models, default = self._mg_models()
         days = _int(g.get("days"), 4, 1, 16)
         ttl = _int(g.get("cache"), 3600, 600, 86400)
+        timeout = _int(g.get("timeout"), 30, 5, 120)
+        # entrées du cache des modèles retirés de la configuration : supprimées
+        for key in [k for k in _MG_CACHE if dict(urllib.parse.parse_qsl(k)).get("models") not in models]:
+            _MG_CACHE.pop(key, None)
+        out = [dict(self._mg_model(m, lat, lon, days, ttl, timeout), id=m, label=METEOGRAM_MODELS.get(m, m))
+               for m in models]
+        return {
+            "version": VERSION, "generated": int(time.time()), "source": "open-meteo",
+            "latitude": lat, "longitude": lon, "cache": ttl, "default": default,
+            "units": {"temp": "°C", "rain": "mm", "snow": "cm", "wind": "km/h", "z": "m"},
+            "top": {"humidity": _int(g.get("top_humidity"), 12000, 3000, 16000),
+                    "temperature": _int(g.get("top_temperature"), 4500, 1500, 12000)},
+            "models": out,
+        }
+
+    def _mg_model(self, model, lat, lon, days, ttl, timeout):
+        """Prévision d'un modèle (cache de « ttl » secondes) ; {"error": …} si indisponible."""
         hourly = list(METEOGRAM_SURFACE) + ["%s_%dhPa" % (v, p) for p in METEOGRAM_LEVELS for _k, v, _d in METEOGRAM_LVARS]
         params = {"latitude": lat, "longitude": lon, "models": model, "hourly": ",".join(hourly),
-                  "timezone": "auto", "timeformat": "unixtime", "forecast_days": days}
+                  "timezone": "auto", "timeformat": "unixtime",
+                  "forecast_days": min(days, _MG_MAXDAYS.get(model, 99))}
         key = urllib.parse.urlencode(params)
         now = time.time()
         cached = _MG_CACHE.get(key)
@@ -1070,12 +1106,11 @@ class LiveJSON(SearchList):
                 try:
                     req = urllib.request.Request(OPEN_METEO_URL + "?" + key,
                                                  headers={"User-Agent": "weewx-live/%s" % VERSION})
-                    with urllib.request.urlopen(req, timeout=_int(g.get("timeout"), 30, 5, 120)) as resp:
+                    with urllib.request.urlopen(req, timeout=timeout) as resp:
                         data = json.loads(resp.read().decode("utf-8"))
                     if data.get("error"):
                         raise ValueError(data.get("reason", "erreur Open-Meteo"))
                     cached = (now, data)
-                    _MG_CACHE.clear()
                     _MG_CACHE[key] = cached
                     _MG_FAIL.pop(key, None)
                 except urllib.error.HTTPError as e:
@@ -1085,6 +1120,12 @@ class LiveJSON(SearchList):
                     except Exception:
                         pass
                     err = "HTTP %s%s" % (e.code, " : " + reason if reason else "")
+                    # échéance refusée (« … range 0 to 4 … ») : limite retenue, nouvel essai
+                    m = re.search(r"(?i)forecast.?days.*?\b0\s*(?:to|-|…|\.\.)\s*(\d+)", reason)
+                    if e.code == 400 and m and model not in _MG_MAXDAYS and 0 < int(m.group(1)) < days:
+                        _MG_MAXDAYS[model] = int(m.group(1))
+                        log.info("livejson: météogramme %s : échéance limitée à %s jours", model, m.group(1))
+                        return self._mg_model(model, lat, lon, days, ttl, timeout)
                     _MG_FAIL[key] = now
                     log.error("livejson: échec du téléchargement du météogramme (%s) : %s", model, err)
                 except Exception as e:
@@ -1092,7 +1133,7 @@ class LiveJSON(SearchList):
                     _MG_FAIL[key] = now
                     log.error("livejson: échec du téléchargement du météogramme (%s) : %s", model, e)
         if cached is None:
-            return {"error": err or "prévision indisponible", "model": model}
+            return {"error": err or "prévision indisponible"}
         fetched, data = cached
         h = data.get("hourly") or {}
         times = h.get("time") or []
@@ -1114,15 +1155,11 @@ class LiveJSON(SearchList):
             if any(x is not None for x in lv["z"]) and any(x is not None for x in lv["t"]):
                 lv["p"] = p
                 levels.append(lv)
+        if n <= 0:
+            return {"error": "prévision vide ou périmée"}
         out = {
-            "version": VERSION, "generated": int(time.time()), "source": "open-meteo",
-            "model": model, "modelLabel": METEOGRAM_MODELS.get(model, model),
-            "latitude": lat, "longitude": lon, "elevation": data.get("elevation"),
-            "fetched": int(fetched), "cache": ttl, "t0": int(times[i0]) if n > 0 else None, "n": n,
-            "units": {"temp": "°C", "rain": "mm", "snow": "cm", "wind": "km/h", "z": "m"},
-            "surface": surface, "levels": levels,
-            "top": {"humidity": _int(g.get("top_humidity"), 12000, 3000, 16000),
-                    "temperature": _int(g.get("top_temperature"), 4500, 1500, 12000)},
+            "elevation": data.get("elevation"), "fetched": int(fetched),
+            "t0": int(times[i0]), "n": n, "surface": surface, "levels": levels,
         }
         if err:
             out["stale"] = True
