@@ -134,6 +134,8 @@
     midnight: midnightOf(Date.now() / 1000),
     nextMidnight: WXT.addDays(Date.now() / 1000, 1),
     stationDay: false,       // true dès que le jour de la station est connu (history.json)
+    lastAbove: null,         // dernière mesure à 0 °C ou plus (durée du gel en cours)
+    frostPartial: false,     // gel depuis le début de la base : durée minimale (« plus de »)
     cur: {},
     day: {},                 // extrêmes du jour {obs: {min,minTime,max,maxTime}}
     dayRain: null,
@@ -566,6 +568,28 @@
     set("outTemp", "d24h", tempDelta("outTemp24h", 86400));
     // Tendance de pression sur 3 h
     set("barometer", "trend", pressureTrend());
+    renderFrost();
+  }
+
+  // Durée du gel en cours (panneau Température, tableau de bord seulement) : temps écoulé
+  // depuis la dernière mesure à 0 °C ou plus, affiché en bleu tant que la température
+  // actuelle est négative ; recalculé chaque seconde par tick()
+  function markAbove(t) {
+    if (!isNum(S.lastAbove) || t > S.lastAbove) { S.lastAbove = t; S.frostPartial = false; }
+  }
+  function renderFrost() {
+    const row = field("outTemp", "frostRow");
+    if (!row) return;
+    const v = S.cur.outTemp, on = isNum(v) && v < 0 && isNum(S.lastAbove);
+    if (row.hidden === on) row.hidden = !on;
+    if (on) set("outTemp", "frost", (S.frostPartial ? "plus de " : "") + duration(nowS() - S.lastAbove));
+  }
+  // durée lisible : « 42 min », « 3 h 05 min », « 2 j 4 h »
+  function duration(s) {
+    const m = Math.max(0, Math.floor(s / 60)), h = Math.floor(m / 60);
+    if (m < 60) return `${m} min`;
+    if (h < 24) return `${h} h ${String(m % 60).padStart(2, "0")} min`;
+    return `${Math.floor(h / 24)} j ${h % 24} h`;
   }
 
   // Panneau Température : valeur actuelle, min. et max. colorés selon la température,
@@ -642,6 +666,7 @@
     S.lastPacket = Date.now();
 
     if (p.outTemp !== undefined && p.outTemp !== null) S.tempTime = t;
+    if (isNum(p.outTemp) && p.outTemp >= 0) markAbove(t);
     for (const o of ["outTemp", "outTemp1h", "outTemp24h", "outHumidity", "barometer", "windSpeed", "windGust", "windDir", "rainRate", "radiation"]) {
       if (o in p) S.cur[o] = p[o];
     }
@@ -780,6 +805,17 @@
         if (isNum(d.max) && (!isNum(cur.max) || d.max >= cur.max)) { cur.max = d.max; cur.maxTime = d.maxTime; }
       }
       if (h.day && h.day.rain && (!isNum(S.dayRain) || ARCHIVE_MODE)) S.dayRain = h.day.rain.sum;
+    }
+
+    // Gel en cours : dernière mesure à 0 °C ou plus, d'après history.json « frost » (gel
+    // commencé avant l'historique) et les séries
+    if (!DAY) {
+      const ta = hs.outTemp || [];
+      for (let i = ta.length - 1; i >= 0; i--) if (ta[i][1] >= 0) { markAbove(ta[i][0]); break; }
+      if (h.frost && isNum(h.frost.since)) {
+        markAbove(h.frost.since);
+        if (h.frost.partial && S.lastAbove === h.frost.since) S.frostPartial = true;
+      }
     }
 
     // Valeurs « courantes » provisoires avant le premier paquet MQTT (mode archive : toujours)
@@ -972,6 +1008,7 @@
       else if (s <= 120 && conn.classList.contains("pill-wait") && conn.textContent.includes("Pas de")) setConn("on", DEMO ? "Démo" : "En direct");
     }
     checkMidnight(now);
+    renderFrost();
   }
 
   // ------------------------------------------------------------------

@@ -2,12 +2,12 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.68.
+et n'a pas besoin d'être joignable depuis internet. Version 1.69.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
   **chaque archive weewx** si MQTT est désactivé.
-  - Panneaux spécialisés : température (écarts sur 1 h et 24 h), vent (boussole, rafales),
+  - Panneaux spécialisés : température (écarts sur 1 h et 24 h, durée du gel en cours), vent (boussole, rafales),
     direction du vent (rose des vents et graphique de la direction sur 24 h), pluie (barres
     horaires + courbe de cumul), rayonnement, humidité, pression (tendance sur 3 h).
   - Paramètres supplémentaires et **panneaux groupés** (ex. particules PM1 / PM2.5 / PM10).
@@ -283,6 +283,13 @@ chaque message les clés `OutTemp-1h_C` (température d'il y a une heure) et `Ou
 (il y a 24 heures) ; noms réglables par `temp_1h_key` et `temp_24h_key` dans `[[mqtt]]`.
 Tant qu'une clé n'est pas reçue, l'écart est estimé à partir de l'historique weewx et suivi
 d'un astérisque.
+
+**Durée du gel en cours** (panneau Température, tableau de bord seulement) : quand la
+température actuelle est inférieure à 0 °C, une ligne bleue indique le temps écoulé depuis
+la dernière mesure à 0 °C ou plus (« 42 min », « 3 h 05 min », « 2 j 4 h »), mise à jour
+chaque seconde. Le début du gel est cherché dans toute l'archive weewx (`frost` de
+`history.json`), puis suivi par les messages MQTT ; si la base ne contient aucune mesure
+positive, la durée est précédée de « plus de ».
 
 Créez deux comptes sur le broker : `weewx` (écriture sur `weather/#`) et un compte
 **lecture seule** pour la page — ses identifiants sont publics puisque lus par le navigateur.

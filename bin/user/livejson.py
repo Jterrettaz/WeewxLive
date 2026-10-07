@@ -57,7 +57,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.68"
+VERSION = "1.69"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -1390,9 +1390,34 @@ class LiveJSON(SearchList):
             "units": self.units,
             "series": series,
             "day": day,
+            # gel en cours (température < 0 °C) : début, même au-delà de « hours » heures
+            "frost": self._frost(stop, dbm),
         }
         log.debug("livejson: historique généré en %.2f s", time.time() - t1)
         return out
+
+    def _frost(self, stop, dbm):
+        """Gel en cours : {"since": dernier enregistrement à 0 °C ou plus} si la dernière
+        température de l'archive est négative, sinon None ; « partial » : aucune température
+        positive dans la base (le gel dure au moins depuis le premier enregistrement).
+        Seuil dans l'unité de chaque enregistrement (usUnits 1 = US, °F)."""
+        col, table = self.col("outTemp"), dbm.table_name
+        above = "((usUnits = 1 AND %s >= 32) OR (usUnits <> 1 AND %s >= 0))" % (col, col)
+        try:
+            last = dbm.getSql("SELECT %s, usUnits FROM %s WHERE dateTime <= ? AND %s IS NOT NULL "
+                              "ORDER BY dateTime DESC LIMIT 1" % (col, table, col), (stop,))
+            if not last or last[0] >= (32 if last[1] == 1 else 0):
+                return None
+            # parcours de l'index dateTime à rebours : rapide tant que le gel est récent
+            row = dbm.getSql("SELECT dateTime FROM %s WHERE dateTime <= ? AND %s "
+                             "ORDER BY dateTime DESC LIMIT 1" % (table, above), (stop,))
+            if row:
+                return {"since": int(row[0])}
+            first = dbm.getSql("SELECT MIN(dateTime) FROM %s WHERE %s IS NOT NULL" % (table, col))
+            return {"since": int(first[0]), "partial": True} if first and first[0] else None
+        except Exception as e:
+            log.debug("livejson: durée du gel indisponible : %s", e)
+            return None
 
     def _day_aggregates(self, day_span, dbm):
         """Extrêmes (avec l'heure) et cumuls d'une journée, d'après les résumés journaliers."""

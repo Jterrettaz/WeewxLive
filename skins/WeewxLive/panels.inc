@@ -10,6 +10,9 @@
         <header><h2><a class="more" data-detail="outTemp" href="detail.html?p=outTemp">$p.title</a></h2><span class="hint">extérieure</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit">°C</span></div>
         <p class="aux" title="Écart avec la température d'il y a 1 h et 24 h (* : estimé d'après l'historique)">Sur 1 h <b data-k="d1h">--</b><span class="aux-sep">·</span>Sur 24 h <b data-k="d24h">--</b></p>
+#if not $day_page
+        <p class="aux frost" data-k="frostRow" hidden title="Temps écoulé depuis la dernière mesure à 0 °C ou plus">Durée du gel en cours : <b data-k="frost">--</b></p>
+#end if
         <dl class="ext">
           <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
           <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>

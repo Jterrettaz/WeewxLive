@@ -20,6 +20,7 @@
   --sun:  #eda100;
   --hum:  #1baf7a;
   --press:#4a3aa7;
+  --frost:#1f62c4;   /* ligne « Durée du gel en cours » */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -39,6 +40,7 @@
     --sun:  #c98500;
     --hum:  #199e70;
     --press:#9085e9;
+    --frost:#6aa6f2;
   }
 }
 :root[data-theme="dark"] {
@@ -46,7 +48,7 @@
   --bg: #111110; --surface: #1a1a19; --grid: #2c2c2a; --text: #ffffff;
   --text-2: #c3c2b7; --text-3: #8d8c84; --border: #2a2a28;
   --temp: #d95926; --wind: #3987e5; --gust: #d95926; --rain: #3987e5; --rainsum: #199e70;
-  --sun: #c98500; --hum: #199e70; --press: #9085e9;
+  --sun: #c98500; --hum: #199e70; --press: #9085e9; --frost: #6aa6f2;
 }
 
 * { box-sizing: border-box; }
@@ -124,6 +126,7 @@ body {
 .unit { font-size: 16px; color: var(--text-2); }
 .aux { margin: 0 0 4px; font-size: 13px; color: var(--text-2); }
 .aux b { color: var(--text); font-weight: 600; }
+.aux.frost, .aux.frost b { color: var(--frost); }
 
 .side { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; align-self: center; }
 .compass { width: 44px; height: 44px; }
