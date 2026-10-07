@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.65"
+VERSION = "1.66"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -480,6 +480,9 @@ _MG_FAIL = {}        # clé de requête -> horodatage du dernier échec
 _MG_MAXDAYS = {}     # modèle -> échéance maximale annoncée par Open-Meteo (erreur 400)
 
 
+# fonds de carte possibles pour les cartes RainViewer / EUMETSAT ([[basemap]] provider)
+BASEMAPS = ("osm", "esri", "opentopomap", "carto")
+
 # cadres du tableau de bord ([LiveJSON] [[dashboard]] order) : ordre par défaut
 DASH_BLOCKS = ("parameters", "forecast", "maps", "astro", "climate")
 
@@ -562,6 +565,7 @@ class LiveJSON(SearchList):
         self.forecast = dict(opts.get("forecast", {}))
         self.radar = dict(opts.get("radar", {}))
         self.satellite = dict(opts.get("satellite", {}))
+        self.basemap = dict(opts.get("basemap", {}))
         self.astro = dict(opts.get("astro", {}))
         self.ensembles = dict(opts.get("ensembles", {}))
         self.meteogram = dict(opts.get("meteogram", {}))
@@ -750,6 +754,8 @@ class LiveJSON(SearchList):
                 # durée de validité du cache (secondes), côté weewx et côté navigateur
                 "cache": self._forecast_ttl(),
             },
+            # fond des cartes RainViewer / EUMETSAT (osm, esri, opentopomap, carto + clé)
+            "basemap": self._basemap(),
             "radar": {
                 "enable": to_bool(r.get("enable", True)),
                 # windy (carte Windy.com intégrée) ou rainviewer (animation Leaflet)
@@ -792,6 +798,18 @@ class LiveJSON(SearchList):
                 "temp24hKey": self.mqtt.get("temp_24h_key", "OutTemp-24h_C"),
             },
         }
+
+    def _basemap(self):
+        """Fond des cartes RainViewer / EUMETSAT : fournisseur et clé (CARTO)."""
+        prov = str(self.basemap.get("provider", "osm") or "osm").strip().lower()
+        if prov not in BASEMAPS:
+            log.error("livejson: [[basemap]] provider « %s » inconnu (%s) : osm utilisé", prov, ", ".join(BASEMAPS))
+            prov = "osm"
+        key = str(self.basemap.get("key", "") or "").strip()
+        if prov == "carto" and not key:
+            log.error("livejson: [[basemap]] provider = carto sans clé (key) : osm utilisé")
+            prov = "osm"
+        return {"provider": prov, "key": key}
 
     @staticmethod
     def _public_param(p):

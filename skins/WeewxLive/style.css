@@ -765,3 +765,6 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 .dash-sub li.is-hidden { opacity: .6; }
 .dash-bar .dash-hide, .dash-sub .dash-hide { min-width: 5.6em; }
 .dash-hide[aria-pressed="true"] { background: var(--text) !important; color: var(--bg) !important; border-color: var(--text) !important; }
+/* fond de carte sans version sombre (OpenStreetMap, OpenTopoMap) : assombri en thème sombre ;
+   seule la première couche (le fond) est filtrée, pas le radar ni le satellite */
+.map-dim .leaflet-tile-pane > .leaflet-layer:first-child { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.9) saturate(.55); }

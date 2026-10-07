@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.65.
+et n'a pas besoin d'être joignable depuis internet. Version 1.66.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -596,9 +596,31 @@ Conditions d'utilisation (les mentions sont déjà affichées) :
   depuis janvier 2026 : passé seulement, une seule palette, zoom 7 max., 100 requêtes/minute
   par IP (une animation en consomme environ 52).
 - **EUMETSAT** : images sous licence CC BY 4.0, mention « Contains modified EUMETSAT Meteosat data ».
-- **Fond de carte** : © OpenStreetMap, © CARTO (usage non commercial).
+- **Fond de carte** (cartes RainViewer et EUMETSAT, `[[basemap]]`, voir ci-dessous) :
+  OpenStreetMap (politique d'usage des tuiles : usage raisonnable, attribution), Esri,
+  OpenTopoMap (CC-BY-SA) ou CARTO (clé d'API obligatoire depuis 2026).
 - **Leaflet** (BSD-2, utilisé seulement par RainViewer et EUMETSAT) est inclus dans
   `vendor/leaflet/` ; s'il manque, il est chargé depuis cdnjs.
+
+### Fond des cartes RainViewer et EUMETSAT (`[[basemap]]`)
+
+Depuis l'été 2026, CARTO exige une clé d'API pour ses fonds de carte (sans clé : filigrane
+« API KEY REQUIRED ») ; le fond est donc configurable (sans effet sur les cartes Windy) :
+
+```ini
+    [[basemap]]
+        provider = osm      # osm, esri, opentopomap ou carto
+        key = ""            # clé CARTO (provider = carto uniquement)
+```
+
+| `provider` | Fond | Clé | Thème sombre |
+|---|---|---|---|
+| `osm` (défaut) | OpenStreetMap standard | non | fond assombri (filtre) |
+| `esri` | Esri gris clair / gris foncé, noms de lieux au-dessus du satellite (rendu proche de l'ancien CARTO) | non | gris foncé |
+| `opentopomap` | OpenTopoMap (relief) | non | fond assombri (filtre) |
+| `carto` | CARTO clair / sombre | oui (gratuite pour un usage personnel, via [carto.com/basemaps](https://carto.com/basemaps)) | sombre |
+
+`provider = carto` sans clé, ou une valeur inconnue, revient à `osm` (message dans le journal).
 
 Les noms des couches EUMETView peuvent évoluer : liste à jour dans le
 [GetCapabilities](https://view.eumetsat.int/geoserver/ows?service=WMS&version=1.3.0&request=GetCapabilities).

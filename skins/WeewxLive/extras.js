@@ -16,6 +16,8 @@
   const DEFAULTS = {
     latitude: 48.11, longitude: -1.68,
     forecast: { enable: true, model: "best_match", models: [], days: 7, cache: 3600 },
+    // fond des cartes RainViewer / EUMETSAT : osm, esri, opentopomap ou carto (avec clé)
+    basemap: { provider: "osm", key: "" },
     radar: { enable: true, provider: "windy", overlay: "radar", product: "radar", windyUrl: "", zoom: 7, frames: 13, delay: 500 },
     satellite: {
       enable: true, provider: "windy", overlay: "satellite", product: "satellite", windyUrl: "", url: "https://view.eumetsat.int/geoserver/wms",
@@ -321,23 +323,50 @@
     return leafletPromise;
   }
 
+  // Fonds de carte (cartes RainViewer et EUMETSAT) ; [LiveJSON] [[basemap]] provider :
+  //   osm         : OpenStreetMap (sans clé ; assombri par filtre CSS en thème sombre)
+  //   esri        : Esri gris clair / gris foncé, noms de lieux au-dessus des images
+  //   opentopomap : OpenTopoMap (relief)
+  //   carto       : CARTO clair / sombre, clé d'API obligatoire depuis 2026 ([[basemap]] key)
+  const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+  function baseLayers(cfg, dark) {
+    const b = cfg.basemap || {}, p = String(b.provider || "osm").toLowerCase();
+    if (p === "carto" && b.key) {
+      const style = dark ? "dark" : "light";
+      const u = (v) => `https://basemaps.cartocdn.com/rastertiles/${v}/{z}/{x}/{y}.png?key=${encodeURIComponent(b.key)}`;
+      const attr = `${OSM_ATTR} &copy; <a href="https://carto.com/attributions">CARTO</a>`;
+      return { base: [u(`${style}_nolabels`), { maxZoom: 20, attribution: attr }], labels: [u(`${style}_only_labels`), { maxZoom: 20 }] };
+    }
+    if (p === "esri") {
+      const tone = dark ? "Dark_Gray" : "Light_Gray";
+      const u = (layer) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${tone}_${layer}/MapServer/tile/{z}/{y}/{x}`;
+      return { base: [u("Base"), { maxZoom: 16, attribution: "Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap" }], labels: [u("Reference"), { maxZoom: 16 }] };
+    }
+    if (p === "opentopomap") {
+      return { base: ["https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { subdomains: "abc", maxZoom: 17,
+        attribution: `${OSM_ATTR}, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)` }], filter: dark };
+    }
+    return { base: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: OSM_ATTR }], filter: dark };
+  }
+
   function baseMap(el, cfg, zoom, labelsOnTop) {
     const map = L.map(el, {
       center: [cfg.latitude, cfg.longitude], zoom, minZoom: 3, maxZoom: 10,
       scrollWheelZoom: false, attributionControl: true,
     });
     map.attributionControl.setPrefix(false);
-    const style = DARK() ? "dark" : "light";
-    const carto = (v) => `https://{s}.basemaps.cartocdn.com/${v}/{z}/{x}/{y}{r}.png`;
-    L.tileLayer(carto(labelsOnTop ? `${style}_nolabels` : `${style}_all`), {
-      subdomains: "abcd", maxZoom: 20,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    }).addTo(map);
-    if (labelsOnTop) {
+    const dark = DARK();
+    const layers = baseLayers(cfg, dark);
+    L.tileLayer(...layers.base).addTo(map);
+    // fond sans version sombre (OpenStreetMap, OpenTopoMap) : assombri en thème sombre
+    el.classList.toggle("map-dim", !!layers.filter);
+    if (layers.labels && labelsOnTop) {
       map.createPane("labels");
       map.getPane("labels").style.zIndex = 650;
       map.getPane("labels").style.pointerEvents = "none";
-      L.tileLayer(carto(`${style}_only_labels`), { subdomains: "abcd", maxZoom: 20, pane: "labels" }).addTo(map);
+      L.tileLayer(layers.labels[0], Object.assign({}, layers.labels[1], { pane: "labels" })).addTo(map);
+    } else if (layers.labels) {
+      L.tileLayer(...layers.labels).addTo(map);
     }
     L.circleMarker([cfg.latitude, cfg.longitude], {
       radius: 5, weight: 2, color: "#ffffff", fillColor: "#e34948", fillOpacity: 1, pane: "markerPane",
