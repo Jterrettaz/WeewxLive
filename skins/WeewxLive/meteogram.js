@@ -504,7 +504,7 @@
     const total = S.precipitation.reduce((a, v) => a + (isNum(v) ? v : 0), 0);
     const snowy = S.snowfall.some((v) => v > 0) || S.snow_depth.some((v) => v > 0);
     const fetched = new Date(D.fetched * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-    $("mg-sub").textContent = `Modèle ${D.label} · Open-Meteo · altitude du modèle ${isNum(D.elevation) ? Math.round(D.elevation) + " m" : "inconnue"} · données du ${fetched}`;
+    $("mg-sub").textContent = `Open-Meteo · altitude du modèle ${isNum(D.elevation) ? Math.round(D.elevation) + " m" : "inconnue"} · données du ${fetched}`;
     const sec = (id, title, legend, h, extra = "") => `
       <section class="mg-panel">
         <h3>${title}${extra}</h3>
