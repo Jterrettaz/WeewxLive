@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.62"
+VERSION = "1.63"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -480,6 +480,23 @@ _MG_FAIL = {}        # clé de requête -> horodatage du dernier échec
 _MG_MAXDAYS = {}     # modèle -> échéance maximale annoncée par Open-Meteo (erreur 400)
 
 
+# cadres du tableau de bord ([LiveJSON] [[dashboard]] order) : ordre par défaut
+DASH_BLOCKS = ("parameters", "forecast", "maps", "astro", "climate")
+
+
+def _dash_order(opts):
+    """Ordre des cadres du tableau de bord : ceux de l'option order (identifiants connus,
+    sans doublon), puis les cadres oubliés, dans l'ordre par défaut."""
+    order = []
+    for b in _as_list(opts.get("dashboard", {}).get("order", ", ".join(DASH_BLOCKS))):
+        b = b.lower()
+        if b not in DASH_BLOCKS:
+            log.error("livejson: [[dashboard]] order : cadre « %s » inconnu (%s)", b, ", ".join(DASH_BLOCKS))
+        elif b not in order:
+            order.append(b)
+    return order + [b for b in DASH_BLOCKS if b not in order]
+
+
 def _as_list(v):
     """Liste d'une option configobj (« a, b » -> ['a', 'b'])."""
     if v is None:
@@ -548,6 +565,7 @@ class LiveJSON(SearchList):
         self.astro = dict(opts.get("astro", {}))
         self.ensembles = dict(opts.get("ensembles", {}))
         self.meteogram = dict(opts.get("meteogram", {}))
+        self.dash_order = _dash_order(opts)
         self.arch = _archive_options(opts)
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
@@ -648,6 +666,8 @@ class LiveJSON(SearchList):
             # logo (chaînes échappées) ou chaîne vide
             "livejson_logo": ({k: html.escape(str(v)) for k, v in self.logo.items()} if self.logo else ""),
             "livejson_hardware": html.escape(self.hardware_label()),
+            # ordre des cadres du tableau de bord (index.html.tmpl)
+            "livejson_dash_order": self.dash_order,
             "livejson_refresh": self.page_refresh,
             "livejson_fc_days": self._fc_days(),
             "livejson_config_inline": _Lazy(lambda: self._dump(self.config()).replace("</", "<\\/")),
@@ -716,6 +736,8 @@ class LiveJSON(SearchList):
             "archives": {k: self.arch[k] for k in ("day", "days", "month", "year", "climato")},
             # « Soleil et Lune » : almanach weewx (data/astro.json)
             "astro": {"enable": to_bool(self.astro.get("enable", True))},
+            # ordre des cadres du tableau de bord défini par l'administrateur (layout.js)
+            "dashboard": {"order": self.dash_order},
             # prévisions d'ensemble (menu « Prévisions », page ensembles.html)
             "ensembles": {"enable": to_bool(self.ensembles.get("enable", True))},
             "meteogram": {"enable": to_bool(self.meteogram.get("enable", True))},

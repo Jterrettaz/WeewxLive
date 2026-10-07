@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.62.
+et n'a pas besoin d'être joignable depuis internet. Version 1.63.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -70,7 +70,8 @@ aucun port à ouvrir sur votre box.
 | `bin/user/livejson.py` | extension weewx (SearchList) : calcule tous les fichiers JSON et les valeurs du gabarit |
 | `skins/WeewxLive/skin.conf` | configuration du rapport : paramètres affichés, MQTT, prévisions, cartes, extrêmes |
 | `skins/WeewxLive/panels.inc` | panneaux des paramètres, partagés par le tableau de bord et les pages d'archives « jour » |
-| `skins/WeewxLive/astro.inc` | panneau « Soleil et Lune » du tableau de bord |
+| `skins/WeewxLive/astro.inc`, `forecast.inc`, `maps.inc`, `climate.inc` | cadres « Soleil et Lune », « Prévisions », « Radar et satellite », « Ce jour et ce mois au fil des ans » du tableau de bord |
+| `skins/WeewxLive/layout.js` | ordre des cadres du tableau de bord (bouton « Réorganiser ») |
 | `skins/WeewxLive/archive/day-%Y-%m-%d.html.tmpl` | page d'archives « jour » (une par journée) |
 | `skins/WeewxLive/archive/month-%Y-%m.html.tmpl`, `year-%Y.html.tmpl` | pages d'archives « mois » et « année » |
 | `skins/WeewxLive/archive/header.inc`, `archive.js` | en-tête commun des archives : menu, sélecteur de date, précédent / suivant |
@@ -353,6 +354,26 @@ l'historique ; la pastille en haut à droite l'état de la connexion (« En dire
 
 `?demo` à la fin de l'adresse du tableau de bord ou d'une page de détail : données simulées,
 sans broker.
+
+### Ordre des cadres du tableau de bord
+
+De haut en bas, par défaut : mesures de la station, prévisions, radar et satellite, Soleil
+et Lune, « ce jour et ce mois au fil des ans ». L'administrateur choisit l'ordre dans
+`skin.conf` (ou `weewx.conf`) :
+
+```ini
+    [[dashboard]]
+        order = parameters, forecast, maps, astro, climate
+```
+
+Identifiants : `parameters` (mesures), `forecast` (prévisions), `maps` (radar et satellite),
+`astro` (Soleil et Lune), `climate` (au fil des ans) ; un cadre oublié est ajouté à la fin.
+
+Chaque **visiteur** peut ensuite réorganiser le tableau de bord : bouton **« Réorganiser »**
+(en haut, à côté de « Tout réduire »), puis **↑ Monter** / **↓ Descendre** sur chaque cadre,
+et **« Terminer »**. Son ordre est mémorisé par son navigateur et appliqué dès le chargement ;
+**« Ordre par défaut »** revient à celui de `[[dashboard]]`. (Déplacer le cadre radar et
+satellite recharge les cartes Windy.)
 
 ## 5. Paramètres affichés (`[[parameters]]`)
 

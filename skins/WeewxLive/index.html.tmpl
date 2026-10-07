@@ -33,77 +33,44 @@
 
   <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
 
-  <div class="grid-tools" role="group" aria-label="Affichage des panneaux">
+  <div class="grid-tools" id="grid-tools" role="group" aria-label="Affichage du tableau de bord">
     <button type="button" data-all="compact">Tout réduire</button>
     <button type="button" data-all="full">Tout développer</button>
+    <button type="button" id="dash-edit" aria-pressed="false" title="Changer l'ordre des cadres du tableau de bord">Réorganiser</button>
   </div>
-  <main class="grid">
+
+  <!-- Cadres du tableau de bord, dans l'ordre de [LiveJSON] [[dashboard]] order ; chaque
+       visiteur peut ensuite les réorganiser (layout.js, ordre mémorisé par le navigateur) -->
+  <div class="dash" id="dash">
 #set global $day_page = False
+#for $blk in $livejson_dash_order
+#if $blk == 'parameters'
+  <div class="dash-block" data-block="parameters" data-label="Mesures de la station">
+  <main class="grid">
 #include "panels.inc"
   </main>
-
-  <!-- Soleil et Lune (almanach weewx, astro.js) -->
+  </div>
+#elif $blk == 'astro'
+  <div class="dash-block" data-block="astro" data-label="Soleil et Lune">
 #include "astro.inc"
-
-  <!-- Prévisions -->
-  <section class="wide">
-    <article class="card fc-card" id="fc-card" style="--c: var(--sun)">
-      <header><h2>Prévisions $livejson_fc_days jours</h2>
-        <select class="fc-select" id="fc-select" aria-label="Modèle de prévision" hidden></select>
-        <span class="hint" id="fc-model">Open-Meteo</span><span class="hint fc-sun" id="fc-sun"></span></header>
-      <div id="forecast"><p class="muted">Chargement des prévisions…</p></div>
-      <div class="fc-hours" id="fc-hours" hidden>
-        <div class="fh-head"><h3 id="fh-title">--</h3><button type="button" class="fh-close" id="fh-close" aria-label="Fermer le détail horaire">×</button></div>
-        <div class="fh-charts">
-          <div><div class="fh-label">Température (°C)</div><div class="chart fh-chart" id="fh-temp"></div></div>
-          <div class="fh-rainbox" id="fh-rainbox"><div class="fh-label">Précipitations (mm par heure)</div><div class="chart fh-chart" id="fh-rain"></div><p class="fh-dry">Pas de précipitations prévues ce jour-là.</p></div>
-        </div>
-        <ol class="fh-strip" id="fh-strip" aria-label="Prévisions heure par heure"></ol>
-        <p class="fh-legend">Par heure : température · précipitations et probabilité · vent moyen et rafales (km/h) · humidité</p>
-      </div>
-      <p class="credit">Prévisions <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> (CC BY 4.0)</p>
-    </article>
-  </section>
-
-  <!-- Radar et satellite -->
-  <section class="wide maps">
-    <article class="card map-card" id="radar-card" style="--c: var(--rain)">
-      <header><h2>Radar précipitations</h2><span class="hint" id="radar-hint">2 dernières heures</span></header>
-      <div class="map" id="radar-map"><p class="map-msg" id="radar-msg" hidden></p></div>
-      <div class="player" id="radar-player"></div>
-      <p class="credit" id="radar-credit">Radar <a href="https://www.rainviewer.com/" rel="noopener">RainViewer</a></p>
-    </article>
-    <article class="card map-card" id="sat-card" style="--c: var(--press)">
-      <header><h2>Satellite</h2><span class="hint" id="sat-hint">Meteosat</span><div class="seg" id="sat-layers" role="group" aria-label="Type d'image"></div></header>
-      <div class="map" id="sat-map"><p class="map-msg" id="sat-msg" hidden></p></div>
-      <div class="player" id="sat-player"></div>
-      <p class="credit" id="sat-credit">Images <a href="https://view.eumetsat.int/" rel="noopener">EUMETSAT EUMETView</a> (CC BY 4.0)</p>
-    </article>
-  </section>
-
-  <!-- Ce jour et ce mois au fil des ans -->
-  <section class="wide climate" id="climate" hidden aria-label="Ce jour et ce mois au fil des ans">
-    <article class="card cl-card" id="cl-day">
-      <header><h2 id="cl-day-title">Ce jour au fil des ans</h2></header>
-      <p class="cl-since"></p>
-      <div class="cl-text" id="cl-day-text"></div>
-      <h3 class="cl-h" id="cl-day-th">Températures</h3>
-      <div class="chart cl-chart" id="cl-day-temp" role="img" aria-label="Températures au fil des ans"></div>
-      <ul class="legend"><li><i class="hilo"></i>Min. – max.</li><li><i class="midmark"></i>Moyenne</li><li class="cl-scale"></li></ul>
-      <h3 class="cl-h" id="cl-day-rh">Précipitations</h3>
-      <div class="chart cl-chart cl-chart-rain" id="cl-day-rain" role="img" aria-label="Précipitations au fil des ans"></div>
-    </article>
-    <article class="card cl-card" id="cl-month">
-      <header><h2 id="cl-month-title">Ce mois au fil des ans</h2></header>
-      <p class="cl-since"></p>
-      <div class="cl-text" id="cl-month-text"></div>
-      <h3 class="cl-h" id="cl-month-th">Températures</h3>
-      <div class="chart cl-chart" id="cl-month-temp" role="img" aria-label="Températures au fil des ans"></div>
-      <ul class="legend"><li><i class="hilo"></i>Min. – max.</li><li><i class="midmark"></i>Moyenne</li><li class="cl-scale"></li></ul>
-      <h3 class="cl-h" id="cl-month-rh">Précipitations</h3>
-      <div class="chart cl-chart cl-chart-rain" id="cl-month-rain" role="img" aria-label="Précipitations au fil des ans"></div>
-    </article>
-  </section>
+  </div>
+#elif $blk == 'forecast'
+  <div class="dash-block" data-block="forecast" data-label="Prévisions">
+#include "forecast.inc"
+  </div>
+#elif $blk == 'maps'
+  <div class="dash-block" data-block="maps" data-label="Radar et satellite">
+#include "maps.inc"
+  </div>
+#elif $blk == 'climate'
+  <div class="dash-block" data-block="climate" data-label="Ce jour et ce mois au fil des ans">
+#include "climate.inc"
+  </div>
+#end if
+#end for
+  </div>
+  <!-- ordre choisi par le visiteur : appliqué avant la création des cartes et graphiques -->
+  <script src="layout.js"></script>
 
   <footer class="foot"><span id="src">Temps réel via MQTT · historique weewx</span><span id="gen"></span><span id="mode"></span></footer>
 
