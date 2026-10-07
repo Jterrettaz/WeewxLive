@@ -1,10 +1,12 @@
-/* weewx-live — ordre des cadres et des panneaux de mesures du tableau de bord (index.html).
+/* weewx-live — ordre et affichage des cadres et des panneaux de mesures du tableau de bord
+ * (index.html).
  * Ordres par défaut : cadres selon [LiveJSON] [[dashboard]] order, panneaux selon
  * [[parameters]] (le gabarit les émet dans cet ordre). Chaque visiteur peut les changer :
  * bouton « Réorganiser », puis ↑ / ↓ sur chaque cadre et, dans « Mesures de la station »,
  * sur chaque panneau (cadres repliés pendant la réorganisation). Les deux ordres sont
- * mémorisés par le navigateur (localStorage) et appliqués dès le chargement ;
- * « Ordre par défaut » revient aux ordres de l'administrateur.
+ * mémorisés par le navigateur (localStorage) et appliqués dès le chargement. Chaque cadre et
+ * chaque panneau peut aussi être masqué (« Masquer » / « Afficher », mémorisé de même).
+ * « Par défaut » revient aux ordres de l'administrateur et réaffiche tout.
  * Ce script est chargé juste après les cadres, avant les autres scripts : cartes et
  * graphiques sont créés une fois les cadres et panneaux à leur place. */
 (function () {
@@ -40,6 +42,25 @@
   const BLOCKS = orderable(dash, ".dash-block", "weewx-live:dash-order", (b) => b.dataset.block);
   const PANELS = orderable(grid, ".card[data-param]", "weewx-live:panel-order", (c) => c.dataset.param);
 
+  // Éléments masqués par le visiteur : { b: [cadres], p: [panneaux] } (classe user-hidden)
+  const HKEY = "weewx-live:hidden";
+  const hidden = (() => {
+    let h = null;
+    try { h = JSON.parse(localStorage.getItem(HKEY)); } catch (e) { /* stockage indisponible */ }
+    return { b: new Set(h && Array.isArray(h.b) ? h.b : []), p: new Set(h && Array.isArray(h.p) ? h.p : []) };
+  })();
+  const saveHidden = () => {
+    try {
+      if (hidden.b.size || hidden.p.size) localStorage.setItem(HKEY, JSON.stringify({ b: [...hidden.b], p: [...hidden.p] }));
+      else localStorage.removeItem(HKEY);
+    } catch (e) { /* stockage indisponible */ }
+  };
+  const applyHidden = () => {
+    BLOCKS.items().forEach((b) => b.classList.toggle("user-hidden", hidden.b.has(b.dataset.block)));
+    PANELS.items().forEach((c) => c.classList.toggle("user-hidden", hidden.p.has(c.dataset.param)));
+  };
+  applyHidden();
+
   // nom d'un panneau (titre, sans la flèche du lien de détail)
   const panelName = (c) => {
     const h = c.querySelector("h2");
@@ -53,8 +74,8 @@
   const tools = document.getElementById("grid-tools");
   if (!btn || !tools) return;
   const reset = document.createElement("button");
-  reset.type = "button"; reset.hidden = true; reset.textContent = "Ordre par défaut";
-  reset.title = "Revenir aux ordres définis par la station";
+  reset.type = "button"; reset.hidden = true; reset.textContent = "Par défaut";
+  reset.title = "Revenir aux ordres définis par la station et réafficher tous les éléments";
   btn.after(reset);
   const live = document.createElement("span");
   live.className = "sr"; live.setAttribute("aria-live", "polite");
@@ -62,6 +83,9 @@
 
   const moveButtons = (name, kind) => `<button type="button" data-${kind}="-1" aria-label="Monter « ${esc(name)} »">↑<span class="w"> Monter</span></button>
     <button type="button" data-${kind}="1" aria-label="Descendre « ${esc(name)} »">↓<span class="w"> Descendre</span></button>`;
+  // bouton Masquer / Afficher (kind : hb = cadre, hp = panneau)
+  const hideButton = (name, kind, id, isHidden) => `<button type="button" class="dash-hide" data-${kind}="${esc(id)}"
+    aria-pressed="${isHidden}" aria-label="${isHidden ? "Afficher" : "Masquer"} « ${esc(name)} »">${isHidden ? "Afficher" : "Masquer"}</button>`;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
   function build(on) {
@@ -71,15 +95,15 @@
       const name = b.dataset.label || b.dataset.block;
       const bar = document.createElement("div");
       bar.className = "dash-bar";
-      bar.innerHTML = `<span class="dash-name">${esc(name)}</span>${moveButtons(name, "move")}`;
+      bar.innerHTML = `<span class="dash-name">${esc(name)}</span>${moveButtons(name, "move")}${hideButton(name, "hb", b.dataset.block, hidden.b.has(b.dataset.block))}`;
       b.prepend(bar);
       // panneaux de mesures : sous-liste réordonnable
       if (b.contains(grid) && PANELS.items().length > 1) {
         const sub = document.createElement("ol");
         sub.className = "dash-sub";
         sub.setAttribute("aria-label", "Ordre des panneaux de mesures");
-        sub.innerHTML = PANELS.items().map((c) => `<li data-param="${esc(c.dataset.param)}">
-          <span class="dash-pname">${esc(panelName(c))}</span>${moveButtons(panelName(c), "pmove")}</li>`).join("");
+        sub.innerHTML = PANELS.items().map((c) => `<li data-param="${esc(c.dataset.param)}"${hidden.p.has(c.dataset.param) ? ' class="is-hidden"' : ""}>
+          <span class="dash-pname">${esc(panelName(c))}</span>${moveButtons(panelName(c), "pmove")}${hideButton(panelName(c), "hp", c.dataset.param, hidden.p.has(c.dataset.param))}</li>`).join("");
         bar.after(sub);
       }
     });
@@ -94,7 +118,7 @@
     });
     set(BLOCKS.items(), "move");
     set([...dash.querySelectorAll(".dash-sub > li")], "pmove");
-    reset.disabled = !BLOCKS.custom() && !PANELS.custom();
+    reset.disabled = !BLOCKS.custom() && !PANELS.custom() && !hidden.b.size && !hidden.p.size;
   }
   // échange un élément avec son voisin (dir -1 / +1) dans son conteneur
   function swap(el, dir) {
@@ -105,6 +129,23 @@
   }
 
   dash.addEventListener("click", (e) => {
+    // masquer / afficher un cadre ou un panneau
+    const h = e.target.closest("[data-hb], [data-hp]");
+    if (h) {
+      const isBlock = h.dataset.hb !== undefined, id = isBlock ? h.dataset.hb : h.dataset.hp;
+      const set = isBlock ? hidden.b : hidden.p;
+      const now = !set.has(id);
+      if (now) set.add(id); else set.delete(id);
+      saveHidden(); applyHidden();
+      const name = isBlock ? h.closest(".dash-block").dataset.label : h.closest("li").querySelector(".dash-pname").textContent;
+      h.setAttribute("aria-pressed", String(now));
+      h.textContent = now ? "Afficher" : "Masquer";
+      h.setAttribute("aria-label", `${now ? "Afficher" : "Masquer"} « ${name} »`);
+      if (!isBlock) h.closest("li").classList.toggle("is-hidden", now);
+      live.textContent = `« ${name} » ${now ? "masqué" : "affiché"}`;
+      refresh();
+      return;
+    }
     const m = e.target.closest("[data-move], [data-pmove]");
     if (!m) return;
     if (m.dataset.move) {                    // cadre
@@ -127,8 +168,9 @@
   reset.addEventListener("click", () => {
     BLOCKS.apply(BLOCKS.DEFAULT); PANELS.apply(PANELS.DEFAULT);
     BLOCKS.save(); PANELS.save();
+    hidden.b.clear(); hidden.p.clear(); saveHidden(); applyHidden();
     build(true);
-    live.textContent = "Ordre par défaut rétabli";
+    live.textContent = "Ordre par défaut rétabli, tous les éléments affichés";
     reset.focus();
   });
   btn.addEventListener("click", () => {

@@ -757,3 +757,11 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 .dash-editing .dash-block { padding: 8px 0 0; margin-bottom: 8px; }
 .dash-editing .dash { max-width: 760px; margin: 0 auto; }
 @media (max-width: 520px) { .dash-bar .dash-name { flex: 1 1 100%; } }
+/* éléments masqués par le visiteur (layout.js) ; visibles en réorganisation (barre seule) */
+.user-hidden { display: none !important; }
+.dash-editing .dash-block.user-hidden { display: block !important; opacity: .6; }
+.dash-editing .dash-block.user-hidden .dash-name::after, .dash-sub li.is-hidden .dash-pname::after {
+  content: " (masqué)"; font-weight: 400; color: var(--text-3); }
+.dash-sub li.is-hidden { opacity: .6; }
+.dash-bar .dash-hide, .dash-sub .dash-hide { min-width: 5.6em; }
+.dash-hide[aria-pressed="true"] { background: var(--text) !important; color: var(--bg) !important; border-color: var(--text) !important; }
