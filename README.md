@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.67.
+et n'a pas besoin d'être joignable depuis internet. Version 1.68.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -99,6 +99,7 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/extremes.html`, `extremes.js` | page « Extrêmes » |
 | `skins/WeewxLive/ensembles.html`, `ensembles.js` | page « Prévisions - Ensembles » |
 | `skins/WeewxLive/meteogram.html`, `meteogram.js` | page « Météogramme » |
+| `skins/WeewxLive/wxtime.js.tmpl` | heure de la station : fuseau horaire et fonctions de date de toutes les pages |
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
 | `skins/WeewxLive/nav.js` | menu commun ; nom, sous-titre et logo des pages statiques |
 | `skins/WeewxLive/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
@@ -114,6 +115,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 |---|---|---|
 | `index.html` | tableau de bord | à chaque archive |
 | `config.json` | configuration de la page | à chaque archive |
+| `wxtime.js` | fuseau horaire de la station ([Heure de la station](#heure-de-la-station)) | à chaque archive |
 | `data/history.json` | séries 24 h, extrêmes et cumuls du jour | à chaque archive |
 | `data/p24h.json` | page de détail, 24 h | à chaque archive |
 | `data/p7d.json` | 7 jours | 30 min max. |
@@ -313,11 +315,21 @@ affiche « Archive weewx » et l'âge du dernier enregistrement (« Pas de donn�
 Ce fonctionnement sert aussi de **repli** si l'adresse du broker est vide, si mqtt.js ne peut
 pas être chargé ou si la connexion ne peut pas être créée ; un bandeau l'indique.
 
-### Changement de jour
+### Heure de la station
 
-Les extrêmes et cumuls du jour suivent le **jour de la station** (fuseau horaire du serveur
-weewx) : `history.json` publie le minuit suivant de la station et la page change de jour à
-ce moment-là, quel que soit le fuseau horaire du visiteur.
+Toutes les dates et heures des pages (horloge, heures des extrêmes, graphiques, prévisions,
+météogramme, ensembles, cartes, archives) sont affichées à **l'heure de la station**, quel
+que soit le fuseau horaire du visiteur. Le fuseau est celui du système qui exécute weewx
+(variable `TZ`, `/etc/timezone` ou `/etc/localtime`), c'est-à-dire celui dans lequel weewx
+compte ses jours, mois et années ; l'option `timezone` de `[LiveJSON]` (nom IANA, ex.
+`Europe/Paris`) le remplace s'il n'est pas détecté. Il est publié dans `wxtime.js` (généré)
+et les prévisions Open-Meteo sont demandées dans ce même fuseau. Si aucun nom n'est trouvé,
+l'heure d'hiver ou d'été du moment est utilisée sans changement d'heure (`Etc/GMT±N`, signalé
+dans le journal de weewx) : c'est le cas d'une variable `TZ` au format POSIX (ex. `CET-1CEST`) ;
+indiquez alors `timezone`.
+
+Les extrêmes et cumuls du jour suivent donc le **jour de la station** : `history.json`
+publie le minuit suivant de la station et la page change de jour à ce moment-là.
 
 ## 4. Configurer la page
 
@@ -328,6 +340,7 @@ Dans `skins/WeewxLive/skin.conf` (dossier skins de weewx, ex. `/etc/weewx/skins/
 [LiveJSON]
     hours = 24                   # profondeur de l'historique du tableau de bord (1 à 72 h)
     station_name = ""            # vide = [Station] location de weewx.conf
+    timezone = ""                # fuseau des heures affichées (ex. Europe/Paris ; vide = celui du système)
     page_refresh = 300           # rechargement complet du tableau de bord (s, 0 = jamais, max. 86400)
     data_binding = wx_binding    # base de données weewx lue
     pretty = false               # true : JSON indenté (débogage)
@@ -541,8 +554,8 @@ dans les gabarits, avec PyEphem) pour la latitude, la longitude et l'altitude de
 la température et de la pression actuelles (réfraction). Ils sont publiés dans
 `data/astro.json` à chaque archive : levers, couchers et passages au méridien, durée du jour
 de la veille, phase de la lune, hauteurs et azimuts toutes les 10 minutes ; la page en
-déduit la position actuelle. Les journées sont celles de la station ; les heures sont
-affichées dans le fuseau horaire du visiteur.
+déduit la position actuelle. Les journées et les heures sont celles de la station
+(voir [Heure de la station](#heure-de-la-station)).
 
 PyEphem est installé avec weewx 5 (dépendance du paquet et de l'installation pip). Sans lui,
 l'almanach de weewx ne fournit que le lever et le coucher du soleil et la phase de la lune :
@@ -896,7 +909,7 @@ modèle en échec de téléchargement apparaît « (indisponible) » dans la lis
 |---|---|
 | Pictogrammes | temps prévu (codes WMO), toutes les 1 à 6 h selon la largeur |
 | Température à 2 m | courbe colorée selon la température (paliers de 3 °C), min. et max. de chaque jour |
-| Couverture nuageuse selon l'altitude | nuages (gris, plus foncé = plus couvert), altitude de l'isotherme 0 °C (tirets), jusqu'à `top_humidity` m |
+| Couverture nuageuse selon l'altitude | nuages (gris, plus foncé = plus couvert), altitude de l'isotherme 0 °C (tirets), jusqu'à `top_clouds` m |
 | Précipitations | quantité par heure (barres), dont averses ; **courbe du cumul** depuis le début de la prévision (échelle de droite, en mm) ; total de la période dans le titre |
 | Neige | chute de neige par heure et épaisseur au sol (sinon « pas de neige prévue ») |
 | Température et vent en altitude | température (bleus sous 0 °C, du jaune au rouge au-dessus), isothermes tous les 2 °C, isotherme 0 °C en trait épais, flèches de vent (vers où il souffle, longueur selon la force), jusqu'à `top_temperature` m |
@@ -915,7 +928,7 @@ pointée. Sur petit écran, le météogramme défile horizontalement.
         model = icon_seamless     # ICON-D2 (2 j), puis ICON-EU (5 j), puis ICON global
         days = 4                  # 1 à 16 jours (limité par l'échéance de chaque modèle)
         cache = 3600              # secondes (600 à 86400)
-        top_humidity = 12000      # m, sommet du panneau des nuages (3000 à 16000)
+        top_clouds = 12000        # m, sommet du panneau des nuages (3000 à 16000)
         top_temperature = 4500    # m, sommet du panneau température / vent (1500 à 12000)
         # timeout = 30            # délai de réponse d'Open-Meteo (s, 5 à 120)
         # latitude / longitude : par défaut celles de [[forecast]] ou de [Station]

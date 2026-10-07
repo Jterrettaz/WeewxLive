@@ -50,35 +50,33 @@
   }
 
   const fmtNum = (v, d) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
-  const fr = (t, o) => new Date(t * 1000).toLocaleString("fr-FR", o);
+  // dates et heures : fuseau de la station (wxtime.js)
+  const fr = (t, o) => WXT.fmt(t, o);
 
   // Graduations X : [{t, label, align}]
   function xTicks(mode, t0, t1, list) {
     const out = [];
     if (mode === "list") return (list || []).filter((k) => k.t >= t0 && k.t <= t1).map((k) => Object.assign({ align: "center" }, k));
-    const d = new Date(t0 * 1000);
     if (mode === "h6") {
       for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) {
-        const h = new Date(t * 1000).getHours();
+        const h = WXT.parts(t).h;
         if (h % 6 === 0) out.push({ t, label: String(h).padStart(2, "0") + " h", align: "center" });
       }
       return out;
     }
-    d.setHours(0, 0, 0, 0);
-    if (mode === "month") { d.setDate(1); }
-    while (d.getTime() / 1000 <= t1) {
-      const t = d.getTime() / 1000;
+    let t = mode === "month" ? WXT.monthStart(t0) : WXT.midnight(t0);
+    while (t <= t1) {
       if (t >= t0) {
+        const p = WXT.parts(t);
         if (mode === "day") out.push({ t, label: fr(t, { weekday: "short", day: "numeric" }), align: "left" });
-        else if (mode === "week") { if (d.getDay() === 1) out.push({ t, label: fr(t, { day: "numeric", month: "short" }), align: "left" }); }
+        else if (mode === "week") { if (p.wd === 1) out.push({ t, label: fr(t, { day: "numeric", month: "short" }), align: "left" }); }
         else if (mode === "month") {
           // janvier : on affiche l'année (utile sur 2 ans)
-          const label = d.getMonth() === 0 ? String(d.getFullYear()) : fr(t, { month: "short" }).replace(".", "");
-          out.push({ t, label, align: "left", strong: d.getMonth() === 0 });
+          const label = p.m === 1 ? String(p.y) : fr(t, { month: "short" }).replace(".", "");
+          out.push({ t, label, align: "left", strong: p.m === 1 });
         }
       }
-      if (mode === "month") d.setMonth(d.getMonth() + 1);
-      else d.setDate(d.getDate() + 1);
+      t = mode === "month" ? WXT.addMonths(t, 1) : WXT.addDays(t, 1);
     }
     return out;
   }

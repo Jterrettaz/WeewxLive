@@ -118,10 +118,10 @@
   // ------------------------------------------------------------------
   const fmt = (v, d) => v === null || v === undefined || isNaN(v) ? "--"
     : Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const hhmm = (t) => t ? "à " + new Date(t * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
+  const hhmm = (t) => t ? "à " + WXT.hm(t) : "";   // heure de la station (wxtime.js)
   const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
   const dirName = (d) => d === null || d === undefined ? "—" : DIRS[Math.round(d / 22.5) % 16];
-  const midnightOf = (t) => { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); return d.getTime() / 1000; };
+  const midnightOf = WXT.midnight;
   const round = (v) => Math.round(v * 100) / 100;
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
 
@@ -132,7 +132,7 @@
   // ------------------------------------------------------------------
   const S = {
     midnight: midnightOf(Date.now() / 1000),
-    nextMidnight: midnightOf(Date.now() / 1000) + 86400,
+    nextMidnight: WXT.addDays(Date.now() / 1000, 1),
     stationDay: false,       // true dès que le jour de la station est connu (history.json)
     cur: {},
     day: {},                 // extrêmes du jour {obs: {min,minTime,max,maxTime}}
@@ -622,12 +622,12 @@
     if (d.max === undefined || d.max === null || v > d.max) { d.max = v; d.maxTime = t; }
   }
 
-  // Changement de jour : à minuit de la STATION (history.json « nextMidnight »), quel que
-  // soit le fuseau horaire du navigateur ; avant la lecture de l'historique, minuit local.
+  // Changement de jour : à minuit de la station (history.json « nextMidnight », sinon
+  // wxtime.js), quel que soit le fuseau horaire du navigateur.
   function checkMidnight(t) {
     if (t < S.nextMidnight) return;
     S.midnight = S.nextMidnight;
-    S.nextMidnight += 86400;     // corrigé (heure d'été) par le prochain history.json
+    S.nextMidnight = WXT.addDays(S.midnight, 1);
     S.day = {};
     S.dayRain = 0;
     for (const k of Object.keys(daySum)) daySum[k] = 0;
@@ -824,10 +824,10 @@
       hideBanner("hist");
       const gen = h.generated || h.stop;
       document.getElementById("gen").textContent =
-        " généré " + new Date(gen * 1000).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+        " généré " + WXT.fmt(gen, { weekday: "short", hour: "2-digit", minute: "2-digit" });
       if (Date.now() / 1000 - gen > HISTORY_STALE) {
         showBanner("stale", "L'historique n'a pas été mis à jour depuis " +
-          new Date(gen * 1000).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) +
+          WXT.fmt(gen, { dateStyle: "short", timeStyle: "short" }) +
           " (génération ou envoi weewx interrompu ?).");
       } else hideBanner("stale");
     } catch (e) {
@@ -956,8 +956,8 @@
 
   function tick() {
     if (DAY) return;
-    const now = new Date();
-    document.getElementById("clock").textContent = now.toLocaleTimeString("fr-FR");
+    const now = WXT.now();
+    document.getElementById("clock").textContent = WXT.fmt(now, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const age = document.getElementById("age");
     if (ARCHIVE_MODE && S.lastArchive) {
       // âge du dernier enregistrement d'archive
@@ -971,7 +971,7 @@
       if (s > 120 && conn.classList.contains("pill-on")) setConn("wait", "Pas de données");
       else if (s <= 120 && conn.classList.contains("pill-wait") && conn.textContent.includes("Pas de")) setConn("on", DEMO ? "Démo" : "En direct");
     }
-    checkMidnight(now.getTime() / 1000);
+    checkMidnight(now);
   }
 
   // ------------------------------------------------------------------
@@ -979,7 +979,7 @@
   // ------------------------------------------------------------------
   const Demo = {
     model(t) {
-      const d = new Date(t * 1000), h = d.getHours() + d.getMinutes() / 60;
+      const p = WXT.parts(t), h = p.h + p.mi / 60;
       const sun = Math.max(0, Math.sin(((h - 7.5) / 12.5) * Math.PI));
       const n = (a) => (Math.sin(t / 1300 + a) + Math.sin(t / 470 + a * 2)) / 2;
       return {
@@ -1022,7 +1022,7 @@
         const lo = pts.reduce((a, b) => (b[1] < a[1] ? b : a)), hi = pts.reduce((a, b) => (b[1] > a[1] ? b : a));
         day[g.key] = { min: lo[1], minTime: lo[0], max: hi[1], maxTime: hi[0] };
       }
-      return { midnight: mid, nextMidnight: mid + 86400, series, day };
+      return { midnight: mid, nextMidnight: WXT.addDays(mid, 1), series, day };
     },
     // mesure simulée n° i (ex. particules : PM10 > PM2.5 > PM1)
     extra(t, i) {
@@ -1122,7 +1122,7 @@
       const el = document.getElementById("day-last");
       // dernier enregistrement à minuit : il clôt la journée
       if (el && last) el.textContent = last >= DAY.nextMidnight ? " (minuit)"
-        : ` (${new Date(last * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })})`;
+        : ` (${WXT.hm(last)})`;
       return;
     }
     render();

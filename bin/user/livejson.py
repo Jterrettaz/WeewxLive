@@ -22,6 +22,7 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
   $livejson_params, $livejson_station, $livejson_logo, $livejson_hardware,
   $livejson_dash_order, $livejson_refresh, $livejson_fc_days : valeurs pour les gabarits
                            HTML (index.html.tmpl, pages d'archives)
+  $livejson_tz             fuseau horaire de la station, chaîne JSON (wxtime.js.tmpl)
 
 Le générateur LiveCheetahGenerator applique l'option [[archives]] (types de pages
 d'archives produits, nombre de pages « jour »).
@@ -56,7 +57,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.67"
+VERSION = "1.68"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -179,6 +180,60 @@ GROUP_TARGET = {
 }
 
 COLOR_RE = re.compile(r"^--[A-Za-z0-9_-]+$")    # couleur = nom de variable CSS (ex. --temp)
+
+
+TZ_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]*(?:/[A-Za-z0-9_+-]+)*$")
+
+
+def _valid_tz(name):
+    """Vrai si « name » est un fuseau IANA connu (non vérifiable avant Python 3.9 : accepté)."""
+    if not TZ_NAME_RE.match(name):
+        return False
+    try:
+        import zoneinfo
+    except ImportError:
+        return True
+    try:
+        zoneinfo.ZoneInfo(name)
+        return True
+    except Exception:
+        return False
+
+
+def _station_tz(value=None):
+    """Fuseau horaire IANA de la station (ex. « Europe/Paris »).
+
+    weewx compte les jours, mois et années en heure locale du système : les pages affichent
+    cette même heure, quel que soit le fuseau du visiteur. Ordre : option [LiveJSON]
+    timezone, variable TZ, /etc/timezone, lien /etc/localtime ; à défaut, heure fixe du
+    moment (Etc/GMT±N, sans changement d'heure) ou None (fuseau du navigateur)."""
+    env = os.environ.get("TZ", "").lstrip(":")
+    cands = [("timezone", str(value or "").strip()), ("TZ", env)]
+    # TZ définie (même au format POSIX, ex. CET-1CEST) : c'est elle que suit weewx, les
+    # fichiers du système ne s'appliquent pas
+    if not env:
+        try:
+            with open("/etc/timezone") as f:
+                cands.append(("/etc/timezone", f.read().strip()))
+        except OSError:
+            pass
+        link = os.path.realpath("/etc/localtime")
+        if "zoneinfo/" in link:
+            cands.append(("/etc/localtime", link.split("zoneinfo/", 1)[1]))
+    for src, name in cands:
+        if name and _valid_tz(name):
+            return name
+        if name and src == "timezone":
+            log.error("livejson: timezone = %s : fuseau inconnu, détection automatique", name)
+    off = -(time.altzone if time.localtime().tm_isdst > 0 else time.timezone)
+    if off == 0:
+        return "UTC"
+    if off % 3600 == 0:
+        # convention POSIX des noms Etc/ : signe inversé (Etc/GMT-1 = UTC+1)
+        log.info("livejson: fuseau horaire non trouvé, heure fixe UTC%+d utilisée", off // 3600)
+        return "Etc/GMT%+d" % (-off // 3600)
+    log.error("livejson: fuseau horaire non trouvé (option timezone) : heure du navigateur")
+    return None
 
 
 def _int(v, default, lo=None, hi=None):
@@ -602,6 +657,10 @@ class LiveJSON(SearchList):
         self.binding = opts.get("data_binding", "wx_binding")
         self.pretty = to_bool(opts.get("pretty", False))
         self.station_name = opts.get("station_name", "") or ""
+        # fuseau horaire des pages (heure de la station) ; les prévisions Open-Meteo sont
+        # demandées dans ce même fuseau (dates « AAAA-MM-JJTHH:MM » lues par wxtime.js)
+        self.tz = _station_tz(opts.get("timezone"))
+        self.om_tz = self.tz or "auto"
         self.logo = self._logo(opts)
         self.mqtt = dict(opts.get("mqtt", {}))
         self.forecast = dict(opts.get("forecast", {}))
@@ -717,6 +776,8 @@ class LiveJSON(SearchList):
             # ordre des cadres du tableau de bord (index.html.tmpl)
             "livejson_dash_order": self.dash_order,
             "livejson_refresh": self.page_refresh,
+            # fuseau horaire de la station (wxtime.js.tmpl), chaîne JSON ou null
+            "livejson_tz": json.dumps(self.tz),
             "livejson_fc_days": self._fc_days(),
             "livejson_config_inline": _Lazy(lambda: self._dump(self.config()).replace("</", "<\\/")),
             # $livejson_period.p7d, etc.
@@ -787,6 +848,7 @@ class LiveJSON(SearchList):
             "stationName": self.station_label(),
             "hardware": self.hardware_label(),
             "logo": self.logo,
+            "timezone": self.tz,
             "latitude": lat,
             "longitude": lon,
             # pages d'archives : archive/day-AAAA-MM-JJ.html, month-…, year-…, climato-…
@@ -903,7 +965,7 @@ class LiveJSON(SearchList):
         params = {
             "latitude": lat, "longitude": lon,
             "daily": ",".join(FORECAST_DAILY), "hourly": ",".join(FORECAST_HOURLY),
-            "models": model, "timezone": "auto",
+            "models": model, "timezone": self.om_tz,
             "forecast_days": min(days, _FORECAST_MAXDAYS.get(model, 99)),
         }
         url = OPEN_METEO_URL + "?" + urllib.parse.urlencode(params)
@@ -1019,7 +1081,7 @@ class LiveJSON(SearchList):
         params = {
             "latitude": lat, "longitude": lon, "models": model,
             "hourly": ",".join(v for _k, v, _d in ENSEMBLE_VARS if v not in _ENS_SKIPVARS.get(model, ())),
-            "timezone": "auto", "timeformat": "unixtime",
+            "timezone": self.om_tz, "timeformat": "unixtime",
             "forecast_days": fdays,
         }
         key = urllib.parse.urlencode(params)
@@ -1198,7 +1260,8 @@ class LiveJSON(SearchList):
             "version": VERSION, "generated": int(time.time()), "source": "open-meteo",
             "latitude": lat, "longitude": lon, "cache": ttl, "default": default,
             "units": {"temp": "°C", "rain": "mm", "snow": "cm", "wind": "km/h", "z": "m"},
-            "top": {"humidity": _int(g.get("top_humidity"), 12000, 3000, 16000),
+            # sommets des panneaux (m) ; top_humidity : ancien nom de top_clouds (avant 1.68)
+            "top": {"clouds": _int(g.get("top_clouds", g.get("top_humidity")), 12000, 3000, 16000),
                     "temperature": _int(g.get("top_temperature"), 4500, 1500, 12000)},
             "models": out,
         }
@@ -1207,7 +1270,7 @@ class LiveJSON(SearchList):
         """Prévision d'un modèle (cache de « ttl » secondes) ; {"error": …} si indisponible."""
         hourly = list(METEOGRAM_SURFACE) + ["%s_%dhPa" % (v, p) for p in METEOGRAM_LEVELS for _k, v, _d in METEOGRAM_LVARS]
         params = {"latitude": lat, "longitude": lon, "models": model, "hourly": ",".join(hourly),
-                  "timezone": "auto", "timeformat": "unixtime",
+                  "timezone": self.om_tz, "timeformat": "unixtime",
                   "forecast_days": min(days, _MG_MAXDAYS.get(model, 99))}
         key = urllib.parse.urlencode(params)
         now = time.time()

@@ -77,16 +77,17 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d) => isNum(v)
     ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--";
-  const fr = (t, o) => new Date(t * 1000).toLocaleString("fr-FR", o);
+  // dates et heures : fuseau de la station (wxtime.js)
+  const fr = (t, o) => WXT.fmt(t, o);
   const hm = (t) => fr(t, { hour: "2-digit", minute: "2-digit" });
 
   const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
   const dirName = (d) => (isNum(d) ? DIRS[Math.round(d / 22.5) % 16] : "--");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-  const nextMidnight = (t) => { const d = new Date(t * 1000); d.setHours(24, 0, 0, 0); return d.getTime() / 1000; };
-  const monthStart = (t) => { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); d.setDate(1); return d.getTime() / 1000; };
-  const nextMonth = (t) => { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); d.setDate(1); d.setMonth(d.getMonth() + 1); return d.getTime() / 1000; };
+  const nextMidnight = (t) => WXT.addDays(t, 1);
+  const monthStart = WXT.monthStart;
+  const nextMonth = (t) => WXT.addMonths(t, 1);
 
   // ------------------------------------------------------------------
   // Une section par période (statistiques + graphique), empilées sur la page
@@ -488,7 +489,7 @@
   // ------------------------------------------------------------------
   const Demo = {
     model(t) {
-      const d = new Date(t * 1000), h = d.getHours() + d.getMinutes() / 60;
+      const p = WXT.parts(t), h = p.h + p.mi / 60;
       const doy = (t / 86400) % 365.25;
       const season = -Math.cos(((doy - 15) / 365.25) * 2 * Math.PI);
       const sun = Math.max(0, Math.sin(((h - 7.5) / 12.5) * Math.PI));
@@ -510,7 +511,7 @@
       const stop = Math.floor(Date.now() / 300000) * 300, step = r === "24h" || r === "7d" ? 300 : 1800;
       const ndays = { "24h": 1, "7d": 7, "30d": 30, "365d": 365, "730d": 730 }[r];
       let start = stop - 86400;
-      if (r !== "24h") { const d0 = new Date((stop - 1) * 1000); d0.setHours(0, 0, 0, 0); d0.setDate(d0.getDate() - ndays + 1); start = d0.getTime() / 1000; }
+      if (r !== "24h") start = WXT.addDays(stop - 1, 1 - ndays);
       const keys = ["outTemp", "outHumidity", "barometer", "radiation", "windSpeed", "windGust", "windDir", "rain", "rainRate"];
       const samples = [];
       for (let t = start + step; t <= stop; t += step) samples.push([t, this.model(t)]);
@@ -543,7 +544,7 @@
         for (const k of keys) out.series[k] = samples.map(([t, m]) => [t, round(m[k])]);
         return out;
       }
-      const dayKey = (t) => { const d = new Date(t * 1000); d.setHours(0, 0, 0, 0); return d.getTime() / 1000; };
+      const dayKey = WXT.midnight;
       const daily = group(dayKey);
       out.resolution = r === "7d" ? "hour" : "day";
       out.series = r === "7d" ? group((t) => Math.floor(t / 3600) * 3600) : daily;

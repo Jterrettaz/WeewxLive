@@ -10,9 +10,10 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   const B = (v, u, d = 1) => `<b>${fmt(v, d)}${u ? " " + u : ""}</b>`;
-  const hm = (t) => (isNum(t) ? new Date(t * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "--");
-  const dmy = (t) => (isNum(t) ? new Date(t * 1000).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" }) : "--");
-  const dmyShort = (t) => new Date(t * 1000).toLocaleDateString("fr-FR");
+  // dates et heures : fuseau de la station (wxtime.js)
+  const hm = (t) => (isNum(t) ? WXT.hm(t) : "--");
+  const dmy = (t) => (isNum(t) ? WXT.fmt(t, { day: "2-digit", month: "long", year: "numeric" }) : "--");
+  const dmyShort = (t) => WXT.fmt(t, { day: "2-digit", month: "2-digit", year: "numeric" });
   const monthName = (m) => new Date(2000, m - 1, 1).toLocaleDateString("fr-FR", { month: "long" });
   const de = (word) => (/^[aeiouyhâéèêîôû]/i.test(word) ? "d'" : "de ") + word;   // « d'octobre », « de mars »
 
@@ -28,7 +29,7 @@
     if (!S || !S.day) return out;
     // le jour de climate.json doit être celui des mesures en cours (fichier régénéré au plus
     // toutes les 15 min : juste après minuit, il décrit encore la veille)
-    const midnightOfToday = new Date(out.today.year, out.today.month - 1, out.today.day).getTime() / 1000;
+    const midnightOfToday = WXT.mk(out.today.year, out.today.month, out.today.day);
     if (S.midnight && Math.abs(midnightOfToday - S.midnight) > 7200) return out;
     const y = out.today.year;
     const dayRow = out.day.find((r) => r.year === y);
@@ -155,7 +156,7 @@
     const d = withLive(data);
     const { day, month } = d.today;
     const mn = monthName(month);
-    const since = new Date(d.since * 1000).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+    const since = WXT.fmt(d.since, { month: "long", year: "numeric" });
     $("cl-day-title").textContent = `${day === 1 ? "1er" : day} ${mn} : extrêmes`;
     $("cl-month-title").textContent = `Pour ${mn}`;
     document.querySelectorAll(".cl-since").forEach((e) => (e.textContent = `(statistiques depuis ${since})`));
@@ -194,13 +195,13 @@
 
   // Données simulées (?demo) : 20 ans
   function demo() {
-    const t = new Date(), y = t.getFullYear(), m = t.getMonth() + 1, dd = t.getDate();
+    const t = WXT.parts(WXT.now()), y = t.y, m = t.m, dd = t.d;
     const rnd = (s) => { const x = Math.sin(s * 9301 + 49297) * 233280; return x - Math.floor(x); };
     const day = [], month = [];
     for (let yr = y - 19; yr <= y; yr++) {
       const k = yr * 7, base = 12 + (rnd(k) - 0.5) * 8;
       // dates du mois : jamais dans le futur pour l'année en cours
-      const ts = (h, dd2 = dd) => new Date(yr, m - 1, yr === y ? Math.min(dd2, dd) : dd2, h, 10).getTime() / 1000;
+      const ts = (h, dd2 = dd) => WXT.mk(yr, m, yr === y ? Math.min(dd2, dd) : dd2, h, 10);
       day.push({ year: yr, tavg: +base.toFixed(1), tmin: +(base - 3 - rnd(k + 1) * 4).toFixed(1), tminTime: ts(6), tmax: +(base + 3 + rnd(k + 2) * 6).toFixed(1), tmaxTime: ts(15),
         pmin: +(1008 + rnd(k + 3) * 12).toFixed(1), pminTime: ts(4), pmax: +(1015 + rnd(k + 4) * 12).toFixed(1), pmaxTime: ts(22),
         rain: rnd(k + 5) > 0.6 ? +(rnd(k + 6) * 14).toFixed(1) : 0, wind: +(3 + rnd(k + 7) * 5).toFixed(1), gust: +(20 + rnd(k + 8) * 25).toFixed(0) });
@@ -211,7 +212,7 @@
         hotDay: { v: +(mb + 5).toFixed(1), t: ts(0, 2) }, coldDay: { v: +(mb - 8).toFixed(1), t: ts(0, 28) },
         rain: +(15 + rnd(k + 18) * 180).toFixed(1), wind: +(5 + rnd(k + 19) * 4).toFixed(1) });
     }
-    return { since: new Date(y - 19, 3, 1).getTime() / 1000, today: { year: y, month: m, day: dd }, day, month };
+    return { since: WXT.mk(y - 19, 4, 1), today: { year: y, month: m, day: dd }, day, month };
   }
 
   load();

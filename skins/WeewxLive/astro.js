@@ -16,7 +16,7 @@
   // Formatage
   // ------------------------------------------------------------------
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
-  const hm = (t) => (isNum(t) ? new Date(t * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "—");
+  const hm = (t) => (isNum(t) ? WXT.hm(t) : "—");   // heure de la station
   const dur = (s) => { const m = Math.round(s / 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`; };
   const delta = (s) => {
     const a = Math.round(Math.abs(s)), m = Math.floor(a / 60), sec = a % 60;
@@ -122,7 +122,7 @@
       chart = new MiniChart($("astro-chart"), Object.assign({
         unit: "°", decimals: 0, maxGap: 1800, xTicks: "h6", yTicks: 4, padLeft: 40,
         yFormat: (v) => `${v}°`.replace("-", "−"),
-        tipHead: (t) => new Date(t * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+        tipHead: (t) => WXT.hm(t),
         series: s,
       }, opts));
     } else chart.setSeries(s, opts);

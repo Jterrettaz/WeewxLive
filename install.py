@@ -9,7 +9,7 @@ def loader():
 class WeewxLiveInstaller(ExtensionInstaller):
     def __init__(self):
         super(WeewxLiveInstaller, self).__init__(
-            version="1.67",
+            version="1.68",
             name="weewx-live",
             description="Tableau de bord météo temps réel (MQTT ou archive), pages de détail, archives, "
                         "records et prévisions Open-Meteo, en JSON statique",
@@ -53,6 +53,7 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/app.js",
                     "skins/WeewxLive/minichart.js",
                     "skins/WeewxLive/config.json.tmpl",
+                    "skins/WeewxLive/wxtime.js.tmpl",
                 ]),
                 ("skins/WeewxLive/archive", [
                     "skins/WeewxLive/archive/header.inc",

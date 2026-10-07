@@ -161,14 +161,14 @@
     const muted = css("--text-3"), grid = css("--grid"), text = css("--text-2");
     ctx.textBaseline = "top"; ctx.textAlign = "center";
     for (let i = 0; i < N; i++) {
-      const d = new Date((T0 + i * 3600) * 1000), hh = d.getHours();
+      const t = T0 + i * 3600, hh = WXT.parts(t).h;    // heure de la station (wxtime.js)
       if (hh % 6) continue;
       const x = Math.round(p.X(i)) + 0.5;
       ctx.strokeStyle = hh === 0 ? muted : grid; ctx.lineWidth = 1;
       ctx.setLineDash(hh === 0 ? [] : [3, 3]);
       ctx.beginPath(); ctx.moveTo(x, TOP); ctx.lineTo(x, TOP + p.ph); ctx.stroke();
       ctx.setLineDash([]);
-      const label = hh === 0 ? d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" }) : `${String(hh).padStart(2, "0")} h`;
+      const label = hh === 0 ? WXT.fmt(t, { weekday: "short", day: "numeric" }) : `${String(hh).padStart(2, "0")} h`;
       ctx.fillStyle = hh === 0 ? text : muted;
       ctx.font = hh === 0 ? "600 11px system-ui, sans-serif" : "11px system-ui, sans-serif";
       const lw = ctx.measureText(label).width;
@@ -216,7 +216,7 @@
     const days = {};
     for (let i = 0; i < N; i++) {
       if (!isNum(t[i])) continue;
-      const k = new Date((T0 + i * 3600) * 1000).toDateString();
+      const k = WXT.ymd(T0 + i * 3600);
       const d = days[k] || (days[k] = { min: i, max: i });
       if (t[i] < t[d.min]) d.min = i;
       if (t[i] > t[d.max]) d.max = i;
@@ -274,7 +274,7 @@
   // couverture nuageuse : gris d'autant plus opaque que le ciel est couvert (≥ 5 %)
   const cloudRGB = () => (dark() ? [205, 205, 200] : [92, 92, 90]);
   function drawClouds(ctx, p) {
-    const top = D.top.humidity;                  // sommet du panneau (option top_humidity)
+    const top = D.top.clouds || D.top.humidity || 12000;   // sommet du panneau (option top_clouds ; humidity : fichier antérieur à 1.68)
     CLD = CLD || grid(["cc"], top, 110);
     const cloud = cloudRGB();
     raster(ctx, p, CLD.zs.length, (r, c) => {
@@ -436,7 +436,7 @@
     const days = {};
     gu.forEach((v, i) => {
       if (!isNum(v)) return;
-      const key = new Date((T0 + i * 3600) * 1000).toDateString();
+      const key = WXT.ymd(T0 + i * 3600);
       if (days[key] === undefined || v > gu[days[key]]) days[key] = i;
     });
     Object.values(days).forEach((i) => ctx.fillText(fmt(gu[i], 0), Math.min(Math.max(p.X(i), L + 12), L + p.pw - 12), Math.max(TOP + 12, Y(gu[i]) - 4)));
@@ -456,7 +456,7 @@
       if (!isNum(code)) continue;
       const [label, ic] = WxIcons.WMO[code] || ["—", "cloud"];
       const x = L + (i / (N - 1)) * pw;
-      const hh = new Date((T0 + i * 3600) * 1000).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+      const hh = WXT.fmt(T0 + i * 3600, { weekday: "short", hour: "2-digit", minute: "2-digit" });
       html += `<span class="mg-ic" style="left:${x.toFixed(1)}px" title="${esc(hh)} : ${esc(label)}">${WxIcons.icon(WxIcons.nightIcon(ic, S.is_day[i]), label)}</span>`;
     }
     row.innerHTML = html;
@@ -489,7 +489,7 @@
       rows.push([`À ${(Math.round(z / 10) * 10).toLocaleString("fr-FR")} m`, [isNum(tz) ? `${fmt(tz, 1)} °C` : "",
         isNum(cc) ? `nuages ${fmt(cc, 0)} %` : "", isNum(sp) ? `vent ${fmt(sp, 0)} km/h ${dirName(from)}` : ""].filter(Boolean).join(" · "), css("--text")]);
     }
-    tip.innerHTML = `<div class="t">${new Date(t * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>` +
+    tip.innerHTML = `<div class="t">${WXT.fmt(t, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>` +
       rows.map(([k, v, c]) => `<div><i style="background:${esc(c)}"></i>${esc(k)} <b>${esc(v)}</b></div>`).join("");
     tip.hidden = false;
     const w = tip.offsetWidth, h = tip.offsetHeight;
@@ -505,7 +505,7 @@
   function build() {
     const total = CUM[N - 1] || 0;
     const snowy = S.snowfall.some((v) => v > 0) || S.snow_depth.some((v) => v > 0);
-    const fetched = new Date(D.fetched * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const fetched = WXT.fmt(D.fetched, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     $("mg-sub").textContent = `Open-Meteo · altitude du modèle ${isNum(D.elevation) ? Math.round(D.elevation) + " m" : "inconnue"} · données du ${fetched}`;
     const sec = (id, title, legend, h, extra = "") => `
       <section class="mg-panel">

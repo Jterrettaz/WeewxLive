@@ -32,7 +32,9 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (v === null || v === undefined || isNaN(v)) ? "--"
     : Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const hm = (t) => new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  // dates et heures : fuseau de la station (wxtime.js) ; t en secondes. Les prévisions
+  // Open-Meteo sont demandées dans ce fuseau (dates « AAAA-MM-JJTHH:MM » lues par WXT.iso).
+  const hm = (t) => WXT.hm(t);
 
   // configuration intégrée à la page ou requête partagée avec nav.js (window.weewxConfig)
   async function getConfig() {
@@ -93,7 +95,7 @@
         "wind_direction_10m_dominant", "sunrise", "sunset", "uv_index_max"].join(","),
       hourly: ["temperature_2m", "weather_code", "precipitation", "precipitation_probability",
         "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m", "relative_humidity_2m", "is_day"].join(","),
-      models: model, timezone: "auto", forecast_days: f.days,
+      models: model, timezone: cfg.timezone || "auto", forecast_days: f.days,
     });
     const url = "https://api.open-meteo.com/v1/forecast?" + p;
     const key = "weewx-live:forecast";
@@ -163,7 +165,7 @@
       if (seq !== fc.seq) return;          // modèle changé entre-temps
       fc.updated = "";
       if (j.fetched) {
-        const t = new Date(j.fetched * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        const t = hm(j.fetched);
         fc.updated = `mises à jour à ${t}${j.stale ? " (copie précédente)" : ""}`;
       }
       renderForecast(j.daily, Object.assign({}, f, { model }));
@@ -190,21 +192,21 @@
     const tmin = Math.min(...d.temperature_2m_min.filter((v) => v !== null));
     const tmax = Math.max(...d.temperature_2m_max.filter((v) => v !== null));
     const span = Math.max(1, tmax - tmin);
-    const today = new Date().toLocaleDateString("sv-SE");   // AAAA-MM-JJ local
+    const today = WXT.ymd(WXT.now());   // AAAA-MM-JJ de la station
     const days = [];
     for (let i = 0; i < n; i++) {
-      const date = new Date(d.time[i] + "T12:00:00");
+      const date = WXT.iso(d.time[i]);
       const [label, ic] = WMO[d.weather_code[i]] || ["—", "cloud"];
       const name = d.time[i] === today ? "Aujourd'hui"
-        : date.toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^./, (c) => c.toUpperCase());
-      const short = d.time[i] === today ? "Auj." : date.toLocaleDateString("fr-FR", { weekday: "short" }).replace(/^./, (c) => c.toUpperCase());
+        : WXT.fmt(date, { weekday: "long" }).replace(/^./, (c) => c.toUpperCase());
+      const short = d.time[i] === today ? "Auj." : WXT.fmt(date, { weekday: "short" }).replace(/^./, (c) => c.toUpperCase());
       const lo = d.temperature_2m_min[i], hi = d.temperature_2m_max[i];
       const left = ((lo - tmin) / span) * 100, width = Math.max(4, ((hi - lo) / span) * 100);
       const pr = d.precipitation_sum[i], pp = d.precipitation_probability_max ? d.precipitation_probability_max[i] : null;
       const wd = d.wind_direction_10m_dominant[i];
       days.push(`
         <li><button type="button" class="fc-day" data-i="${i}" aria-expanded="false" aria-controls="fc-hours" title="${esc(label)} — détail heure par heure">
-          <span class="fc-when"><b><span class="long">${esc(name)}</span><span class="short">${esc(short)}</span></b><span>${date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span></span>
+          <span class="fc-when"><b><span class="long">${esc(name)}</span><span class="short">${esc(short)}</span></b><span>${WXT.fmt(date, { day: "numeric", month: "short" })}</span></span>
           ${icon(ic, label)}
           <span class="fc-desc">${esc(label)}</span>
           <span class="fc-temp"><b${tcol(hi)}>${fmt(hi)}°</b><span${tcol(lo)}>${fmt(lo)}°</span></span>
@@ -218,7 +220,7 @@
       <p class="fc-tip">Choisissez un jour pour voir les prévisions heure par heure.</p>`;
     const i0 = d.time.indexOf(today);
     $("fc-sun").textContent = i0 >= 0
-      ? `Lever ${hm(d.sunrise[i0])} · coucher ${hm(d.sunset[i0])}${d.uv_index_max && d.uv_index_max[i0] !== null ? ` · UV max. ${fmt(d.uv_index_max[i0])}` : ""}`
+      ? `Lever ${hm(WXT.iso(d.sunrise[i0]))} · coucher ${hm(WXT.iso(d.sunset[i0]))}${d.uv_index_max && d.uv_index_max[i0] !== null ? ` · UV max. ${fmt(d.uv_index_max[i0])}` : ""}`
       : "";
     // modèle : liste déroulante (s'il n'y en a qu'un, son nom ici)
     const m1 = (f.models || []).find((x) => x.id === f.model);
@@ -234,7 +236,7 @@
   function hourlyCharts() {
     if (fc.charts || !window.MiniChart) return fc.charts;
     // en-tête d'infobulle : heure (courbe) ou tranche horaire (barres, centrées sur la demi-heure)
-    const dayTip = (t, s) => (s.type === "bar" ? `${hm((t - 1800) * 1000)} – ${hm((t + 1800) * 1000)}` : hm(t * 1000));
+    const dayTip = (t, s) => (s.type === "bar" ? `${hm(t - 1800)} – ${hm(t + 1800)}` : hm(t));
     fc.charts = {
       temp: new MiniChart($("fh-temp"), {
         unit: "°C", decimals: 1, minRange: 4, xTicks: "h6", maxGap: 7200, tipHead: dayTip,
@@ -256,10 +258,9 @@
     const day = d.time[i];
     const idx = [];
     h.time.forEach((t, k) => { if (t.startsWith(day)) idx.push(k); });
-    const ts = (k) => new Date(h.time[k]).getTime() / 1000;
+    const ts = (k) => WXT.iso(h.time[k]);
 
-    const date = new Date(day + "T12:00:00");
-    $("fh-title").textContent = date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
+    $("fh-title").textContent = WXT.fmt(WXT.iso(day), { weekday: "long", day: "numeric", month: "long" })
       .replace(/^./, (c) => c.toUpperCase()) + " — heure par heure";
 
     // Graphiques (température ; précipitations, cumul de l'heure écoulée)
@@ -267,7 +268,7 @@
     panel.hidden = false;
     const ch = hourlyCharts();
     if (ch && idx.length) {
-      const t0 = new Date(day + "T00:00:00").getTime() / 1000, t1 = t0 + 86400;
+      const t0 = WXT.iso(day), t1 = WXT.addDays(t0, 1);
       ch.temp.setSeries([Object.assign(ch.temp.series[0], { data: idx.map((k) => [ts(k), h.temperature_2m[k]]).filter((p) => p[1] !== null) })], { range: [t0, t1] });
       ch.rain.setSeries([Object.assign(ch.rain.series[0], { data: idx.map((k) => [ts(k) - 3600, h.precipitation[k] || 0, ts(k)]) })], { range: [t0, t1] });
       $("fh-rainbox").classList.toggle("no-rain", !idx.some((k) => h.precipitation[k] > 0));
@@ -282,7 +283,7 @@
       const pr = h.precipitation[k], pp = h.precipitation_probability ? h.precipitation_probability[k] : null;
       const wd = h.wind_direction_10m[k];
       return `<li class="fh-hour${t === nowH ? " now" : ""}${t < nowH ? " past" : ""}">
-        <span class="fh-h">${t === nowH ? "Maint." : new Date(t * 1000).getHours() + " h"}</span>
+        <span class="fh-h">${t === nowH ? "Maint." : WXT.parts(t).h + " h"}</span>
         ${icon(nightIcon(ic, h.is_day ? h.is_day[k] : 1), label)}
         <b class="fh-t"${tcol(h.temperature_2m[k])}>${fmt(h.temperature_2m[k])}°</b>
         <span class="fh-r${pr > 0 ? "" : " dry"}">${fmt(pr, 1)} mm${pp !== null && pp !== undefined ? `<small>${fmt(pp)} %</small>` : ""}</span>
@@ -408,9 +409,8 @@
       this.i = (i + this.n) % this.n;
       this.range.value = this.i;
       const t = this.times[this.i];
-      const d = new Date(t * 1000);
-      const today = d.toDateString() === new Date().toDateString();
-      this.label.textContent = (today ? "" : d.toLocaleDateString("fr-FR", { weekday: "short" }) + " ") + hm(t * 1000);
+      const today = WXT.ymd(t) === WXT.ymd(WXT.now());
+      this.label.textContent = (today ? "" : WXT.fmt(t, { weekday: "short" }) + " ") + hm(t);
       this.onShow(this.i, prev);
     }
     play() {

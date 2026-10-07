@@ -7,8 +7,9 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const day = (t) => (t ? new Date(t * 1000).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
-  const hm = (t) => new Date(t * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  // dates et heures : fuseau de la station (wxtime.js)
+  const day = (t) => (t ? WXT.fmt(t, { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
+  const hm = WXT.hm;
   const month = (y, m) => new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   const $ = (id) => document.getElementById(id);
 
@@ -38,7 +39,7 @@
   function render(d) {
     const top = d.top || 10, r = d.records || {}, th = d.thresholds || {};
     if (d.since) {
-      $("x-since").textContent = "depuis " + new Date(d.since * 1000).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+      $("x-since").textContent = "depuis " + WXT.fmt(d.since, { month: "long", year: "numeric" });
     }
     const tile = (label, v, sub) => `<div class="tile"><div class="t-label">${esc(label)}</div>
       <div class="t-val">${v}</div><div class="t-sub">${esc(sub || "")}</div></div>`;
@@ -83,7 +84,7 @@
       <h3 class="x-h">Périodes</h3><div class="x-grid">${periods.join("")}</div>
       <p class="x-note">Jours : température moyenne des jours mesurés à au moins ${Math.round((th.coverage ?? 0.75) * 100)} % (aujourd'hui exclu).
         Mois : mois complets uniquement (mois en cours exclu). Averses : plus forte pluie sur une heure pleine, une seule par jour.</p>`;
-    $("gen").textContent = d.generated ? " · générés " + new Date(d.generated * 1000).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
+    $("gen").textContent = d.generated ? " · générés " + WXT.fmt(d.generated, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
   }
 
   let last = null;   // dernières données (redessin au changement de thème)

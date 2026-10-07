@@ -69,7 +69,7 @@
     if (cfg && !FORECAST.length) FC_PAGES.forEach((p) => { if (cfg[p.key] && cfg[p.key].enable) FORECAST.push(p); });
     const a = cfg && cfg.archives;
     if (!a || EXTRA.some((e) => e.id === "archives")) return;
-    const d = new Date(), y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
+    const [y, m, dd] = WXT.ymd(WXT.now()).split("-");   // date du jour de la station
     const page = a.day ? `archive/day-${y}-${m}-${dd}.html` : a.month ? `archive/month-${y}-${m}.html` : a.year ? `archive/year-${y}.html` : "";
     if (page) EXTRA.push({ id: "archives", label: "Archives", page });
     if (a.climato && !CLIMATO.length) {

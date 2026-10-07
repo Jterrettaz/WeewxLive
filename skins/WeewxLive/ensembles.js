@@ -18,9 +18,9 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
-  const isoDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
-  const dayLabel = (iso) => isoDate(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
-  const tOf = (iso) => isoDate(iso).getTime() / 1000;
+  // jours « AAAA-MM-JJ » et heures : fuseau de la station (wxtime.js)
+  const tOf = WXT.iso;
+  const dayLabel = (iso) => WXT.fmt(tOf(iso), { weekday: "short", day: "numeric", month: "short" });
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const mean = (a) => (a.length ? sum(a) / a.length : null);
   function pct(sorted, q) {
@@ -150,9 +150,8 @@
   function window_() {
     const S = selected();
     const start = Math.min(...S.map((m) => m.t0).filter(isNum));
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const day0 = today.getTime() / 1000;
-    return { start, day0, end: day0 + H * 86400 };
+    const day0 = WXT.midnight(WXT.now());
+    return { start, day0, end: WXT.addDays(day0, H) };
   }
 
   // séries d'une variable (temp / wind / press) : membres, moyennes par modèle, groupées.
@@ -198,10 +197,7 @@
   function daily(w) {
     const S = selected();
     const dates = [];
-    for (let i = 0; i < H; i++) {
-      const d = new Date(w.day0 * 1000); d.setDate(d.getDate() + i);
-      dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
-    }
+    for (let i = 0; i < H; i++) dates.push(WXT.ymd(WXT.addDays(w.day0, i)));
     const thr = D.threshold;
     const days = dates.map((iso) => {
       const all = { tmax: [], tmin: [], rain: [], wind: [], press: [] };
@@ -259,7 +255,7 @@
     ];
     const o = Object.assign({
       unit, decimals: dec, range: [w.start, w.end], xTicks: "day", maxGap: h.step * 1.5, yTicks: 4, padLeft: 44,
-      tipHead: (t) => new Date(t * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+      tipHead: (t) => WXT.fmt(t, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
       series: s,
     }, opts || {});
     draw(id, o);
@@ -288,11 +284,11 @@
       data: days.map((r) => { const p = r.per.find((x) => x.m === m); return [tOf(r.iso) + 43200, p ? p.rain : null]; }).filter((p) => isNum(p[1])),
     }));
     draw("en-rain", { unit: u, decimals: 1, range: [w.day0, w.end], xTicks: "day", floor: 0, maxGap: 43200, yTicks: 4, padLeft: 44,
-      tipHead: (t) => new Date(t * 1000).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }),
+      tipHead: (t) => WXT.fmt(t, { weekday: "short", day: "numeric", month: "short" }),
       series });
     draw("en-prob", { unit: "%", decimals: 0, range: [w.day0, w.end], xTicks: "day", yFixed: [0, 100, 50], maxGap: 86400 * 1.5, padLeft: 44,
       yFormat: (v) => `${v} %`,
-      tipHead: (t) => new Date(t * 1000).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }),
+      tipHead: (t) => WXT.fmt(t, { weekday: "short", day: "numeric", month: "short" }),
       series: [{ type: "line", label: `Membres avec pluie (≥ ${fmt(D.threshold, 1)} mm)`, color: "--text", width: 2, endDot: false,
         data: days.filter((r) => isNum(r.prob)).map((r) => [tOf(r.iso) + 43200, Math.round(r.prob * 100)]) },
       { type: "dots", label: "", color: "--text", r: 3, alpha: 1, noTip: true,
@@ -369,7 +365,7 @@
     const fetched = Math.max(...S.map((m) => m.fetched || 0));
     const maxDays = Math.max(...S.map((m) => m.daily.dates.length));
     $("en-sum").textContent = `${sum(S.map((m) => m.members))} membres · ${S.map((m) => `${m.short} ${m.members}`).join(" · ")} · jusqu'à ${maxDays} jours` +
-      (fetched ? ` · données du ${new Date(fetched * 1000).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "");
+      (fetched ? ` · données du ${WXT.fmt(fetched, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "");
     const U = D.units;
     lineChart("en-temp", "temp", U.temp, 1, w);
     lineChart("en-wind", "wind", U.wind, 0, w, { floor: 0 });
