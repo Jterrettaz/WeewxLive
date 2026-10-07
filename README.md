@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.59.
+et n'a pas besoin d'être joignable depuis internet. Version 1.60.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -852,6 +852,11 @@ Quota : chaque modèle est téléchargé au plus une fois par `cache` ; une requ
 huit appels environ dans le quota gratuit d'Open-Meteo (environ 80 variables), soit environ
 1 000 appels par jour pour 5 modèles avec le cache d'une heure (limite gratuite : 10 000 par
 jour). `data/meteogram.json` pèse environ 150 Ko pour 5 modèles sur 4 jours.
+
+Après une mise à jour de l'extension, redémarrez weewx : `data/meteogram.json` n'est
+recalculé qu'au plus toutes les 30 minutes (`stale_age`), la page affiche en attendant le
+fichier précédent (pour l'ancien format à un seul modèle, sans le choix des modèles). Pour
+forcer le recalcul : supprimer le fichier, puis `weectl report run WeewxLive`.
 
 ## 12. Couleurs des températures
 

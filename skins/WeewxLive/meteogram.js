@@ -572,9 +572,15 @@
     try {
       const r = await fetch("data/meteogram.json?_=" + Math.floor(Date.now() / 600000), { cache: "no-store" });
       if (!r.ok) throw new Error("HTTP " + r.status);
-      const all = await r.json();
+      let all = await r.json();
       if (all.error) throw new Error(all.error);
-      if (!Array.isArray(all.models) || !all.models.length) throw new Error("aucun modèle");
+      // fichier d'une version antérieure (un seul modèle, avant la 1.58) : converti ; il sera
+      // remplacé par weewx au plus tard 30 minutes après la mise à jour de l'extension
+      if (!Array.isArray(all.models) && all.surface && all.n) {
+        all = { version: all.version, default: all.model, top: all.top,
+          models: [Object.assign({}, all, { id: all.model || "modele", label: all.modelLabel || all.model || "modèle" })] };
+      }
+      if (!Array.isArray(all.models) || !all.models.length) throw new Error("aucun modèle dans data/meteogram.json");
       ALL = all;
     } catch (e) {
       if (!ALL) root.innerHTML = `<p class="muted">Météogramme indisponible (${esc(e.message)}).</p>`;
