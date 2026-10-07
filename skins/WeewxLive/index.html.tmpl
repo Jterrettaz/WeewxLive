@@ -48,7 +48,9 @@
   <!-- Prévisions -->
   <section class="wide">
     <article class="card fc-card" id="fc-card" style="--c: var(--sun)">
-      <header><h2>Prévisions $livejson_fc_days jours</h2><span class="hint" id="fc-model">Open-Meteo</span><span class="hint fc-sun" id="fc-sun"></span></header>
+      <header><h2>Prévisions $livejson_fc_days jours</h2>
+        <select class="fc-select" id="fc-select" aria-label="Modèle de prévision" hidden></select>
+        <span class="hint" id="fc-model">Open-Meteo</span><span class="hint fc-sun" id="fc-sun"></span></header>
       <div id="forecast"><p class="muted">Chargement des prévisions…</p></div>
       <div class="fc-hours" id="fc-hours" hidden>
         <div class="fh-head"><h3 id="fh-title">--</h3><button type="button" class="fh-close" id="fh-close" aria-label="Fermer le détail horaire">×</button></div>

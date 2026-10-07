@@ -15,7 +15,7 @@
 
   const DEFAULTS = {
     latitude: 48.11, longitude: -1.68,
-    forecast: { enable: true, model: "best_match", days: 7, cache: 3600 },
+    forecast: { enable: true, model: "best_match", models: [], days: 7, cache: 3600 },
     radar: { enable: true, provider: "windy", overlay: "radar", product: "radar", windyUrl: "", zoom: 7, frames: 13, delay: 500 },
     satellite: {
       enable: true, provider: "windy", overlay: "satellite", product: "satellite", windyUrl: "", url: "https://view.eumetsat.int/geoserver/wms",
@@ -56,18 +56,28 @@
   // par tous les visiteurs) ; 2) à défaut, appel direct à Open-Meteo avec un cache
   // dans le navigateur (localStorage) de même durée ; 3) en dernier recours, la
   // dernière copie locale, même périmée.
-  async function getForecast(cfg) {
+  // model : identifiant Open-Meteo choisi dans la liste déroulante
+  async function getForecast(cfg, model) {
     const f = cfg.forecast;
     const ttl = Math.max(60, +f.cache || 3600) * 1000;
+    let fileErr = null;
     if (!DEMO) {
       try {
         const r = await fetch("data/forecast.json?_=" + Math.floor(Date.now() / 60000), { cache: "no-store" });
         if (r.ok) {
           const j = await r.json();
-          if (j.daily && j.hourly) return Object.assign(j, { from: "weewx" });
+          if (Array.isArray(j.models)) {
+            fc.list = j.models;                     // état de chaque modèle (liste déroulante)
+            const m = j.models.find((x) => x.id === model);
+            if (m && m.daily && m.hourly) return Object.assign({}, m, { from: "weewx" });
+            if (m && m.error) fileErr = m.error;
+          } else if (j.daily && j.hourly && (j.model || f.model) === model) {
+            return Object.assign(j, { from: "weewx" });   // fichier d'une version antérieure
+          }
         }
       } catch (e) { /* on passe à l'appel direct */ }
     }
+    if (fileErr) throw new Error(fileErr);
     const p = new URLSearchParams({
       latitude: cfg.latitude, longitude: cfg.longitude,
       daily: ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum",
@@ -75,7 +85,7 @@
         "wind_direction_10m_dominant", "sunrise", "sunset", "uv_index_max"].join(","),
       hourly: ["temperature_2m", "weather_code", "precipitation", "precipitation_probability",
         "wind_speed_10m", "wind_gusts_10m", "wind_direction_10m", "relative_humidity_2m", "is_day"].join(","),
-      models: f.model, timezone: "auto", forecast_days: f.days,
+      models: model, timezone: "auto", forecast_days: f.days,
     });
     const url = "https://api.open-meteo.com/v1/forecast?" + p;
     const key = "weewx-live:forecast";
@@ -104,21 +114,58 @@
     if (fc.open !== null) openDay(fc.open, true);
   });
 
+  // ------------------------------------------------------------------
+  // Choix du modèle (liste déroulante de la carte ; choix mémorisé par le navigateur)
+  // ------------------------------------------------------------------
+  const FC_KEY = "weewx-live:fc-model";
+  const fcModels = (cfg) => (cfg.forecast.models && cfg.forecast.models.length ? cfg.forecast.models
+    : [{ id: cfg.forecast.model || "best_match", label: cfg.forecast.model || "best_match" }]);
+  function currentModel(cfg) {
+    const list = fcModels(cfg);
+    let m = null;
+    try { m = localStorage.getItem(FC_KEY); } catch (e) { /* stockage indisponible */ }
+    return list.some((x) => x.id === m) ? m : (list.some((x) => x.id === cfg.forecast.model) ? cfg.forecast.model : list[0].id);
+  }
+  function modelSelect(cfg) {
+    const sel = $("fc-select");
+    if (!sel) return;
+    const list = fcModels(cfg), cur = currentModel(cfg);
+    const state = (id) => (fc.list || []).find((x) => x.id === id);
+    sel.innerHTML = list.map((m) => {
+      const st = state(m.id), bad = st && st.error;
+      return `<option value="${esc(m.id)}"${m.id === cur ? " selected" : ""}${bad && m.id !== cur ? " disabled" : ""}>${esc(m.label)}${bad ? " (indisponible)" : ""}</option>`;
+    }).join("");
+    sel.hidden = list.length < 2;
+    if (!sel.dataset.ready) {
+      sel.dataset.ready = "1";
+      sel.addEventListener("change", () => {
+        try { localStorage.setItem(FC_KEY, sel.value); } catch (e) { /* stockage indisponible */ }
+        loadForecast(cfg);
+      });
+    }
+  }
+
   async function loadForecast(cfg) {
     const f = cfg.forecast;
+    const model = currentModel(cfg);
+    modelSelect(cfg);
     try {
-      const j = await getForecast(cfg);
+      const j = await getForecast(cfg, model);
       fc.updated = "";
       if (j.fetched) {
         const t = new Date(j.fetched * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-        fc.updated = ` · mises à jour à ${t}${j.stale ? " (copie précédente)" : ""}`;
+        fc.updated = `mises à jour à ${t}${j.stale ? " (copie précédente)" : ""}`;
       }
-      renderForecast(j.daily, f);
+      renderForecast(j.daily, Object.assign({}, f, { model }));
       fc.daily = j.daily; fc.hourly = j.hourly;
       if (fc.open !== null) openDay(fc.open, true);
     } catch (e) {
-      $("forecast").innerHTML = `<p class="muted">Prévisions indisponibles (${esc(e.message)}).</p>`;
+      closeDay();
+      fc.daily = null; fc.hourly = null;
+      $("forecast").innerHTML = `<p class="muted">Prévisions indisponibles pour ce modèle (${esc(e.message)}).</p>`;
+      $("fc-model").textContent = ""; $("fc-sun").textContent = "";
     }
+    modelSelect(cfg);
   }
 
   // Couleur des températures : paliers de 3 °C (TempScale.textColor, minichart.js)
@@ -166,13 +213,15 @@
     $("fc-sun").textContent = i0 >= 0
       ? `Lever ${hm(d.sunrise[i0])} · coucher ${hm(d.sunset[i0])}${d.uv_index_max && d.uv_index_max[i0] !== null ? ` · UV max. ${fmt(d.uv_index_max[i0])}` : ""}`
       : "";
-    $("fc-model").textContent = (f.model === "best_match" ? "modèle « best match »" : "modèle " + f.model) + (fc.updated || "");
+    // modèle : liste déroulante (s'il n'y en a qu'un, son nom ici)
+    const one = $("fc-select") && $("fc-select").hidden ? `modèle ${f.model === "best_match" ? "« best match »" : f.model} · ` : "";
+    $("fc-model").textContent = one + (fc.updated || "");
   }
 
   // ------------------------------------------------------------------
   // Détail heure par heure d'un jour
   // ------------------------------------------------------------------
-  const fc = { daily: null, hourly: null, open: null, charts: null, f: null, updated: "" };
+  const fc = { daily: null, hourly: null, open: null, charts: null, f: null, updated: "", list: null };
 
   function hourlyCharts() {
     if (fc.charts || !window.MiniChart) return fc.charts;

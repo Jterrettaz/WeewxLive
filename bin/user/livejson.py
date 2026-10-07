@@ -47,7 +47,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.58"
+VERSION = "1.59"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -392,6 +392,10 @@ _FORECAST_CACHE = {}
 # pour ne pas bloquer chaque rapport quand Open-Meteo est injoignable
 _FORECAST_FAIL = {}
 FORECAST_RETRY = 900
+_FORECAST_MAXDAYS = {}   # modèle -> échéance maximale annoncée par Open-Meteo (erreur 400)
+# modèles proposés par défaut (liste déroulante des prévisions du tableau de bord)
+FORECAST_DEFAULT_MODELS = "best_match, icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless"
+FORECAST_MAX_MODELS = 5
 
 
 # ----------------------------------------------------------------------
@@ -461,7 +465,7 @@ METEOGRAM_LVARS = (("z", "geopotential_height", 0), ("t", "temperature", 1), ("c
 METEOGRAM_MODELS = {
     "icon_seamless": "DWD ICON (ICON-D2, puis ICON-EU, puis global)",
     "icon_d2": "DWD ICON-D2", "icon_eu": "DWD ICON-EU", "icon_global": "DWD ICON global",
-    "best_match": "meilleur modèle Open-Meteo pour le lieu",
+    "best_match": "Meilleur modèle (Open-Meteo best match)",
     "meteofrance_seamless": "Météo-France (AROME, puis ARPEGE)",
     "meteofrance_arome_france": "Météo-France AROME", "meteofrance_arpege_europe": "Météo-France ARPEGE",
     "ecmwf_ifs025": "ECMWF IFS", "gfs_seamless": "NOAA GFS", "gem_seamless": "ECCC GEM",
@@ -717,7 +721,9 @@ class LiveJSON(SearchList):
             "meteogram": {"enable": to_bool(self.meteogram.get("enable", True))},
             "forecast": {
                 "enable": to_bool(f.get("enable", True)),
-                "model": f.get("model", "best_match"),
+                # modèle par défaut et modèles de la liste déroulante (identifiant, nom)
+                "model": self._fc_models()[1],
+                "models": [{"id": m, "label": METEOGRAM_MODELS.get(m, m)} for m in self._fc_models()[0]],
                 "days": self._fc_days(),
                 # durée de validité du cache (secondes), côté weewx et côté navigateur
                 "cache": self._forecast_ttl(),
@@ -782,10 +788,77 @@ class LiveJSON(SearchList):
     def _forecast_ttl(self):
         return _int(self.forecast.get("cache"), 3600, 60, 86400)
 
+    def _fc_models(self):
+        """Modèles des prévisions du tableau de bord ([[forecast]] models, 5 au plus) et
+        modèle affiché par défaut (option model, sinon le premier de la liste)."""
+        f = self.forecast
+        models = []
+        for m in _as_list(f.get("models", FORECAST_DEFAULT_MODELS)):
+            m = m.lower()
+            if not ENSEMBLE_MODEL_RE.match(m):
+                log.error("livejson: prévisions : modèle « %s » ignoré", m)
+            elif m not in models:
+                models.append(m)
+        default = str(f.get("model", "") or "").strip().lower()
+        if default and ENSEMBLE_MODEL_RE.match(default) and default not in models:
+            models.insert(0, default)
+        models = models[:FORECAST_MAX_MODELS] or ["best_match"]
+        return models, (default if default in models else models[0])
+
+    def _fc_fetch(self, model, lat, lon, days, ttl, timeout):
+        """Prévisions d'un modèle (cache de « ttl » secondes) -> (données, horodatage, erreur)."""
+        params = {
+            "latitude": lat, "longitude": lon,
+            "daily": ",".join(FORECAST_DAILY), "hourly": ",".join(FORECAST_HOURLY),
+            "models": model, "timezone": "auto",
+            "forecast_days": min(days, _FORECAST_MAXDAYS.get(model, 99)),
+        }
+        url = OPEN_METEO_URL + "?" + urllib.parse.urlencode(params)
+        now = time.time()
+        cached = _FORECAST_CACHE.get(url)
+        if cached is not None and now - cached[0] < ttl:
+            return cached[1], cached[0], None
+        if now - _FORECAST_FAIL.get(url, 0) < min(ttl, FORECAST_RETRY):
+            err = "nouvel essai après un échec récent"
+        else:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "weewx-live/%s" % VERSION})
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                if data.get("error"):
+                    raise ValueError(data.get("reason", "erreur Open-Meteo"))
+                _FORECAST_CACHE[url] = (now, data)
+                _FORECAST_FAIL.pop(url, None)
+                log.debug("livejson: prévisions Open-Meteo (%s) téléchargées", model)
+                return data, now, None
+            except urllib.error.HTTPError as e:
+                reason = ""
+                try:
+                    reason = json.loads(e.read().decode("utf-8")).get("reason", "")
+                except Exception:
+                    pass
+                err = "HTTP %s%s" % (e.code, " : " + reason if reason else "")
+                # échéance refusée (« … range 0 to 4 … ») : limite retenue, nouvel essai
+                m = re.search(r"(?i)forecast.?days.*?\b0\s*(?:to|-|…|\.\.)\s*(\d+)", reason)
+                if e.code == 400 and m and model not in _FORECAST_MAXDAYS and 0 < int(m.group(1)) < days:
+                    _FORECAST_MAXDAYS[model] = int(m.group(1))
+                    log.info("livejson: prévisions %s : échéance limitée à %s jours", model, m.group(1))
+                    return self._fc_fetch(model, lat, lon, days, ttl, timeout)
+                _FORECAST_FAIL[url] = now
+                log.error("livejson: échec du téléchargement Open-Meteo (%s) : %s", model, err)
+            except Exception as e:
+                err = str(e)
+                _FORECAST_FAIL[url] = now
+                log.error("livejson: échec du téléchargement Open-Meteo (%s) : %s", model, e)
+        if cached is not None:
+            return cached[1], cached[0], err           # copie précédente conservée
+        return None, None, err
+
     def forecast_data(self):
-        """Prévisions Open-Meteo, téléchargées au plus une fois par période de cache
-        (1 h par défaut) et publiées dans data/forecast.json : les visiteurs lisent ce
-        fichier au lieu d'interroger Open-Meteo chacun de leur côté."""
+        """Prévisions Open-Meteo de chaque modèle de [[forecast]] models, téléchargées au plus
+        une fois par période de cache (1 h par défaut) et publiées dans data/forecast.json :
+        les visiteurs lisent ce fichier (et y choisissent le modèle) au lieu d'interroger
+        Open-Meteo chacun de leur côté."""
         f = self.forecast
         if not to_bool(f.get("enable", True)):
             return {"error": "prévisions désactivées"}
@@ -794,53 +867,37 @@ class LiveJSON(SearchList):
         lon = _to_float(f.get("longitude"), getattr(stn, "longitude_f", None))
         if lat is None or lon is None:
             return {"error": "coordonnées de la station inconnues"}
-        model = f.get("model", "best_match")
-        params = {
-            "latitude": lat, "longitude": lon,
-            "daily": ",".join(FORECAST_DAILY), "hourly": ",".join(FORECAST_HOURLY),
-            "models": model, "timezone": "auto",
-            "forecast_days": self._fc_days(),
-        }
-        url = OPEN_METEO_URL + "?" + urllib.parse.urlencode(params)
+        models, default = self._fc_models()
         ttl = self._forecast_ttl()
-        now = time.time()
-        cached = _FORECAST_CACHE.get(url)
-        error = None
-        retry_ok = now - _FORECAST_FAIL.get(url, 0) >= min(ttl, FORECAST_RETRY)
-        if (cached is None or now - cached[0] >= ttl) and not retry_ok:
-            error = "nouvel essai après un échec récent"
-        elif cached is None or now - cached[0] >= ttl:
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "weewx-live/%s" % VERSION})
-                with urllib.request.urlopen(req, timeout=_int(f.get("timeout"), 15, 2, 60)) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                if data.get("error"):
-                    raise ValueError(data.get("reason", "erreur Open-Meteo"))
-                cached = (now, data)
-                _FORECAST_CACHE.clear()          # une seule entrée utile
-                _FORECAST_CACHE[url] = cached
-                _FORECAST_FAIL.pop(url, None)
-                log.debug("livejson: prévisions Open-Meteo téléchargées")
-            except Exception as e:
-                error = str(e)
-                _FORECAST_FAIL.clear()
-                _FORECAST_FAIL[url] = now
-                log.error("livejson: échec du téléchargement Open-Meteo : %s", e)
-        if cached is None:
-            return {"error": error or "prévisions indisponibles"}
-        fetched, data = cached
-        out = {
-            "source": "open-meteo", "model": model,
-            "fetched": int(fetched), "cache": ttl, "expires": int(fetched + ttl),
-            "daily": data.get("daily"), "hourly": data.get("hourly"),
-            "utc_offset_seconds": data.get("utc_offset_seconds"),
-        }
-        if error:
-            out["stale"] = True          # données de la période précédente, conservées
-            out["warning"] = error
-        return out
+        days = self._fc_days()
+        timeout = _int(f.get("timeout"), 15, 2, 60)
+        # entrées du cache des modèles retirés de la configuration : supprimées
+        for key in [k for k in _FORECAST_CACHE
+                    if dict(urllib.parse.parse_qsl(k.split("?", 1)[-1])).get("models") not in models]:
+            _FORECAST_CACHE.pop(key, None)
+        out = []
+        for m in models:
+            data, fetched, err = self._fc_fetch(m, lat, lon, days, ttl, timeout)
+            item = {"id": m, "label": METEOGRAM_MODELS.get(m, m)}
+            if data is None:
+                item["error"] = err or "prévisions indisponibles"
+            else:
+                item.update(fetched=int(fetched), expires=int(fetched + ttl), daily=data.get("daily"),
+                            hourly=data.get("hourly"), utc_offset_seconds=data.get("utc_offset_seconds"))
+                if err:
+                    item["stale"] = True          # données de la période précédente, conservées
+                    item["warning"] = err
+            out.append(item)
+        res = {"source": "open-meteo", "default": default, "cache": ttl, "models": out}
+        # compatibilité (pages plus anciennes) : modèle par défaut au premier niveau
+        first = next((x for x in out if x["id"] == default and "daily" in x), None) or \
+            next((x for x in out if "daily" in x), None)
+        if first:
+            res.update(model=first["id"], fetched=first["fetched"], expires=first["expires"],
+                       daily=first["daily"], hourly=first["hourly"],
+                       utc_offset_seconds=first["utc_offset_seconds"])
+        return res
 
-    # ------------------------------------------------------------------
     # ------------------------------------------------------------------
     # Prévisions d'ensemble Open-Meteo (data/ensembles.json, page ensembles.html).
     # weewx publie les membres bruts (échantillonnés) et les valeurs journalières de chaque

@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.58.
+et n'a pas besoin d'être joignable depuis internet. Version 1.59.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -104,7 +104,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/p30d.json`, `p365d.json`, `p730d.json` | 30, 365, 730 jours | 1 h max. |
 | `data/climate.json` | au fil des ans | 15 min max. |
 | `data/extremes.json` | records | 1 h max. |
-| `data/forecast.json` | prévisions Open-Meteo (cache) | à chaque archive, téléchargement 1 fois par heure |
+| `data/forecast.json` | prévisions Open-Meteo de chaque modèle de la liste (cache) | à chaque archive, téléchargement 1 fois par heure et par modèle |
 | `data/astro.json` | soleil et lune du jour (almanach weewx) | à chaque archive |
 | `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression, 5 modèles) | toutes les 30 min, téléchargement au plus une fois par heure et par modèle |
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
@@ -508,13 +508,21 @@ Pour masquer le panneau :
 
 | Bloc | Source | Détails |
 |---|---|---|
-| **Prévisions** | [Open-Meteo](https://open-meteo.com/), modèle `best_match` | temps (pictogramme), max./min., pluie et probabilité, vent dominant et rafales ; lever/coucher du soleil et UV du jour. **Un clic sur un jour ouvre le détail heure par heure** : courbe de température, barres de précipitations et bandeau des 24 heures. |
+| **Prévisions** | [Open-Meteo](https://open-meteo.com/), **modèle au choix** (liste déroulante de l'en-tête, 5 modèles au plus ; `best_match` par défaut) | temps (pictogramme), max./min., pluie et probabilité, vent dominant et rafales ; lever/coucher du soleil et UV du jour. **Un clic sur un jour ouvre le détail heure par heure** : courbe de température, barres de précipitations et bandeau des 24 heures. |
 | **Radar précipitations** | [Windy.com](https://embed.windy.com/) (par défaut) ou [RainViewer](https://www.rainviewer.com/api.html) | Windy : carte officielle intégrée (iframe), couche radar, animation par le bouton ▶. RainViewer : animation automatique des 2 dernières heures. |
 | **Satellite** | [Windy.com](https://embed.windy.com/) (par défaut) ou [EUMETSAT EUMETView](https://view.eumetsat.int/) (WMS) | Windy : carte intégrée, couche satellite. EUMETSAT : animation Meteosat des 2 dernières heures (infrarouge ou couleurs vraies). |
 
+**Choix du modèle** : la liste déroulante de l'en-tête du bloc propose les modèles de
+`models` (5 au plus) ; le choix est mémorisé par le navigateur, `model` est celui affiché par
+défaut. Un modèle en échec de téléchargement apparaît « (indisponible) ». Si `days` dépasse
+l'échéance d'un modèle (Météo-France : 4 jours), la limite indiquée par Open-Meteo est
+retenue pour ce modèle ; tous ne fournissent pas la probabilité de précipitations ni l'indice
+UV (valeurs alors absentes).
+
 **Cache des prévisions** (1 heure par défaut, `cache` en secondes dans `[[forecast]]`) :
-weewx télécharge les prévisions au plus une fois par période et les publie dans
-`data/forecast.json` ; tous les visiteurs lisent ce fichier. Si le téléchargement échoue, la
+weewx télécharge les prévisions de chaque modèle au plus une fois par période et les publie
+toutes dans `data/forecast.json` (environ 25 Ko par modèle) ; tous les visiteurs lisent ce
+fichier. Si le téléchargement échoue, la
 copie précédente est conservée et weewx ne réessaie qu'après 15 minutes (le rapport n'est
 pas ralenti). Si le fichier est inutilisable, le navigateur interroge Open-Meteo lui-même et
 garde la réponse en cache local pendant la même durée. L'heure de mise à jour est affichée
@@ -527,7 +535,9 @@ celles de `[Station]` dans `weewx.conf`, ou `latitude`/`longitude` dans `[[forec
 ```ini
     [[forecast]]
         enable = true
-        model = best_match        # ou un modèle précis : meteofrance_seamless, icon_seamless…
+        # modèles de la liste déroulante (5 au plus) et modèle affiché par défaut
+        models = best_match, icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless
+        model = best_match
         days = 7                  # 1 à 16
         cache = 3600              # secondes
     [[radar]]
