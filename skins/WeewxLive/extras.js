@@ -32,7 +32,7 @@
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (v === null || v === undefined || isNaN(v)) ? "--"
     : Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
-  // dates et heures : fuseau de la station (wxtime.js) ; t en secondes. Les prévisions
+  // dates et heures : fuseau de la station (WXT, nav.js) ; t en secondes. Les prévisions
   // Open-Meteo sont demandées dans ce fuseau (dates « AAAA-MM-JJTHH:MM » lues par WXT.iso).
   const hm = (t) => WXT.hm(t);
 

@@ -118,7 +118,7 @@
   // ------------------------------------------------------------------
   const fmt = (v, d) => v === null || v === undefined || isNaN(v) ? "--"
     : Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const hhmm = (t) => t ? "à " + WXT.hm(t) : "";   // heure de la station (wxtime.js)
+  const hhmm = (t) => t ? "à " + WXT.hm(t) : "";   // heure de la station (WXT, nav.js)
   const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
   const dirName = (d) => d === null || d === undefined ? "—" : DIRS[Math.round(d / 22.5) % 16];
   const midnightOf = WXT.midnight;
@@ -398,10 +398,9 @@
   ];
   const CALM = 1;   // km/h : en dessous, vent calme (direction non significative)
 
-  function drawRose(now) {
-    const svg = document.getElementById("rose");
-    if (!svg) return;
-    const t0 = now - SPAN;
+  // comptage par secteur depuis t0 : counts[secteur][classe], sums (vitesses), tot, n, calm ;
+  // dom : secteur le plus fréquent (vent dominant), -1 si aucun vent
+  function roseCounts(t0) {
     // vitesse associée à chaque direction : même minute (en mode « individual » de
     // weewx-mqtt, vitesse et direction arrivent dans des messages séparés)
     const mk = (t) => Math.floor(t / 60);
@@ -420,6 +419,14 @@
       sums[sec] += v;
     }
     const tot = counts.map((c) => c.reduce((a, b) => a + b, 0));
+    const dom = n > calm ? tot.indexOf(Math.max(...tot)) : -1;
+    return { counts, sums, tot, n, calm, dom };
+  }
+
+  function drawRose(now) {
+    const svg = document.getElementById("rose");
+    if (!svg) return;
+    const { counts, sums, tot, n, calm, dom } = roseCounts(now - SPAN);
     const maxPct = n ? Math.max(...tot) / n * 100 : 0;
     // graduation : 2, 5, 10, 20, 25 ou 50 %
     const ringStep = [2, 5, 10, 20, 25, 50].find((s) => maxPct / s <= 4) || 50;
@@ -459,9 +466,9 @@
     out += `<circle class="calm" r="${r0 - 1}"/>`;
     svg.innerHTML = out;
     svg.setAttribute("aria-label", n
-      ? `Rose des vents sur 24 h : direction dominante ${DIRS[tot.indexOf(Math.max(...tot))]}, calme ${fmt(calm / n * 100, 0)} % du temps`
+      ? `Rose des vents ${DAY ? "de la journée" : "sur 24 h"} : direction dominante ${dom >= 0 ? DIRS[dom] : "aucune"}, calme ${fmt(calm / n * 100, 0)} % du temps`
       : "Rose des vents : pas encore de données");
-    set("windDir", "dominant", n > calm ? DIRS[tot.indexOf(Math.max(...tot))] : "--");
+    set("windDir", "dominant", dom >= 0 ? DIRS[dom] : "--");
     set("windDir", "calm", n ? `${fmt(calm / n * 100, 0)} %` : "--");
   }
 
@@ -646,7 +653,7 @@
   }
 
   // Changement de jour : à minuit de la station (history.json « nextMidnight », sinon
-  // wxtime.js), quel que soit le fuseau horaire du navigateur.
+  // WXT de nav.js), quel que soit le fuseau horaire du navigateur.
   function checkMidnight(t) {
     if (t < S.nextMidnight) return;
     S.midnight = S.nextMidnight;
@@ -1154,11 +1161,20 @@
       ARCHIVE_MODE = true;
       for (const c of Object.values(charts)) if (c) c.setRange(DAY.midnight, DAY.nextMidnight);
       applyHistory(DAY);
+      // grandes valeurs : moyennes de la journée (température, vent, humidité, pression,
+      // paramètres ajoutés hors cumuls) ; direction : vent dominant du jour (secteur le plus
+      // fréquent de la rose des vents, hors calme)
+      const dd = DAY.day || {};
+      const avgKeys = ["outTemp", "windSpeed", "outHumidity", "barometer"]
+        .concat(GENERIC.filter((g) => g.aggregate !== "sum").map((g) => g.key));
+      for (const k of avgKeys) if (dd[k] && isNum(dd[k].avg)) S.cur[k] = dd[k].avg;
+      const dom = roseCounts(DAY.midnight).dom;
+      S.cur.windDir = dom >= 0 ? dom * 22.5 : null;
+      render();
       const last = S.tempTime || DAY.stop;
       const el = document.getElementById("day-last");
-      // dernier enregistrement à minuit : il clôt la journée
-      if (el && last) el.textContent = last >= DAY.nextMidnight ? " (minuit)"
-        : ` (${WXT.hm(last)})`;
+      // journée en cours (dernier enregistrement avant minuit) : heure des dernières données
+      if (el && last) el.textContent = last >= DAY.nextMidnight ? "" : ` ; journée en cours, données jusqu'à ${WXT.hm(last)}`;
       return;
     }
     render();

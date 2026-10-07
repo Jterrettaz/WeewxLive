@@ -10,7 +10,7 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   const B = (v, u, d = 1) => `<b>${fmt(v, d)}${u ? " " + u : ""}</b>`;
-  // dates et heures : fuseau de la station (wxtime.js)
+  // dates et heures : fuseau de la station (WXT, nav.js)
   const hm = (t) => (isNum(t) ? WXT.hm(t) : "--");
   const dmy = (t) => (isNum(t) ? WXT.fmt(t, { day: "2-digit", month: "long", year: "numeric" }) : "--");
   const dmyShort = (t) => WXT.fmt(t, { day: "2-digit", month: "2-digit", year: "numeric" });

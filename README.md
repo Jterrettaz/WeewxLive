@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.70.
+et n'a pas besoin d'être joignable depuis internet. Version 1.74.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
@@ -99,9 +99,9 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/extremes.html`, `extremes.js` | page « Extrêmes » |
 | `skins/WeewxLive/ensembles.html`, `ensembles.js` | page « Prévisions - Ensembles » |
 | `skins/WeewxLive/meteogram.html`, `meteogram.js` | page « Météogramme » |
-| `skins/WeewxLive/wxtime.js.tmpl` | heure de la station : fuseau horaire et fonctions de date de toutes les pages |
+| `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
-| `skins/WeewxLive/nav.js` | menu commun ; nom, sous-titre et logo des pages statiques |
+| `skins/WeewxLive/nav.js` | heure de la station (fonctions de date), menu commun ; nom, sous-titre et logo des pages statiques |
 | `skins/WeewxLive/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
 | `skins/WeewxLive/style.css` | thème (clair / sombre) |
 | `skins/WeewxLive/data/*.json.tmpl`, `config.json.tmpl` | gabarits des fichiers JSON |
@@ -128,6 +128,12 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
 | `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
+
+Les pages d'archives des périodes passées ne sont générées qu'une fois : après une mise à
+jour de weewx-live, elles gardent l'ancienne présentation (elles restent utilisables, à
+l'heure du navigateur pour celles d'avant la version 1.68). Pour les refaire, supprimez le
+dossier `archive/` de `HTML_ROOT` : weewx le régénère aux archives suivantes (cela peut
+prendre plusieurs minutes avec de nombreuses années de données).
 
 Les extrêmes du jour viennent des résumés journaliers de weewx (ils incluent les pics
 mesurés entre deux archives). Les unités sont converties par weewx lui-même, quel que soit
@@ -732,7 +738,7 @@ Pages statiques générées dans `archive/` (section `[[SummaryByDay]]`, `[[Summ
 
 | Page | Gabarit | Contenu |
 |---|---|---|
-| `archive/day-AAAA-MM-JJ.html` | `archive/day-%Y-%m-%d.html.tmpl` | tous les panneaux du tableau de bord pour ce jour : min. et max. avec l'heure, cumuls, graphique de 0 h à 24 h, rose des vents ; la grande valeur est la dernière mesure de la journée |
+| `archive/day-AAAA-MM-JJ.html` | `archive/day-%Y-%m-%d.html.tmpl` | tous les panneaux du tableau de bord pour ce jour : min. et max. avec l'heure, cumuls, graphique de 0 h à 24 h, rose des vents ; grandes valeurs : moyennes du jour (température, vent, humidité, pression, paramètres ajoutés comme le rayonnement), vent dominant du jour (direction la plus fréquente, hors calme), cumuls du jour ; ni écarts sur 1 h / 24 h, ni rafale ou intensité de pluie instantanées, ni tendance de pression |
 | `archive/month-AAAA-MM.html` | `archive/month-%Y-%m.html.tmpl` | une section par paramètre (statistiques puis graphique jour par jour), comme les pages de période |
 | `archive/year-AAAA.html` | `archive/year-%Y.html.tmpl` | idem, sur l'année |
 

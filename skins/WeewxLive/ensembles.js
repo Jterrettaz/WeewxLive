@@ -18,7 +18,7 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
-  // jours « AAAA-MM-JJ » et heures : fuseau de la station (wxtime.js)
+  // jours « AAAA-MM-JJ » et heures : fuseau de la station (WXT, nav.js)
   const tOf = WXT.iso;
   const dayLabel = (iso) => WXT.fmt(tOf(iso), { weekday: "short", day: "numeric", month: "short" });
   const sum = (a) => a.reduce((x, y) => x + y, 0);

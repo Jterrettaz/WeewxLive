@@ -7,7 +7,7 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  // dates et heures : fuseau de la station (wxtime.js)
+  // dates et heures : fuseau de la station (WXT, nav.js)
   const day = (t) => (t ? WXT.fmt(t, { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
   const hm = WXT.hm;
   const month = (y, m) => new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });

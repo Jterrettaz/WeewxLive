@@ -1,7 +1,7 @@
 ## weewx-live : en-tête des pages d'archives (jour, mois, année) : marque, menu, sélecteur de
 ## date (archive.js) et navigation période précédente / suivante. Variable $a = $livejson_arch.
-#set $prev_txt = {'day': '‹ Veille', 'month': '‹ Mois précédent', 'year': '‹ Année précédente'}[$a.kind]
-#set $next_txt = {'day': 'Lendemain ›', 'month': 'Mois suivant ›', 'year': 'Année suivante ›'}[$a.kind]
+#set $prev_txt = {'day': '‹ Jour précédent', 'month': '‹ Mois précédent', 'year': '‹ Année précédente'}[$a.kind]
+#set $next_txt = {'day': 'Jour suivant ›', 'month': 'Mois suivant ›', 'year': 'Année suivante ›'}[$a.kind]
 #include "archive/brand.inc"
 
   <!-- sélecteur de date : page du jour, du mois ou de l'année contenant la date choisie -->

@@ -76,7 +76,7 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d) => isNum(v)
     ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--";
-  // dates et heures : fuseau de la station (wxtime.js)
+  // dates et heures : fuseau de la station (WXT, nav.js)
   const fr = (t, o) => WXT.fmt(t, o);
   const hm = (t) => fr(t, { hour: "2-digit", minute: "2-digit" });
 

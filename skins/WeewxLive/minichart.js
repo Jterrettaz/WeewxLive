@@ -50,7 +50,7 @@
   }
 
   const fmtNum = (v, d) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
-  // dates et heures : fuseau de la station (wxtime.js)
+  // dates et heures : fuseau de la station (WXT, nav.js)
   const fr = (t, o) => WXT.fmt(t, o);
 
   // Graduations X : [{t, label, align}]

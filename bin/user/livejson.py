@@ -57,7 +57,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.70"
+VERSION = "1.74"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -1457,11 +1457,23 @@ class LiveJSON(SearchList):
         day_span = self._day_span_of(timespan)
         stop = min(int(day_span.stop), int(timespan.stop), int(dbm.lastGoodStamp() or day_span.stop))
         series = self._raw_series(TimeSpan(day_span.start, stop), dbm)
+        day = self._day_aggregates(day_span, dbm)
+        # valeurs de la journée affichées en grand : moyennes du jour (température, vent,
+        # humidité, pression et paramètres ajoutés hors cumuls ; la direction dominante est
+        # calculée par la page, d'après la rose des vents)
+        avg_keys = ["outTemp", "windSpeed", "outHumidity", "barometer"]
+        avg_keys += [m["key"] for m in self.measures if not m["builtin"] and m["aggregate"] != "sum"]
+        for obs in avg_keys:
+            try:
+                vt = self._conv(weewx.xtypes.get_aggregate(self.col(obs), day_span, "avg", dbm), obs)
+                if vt is not None and vt.value is not None:
+                    day.setdefault(obs, {})["avg"] = _round(vt.value)
+            except Exception as e:
+                log.debug("livejson: moyenne du jour %s indisponible : %s", obs, e)
         out = {
             "version": VERSION, "generated": int(time.time()), "stop": stop,
             "midnight": int(day_span.start), "nextMidnight": int(day_span.stop),
-            "units": self.units, "series": series,
-            "day": self._day_aggregates(day_span, dbm),
+            "units": self.units, "series": series, "day": day,
         }
         log.debug("livejson: page jour générée en %.2f s", time.time() - t1)
         return out

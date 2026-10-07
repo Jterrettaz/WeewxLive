@@ -161,7 +161,7 @@
     const muted = css("--text-3"), grid = css("--grid"), text = css("--text-2");
     ctx.textBaseline = "top"; ctx.textAlign = "center";
     for (let i = 0; i < N; i++) {
-      const t = T0 + i * 3600, hh = WXT.parts(t).h;    // heure de la station (wxtime.js)
+      const t = T0 + i * 3600, hh = WXT.parts(t).h;    // heure de la station (WXT, nav.js)
       if (hh % 6) continue;
       const x = Math.round(p.X(i)) + 0.5;
       ctx.strokeStyle = hh === 0 ? muted : grid; ctx.lineWidth = 1;
