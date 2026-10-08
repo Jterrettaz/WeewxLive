@@ -357,13 +357,16 @@
     ctx.restore();
   }
   // flèche centrée en (x, y), direction (dx, dy) écran, longueur selon la vitesse (km/h)
-  function arrow(ctx, x, y, dx, dy, speed) {
+  // flèche centrée en (x, y), dans la direction (dx, dy) ; longueur selon la vitesse, ou
+  // fixée par o.len ; o.head : longueur de la pointe (sa demi-largeur en vaut 0,6)
+  function arrow(ctx, x, y, dx, dy, speed, o = {}) {
     if (speed < 0.5) { ctx.beginPath(); ctx.arc(x, y, 1.5, 0, 7); ctx.fill(); return; }
-    const len = Math.min(26, 6 + speed * 0.45), n = Math.hypot(dx, dy), ux = dx / n, uy = dy / n;
+    const len = o.len || Math.min(26, 6 + speed * 0.45), n = Math.hypot(dx, dy), ux = dx / n, uy = dy / n;
+    const hl = o.head || 5, hw = hl * 0.6;
     const x0 = x - ux * len / 2, y0 = y - uy * len / 2, x1 = x + ux * len / 2, y1 = y + uy * len / 2;
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 - ux * hl * 0.5, y1 - uy * hl * 0.5); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x1, y1);
-    ctx.lineTo(x1 - ux * 5 - uy * 3, y1 - uy * 5 + ux * 3); ctx.lineTo(x1 - ux * 5 + uy * 3, y1 - uy * 5 - ux * 3);
+    ctx.lineTo(x1 - ux * hl - uy * hw, y1 - uy * hl + ux * hw); ctx.lineTo(x1 - ux * hl + uy * hw, y1 - uy * hl - ux * hw);
     ctx.closePath(); ctx.fill();
   }
 
@@ -423,14 +426,22 @@
     };
     line(gu, css("--bad"), 2);
     line(ws, css("--text"), 2);
-    // direction : flèche sur la courbe du vent moyen
-    const k = Math.max(1, Math.ceil(22 / (p.pw / (N - 1))));
-    ctx.strokeStyle = css("--wind"); ctx.fillStyle = css("--wind"); ctx.lineWidth = 1.4;
-    for (let i = 0; i < N; i += k) {
-      if (!isNum(wd[i]) || !isNum(ws[i])) continue;
-      const a = wd[i] * Math.PI / 180;
-      arrow(ctx, p.X(i), Y(ws[i]) - 1, -Math.sin(a), Math.cos(a), 14);
+    // direction : flèche (vers où souffle le vent) sur la courbe du vent moyen, avec un
+    // liseré couleur de fond pour rester lisible sur les courbes
+    const k = Math.max(1, Math.ceil(28 / (p.pw / (N - 1))));
+    const AR = { len: 19, head: 8 };
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const halo of [true, false]) {
+      const col = css(halo ? "--surface" : "--wind");
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = halo ? 5 : 2.4;
+      for (let i = 0; i < N; i += k) {
+        if (!isNum(wd[i]) || !isNum(ws[i])) continue;
+        const a = wd[i] * Math.PI / 180;
+        arrow(ctx, p.X(i), Y(ws[i]) - 1, -Math.sin(a), Math.cos(a), 14, AR);
+        if (halo) ctx.stroke();       // contour de la pointe (dernier tracé de arrow)
+      }
     }
+    ctx.lineCap = "butt";
     // plus forte rafale de chaque jour
     ctx.font = "600 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillStyle = css("--bad");
     const days = {};
