@@ -142,10 +142,10 @@ le système d'unités de la base (US, METRIC, METRICWX) : °C, km/h, mm, mm/h, h
 `livejson.py` ; les autres mesures restent dans l'unité de la base).
 
 ## 1. Installer l'extension
-
+Télécharger le fichier .zip du dernier "Release" Github 
 ```bash
 # weewx 5
-weectl extension install weewx-live.zip
+weectl extension install WeewxLive-x.xxzip
 # weewx 4
 sudo wee_extension --install weewx-live.zip
 ```
