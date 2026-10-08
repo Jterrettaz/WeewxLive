@@ -3,12 +3,17 @@
  * échelles de couleur des températures (window.TempScale). Aucune dépendance.
  *
  * Séries (communs : label, color = variable CSS ex. "--temp") :
- *   { type: "line", data: [[t, v], …], fill, width, endDot, tempScale }
+ *   { type: "line", data: [[t, v], …], fill, width, endDot, tempScale, dash }  // dash : motif du trait ([7, 4]…)
  *   { type: "band", data: [[t, lo, hi], …], alpha, tempScale }   // aire entre deux courbes
  *   { type: "bar",  data: [[t, v] | [t, v, tFin], …], bucket, month } // tFin facultatif
  *   { type: "dots", data: [[t, v], …], r, alpha }           // nuage de points (direction du vent)
  *   { type: "range", data: [[t, lo, hi, moy], …], bucket, pointColor(p), midTick, valueLabels }
  *                                                            // barres « Hi-Low » flottantes
+ *   axis: "right" : série sur une seconde échelle, graduée à droite (ex. cumul de pluie à côté
+ *   des barres horaires) ; options y2 { floor, minRange, unit, decimals } ; ses graduations
+ *   tombent sur les lignes de la grille de l'échelle de gauche
+ *   maxGap (line, band) : écart maximal entre deux points d'un même tronçon (s), propre à
+ *   la série (ex. cumul : jamais interrompu) ; sinon option maxGap du graphique
  *   noTip: true : série décorative, ignorée par le réticule et l'infobulle
  *   ghost: true : série non dessinée, présente seulement dans l'infobulle
  *   alpha (line) : opacité de la courbe ; tipRank : ordre dans l'infobulle (croissant)
@@ -137,7 +142,8 @@
 
     geom() {
       const w = this.el.clientWidth, h = this.el.clientHeight;
-      return { w, h, l: this.o.padLeft || 36, r: 10, t: 8, b: 20 };
+      const right = this.series.some((s) => s.axis === "right");
+      return { w, h, l: this.o.padLeft || 36, r: right ? (this.o.padRight || 34) : 10, t: 8, b: 20 };
     }
 
     window() {
@@ -148,11 +154,12 @@
 
     static barEnd(s, p) { return p.length > 2 ? p[2] : p[0] + (s.bucket || 3600); }
 
-    yRange() {
-      if (this.o.yFixed) { const [lo, hi, step] = this.o.yFixed; return { lo, hi, step }; }
+    // échelle d'un ensemble de séries (par défaut : celles de l'échelle de gauche), options o
+    yRange(list = this.series.filter((s) => s.axis !== "right"), o = this.o) {
+      if (o.yFixed) { const [lo, hi, step] = o.yFixed; return { lo, hi, step }; }
       const { t0, t1 } = this.window();
       let lo = Infinity, hi = -Infinity;
-      for (const s of this.series) {
+      for (const s of list) {
         for (const p of s.data) {
           const tEnd = s.type === "bar" ? MiniChart.barEnd(s, p) : p[0];
           if (tEnd < t0 || p[0] > t1) continue;
@@ -166,26 +173,43 @@
       }
       if (!isFinite(lo)) { lo = 0; hi = 1; }
       // place pour les étiquettes de valeurs (barres Hi-Low)
-      if (this.series.some((s) => s.valueLabels)) { const pad = (hi - lo) * 0.1; lo -= pad; hi += pad; }
-      if (this.o.floor !== undefined) lo = this.o.floor;   // ex. 0 pour pluie, vent, rayonnement
-      if (hi - lo < this.o.minRange) {
+      if (list.some((s) => s.valueLabels)) { const pad = (hi - lo) * 0.1; lo -= pad; hi += pad; }
+      if (o.floor !== undefined) lo = o.floor;   // ex. 0 pour pluie, vent, rayonnement
+      const minRange = o.minRange || 0;
+      if (hi - lo < minRange) {
         const mid = (hi + lo) / 2;
-        lo = mid - this.o.minRange / 2; hi = mid + this.o.minRange / 2;
-        if (this.o.floor !== undefined && lo < this.o.floor) { hi += this.o.floor - lo; lo = this.o.floor; }
+        lo = mid - minRange / 2; hi = mid + minRange / 2;
+        if (o.floor !== undefined && lo < o.floor) { hi += o.floor - lo; lo = o.floor; }
       }
-      const step = niceStep(hi - lo, this.o.yTicks || 3);
-      lo = this.o.floor !== undefined && lo <= this.o.floor ? this.o.floor : Math.floor(lo / step) * step;
+      const step = niceStep(hi - lo, o.yTicks || this.o.yTicks || 3);
+      lo = o.floor !== undefined && lo <= o.floor ? o.floor : Math.floor(lo / step) * step;
       hi = Math.ceil(hi / step) * step;
-      if (this.o.ceil !== undefined) hi = Math.min(hi, this.o.ceil);
+      if (o.ceil !== undefined) hi = Math.min(hi, o.ceil);
       return { lo, hi, step };
     }
 
-    segments(pts) {
+    // seconde échelle (séries axis: "right") : autant d'intervalles que l'échelle de gauche,
+    // pas « rond » (1, 1,5, 2, 2,5, 3, 4, 5, 6, 8 × 10^n) juste suffisant pour le maximum
+    yRange2(left) {
+      const list = this.series.filter((s) => s.axis === "right");
+      if (!list.length) return null;
+      const o = Object.assign({ floor: 0, minRange: 1 }, this.o.y2);
+      const r = this.yRange(list, Object.assign({}, o, { ceil: undefined }));
+      const n = Math.max(1, Math.round((left.hi - left.lo) / left.step));
+      const raw = Math.max(r.hi - r.lo, o.minRange) / n;
+      const p = Math.pow(10, Math.floor(Math.log10(raw)));
+      const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * p).find((v) => v >= raw - 1e-9) || 10 * p;
+      const lo = r.lo;
+      return { lo, hi: lo + step * n, step, o };
+    }
+
+    // tronçons continus d'une courbe ; écart maximal : maxGap de la série, sinon du graphique
+    segments(pts, maxGap = this.o.maxGap) {
       const segs = []; let cur = [];
       for (let i = 0; i < pts.length; i++) {
         // valeur manquante : interruption de la courbe
         if (!isNum(pts[i][1]) || (pts[i].length > 2 && !isNum(pts[i][2]))) { if (cur.length) segs.push(cur); cur = []; continue; }
-        if (cur.length && pts[i][0] - cur[cur.length - 1][0] > this.o.maxGap) { segs.push(cur); cur = []; }
+        if (cur.length && pts[i][0] - cur[cur.length - 1][0] > maxGap) { segs.push(cur); cur = []; }
         cur.push(pts[i]);
       }
       if (cur.length) segs.push(cur);
@@ -204,11 +228,18 @@
       ctx.clearRect(0, 0, g.w, g.h);
 
       const { t0, t1 } = this.window();
-      const { lo, hi, step } = this.yRange();
+      const left = this.yRange();
+      const { step } = left;
+      let { lo, hi } = left;
       const pw = g.w - g.l - g.r, ph = g.h - g.t - g.b;
       const X = (t) => g.l + ((t - t0) / (t1 - t0)) * pw;
-      const Y = (v) => g.t + (1 - (v - lo) / (hi - lo || 1)) * ph;
-      this._g = { X, Y, t0, t1, g, pw };
+      const scale = (a, b) => (v) => g.t + (1 - (v - a) / (b - a || 1)) * ph;
+      const YL = scale(lo, hi);
+      let Y = YL;
+      // seconde échelle (à droite) et échelle d'une série
+      const r2 = this.yRange2(left), Y2 = r2 ? scale(r2.lo, r2.hi) : null;
+      const axisOf = (s) => (r2 && s.axis === "right" ? { Y: Y2, lo: r2.lo, hi: r2.hi } : { Y: YL, lo: left.lo, hi: left.hi });
+      this._g = { X, Y: YL, t0, t1, g, pw };
 
       const gridC = css("--grid"), muted = css("--text-3"), surface = css("--surface"), textC = css("--text");
       ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
@@ -223,6 +254,14 @@
         ctx.strokeStyle = gridC;
         ctx.beginPath(); ctx.moveTo(g.l, y); ctx.lineTo(g.w - g.r, y); ctx.stroke();
         ctx.fillText(this.o.yFormat ? this.o.yFormat(v) : fmtNum(v, yDec), g.l - 6, y);
+      }
+      // étiquettes de la seconde échelle (à droite, couleur de sa première série)
+      if (r2) {
+        // décimales : juste ce qu'il faut pour écrire le pas (1,5 -> 1 ; 0,25 -> 2)
+        const d2 = [0, 1, 2, 3].find((k) => Math.abs(r2.step * 10 ** k - Math.round(r2.step * 10 ** k)) < 1e-6) ?? 3;
+        ctx.textAlign = "left"; ctx.fillStyle = css(this.series.find((s) => s.axis === "right").color) || muted;
+        for (let v = r2.lo; v <= r2.hi + r2.step * 1e-6; v += r2.step) ctx.fillText(fmtNum(v, d2), g.w - g.r + 5, Math.round(Y2(v)) + 0.5);
+        ctx.fillStyle = muted;
       }
 
       // Graduations X (étiquettes éclaircies si elles se chevauchent)
@@ -253,6 +292,7 @@
       for (const s of this.series) {
         if (s.ghost) continue;          // infobulle seulement
         const col = css(s.color);
+        ({ Y, lo, hi } = axisOf(s));    // échelle de la série (gauche ou droite)
 
         if (s.type === "bar") {
           ctx.fillStyle = col;
@@ -273,7 +313,8 @@
           continue;
         }
 
-        const pts = s.data.filter((p) => p[0] >= t0 - this.o.maxGap && p[0] <= t1 + this.o.maxGap);
+        const pg = s.maxGap ?? this.o.maxGap;
+        const pts = s.data.filter((p) => p[0] >= t0 - pg && p[0] <= t1 + pg);
         if (!pts.length) continue;
 
         if (s.type === "range") {
@@ -323,7 +364,7 @@
         if (s.type === "band") {
           ctx.fillStyle = tg ? tg.fill : rgba(col, s.alpha || 0.2);
           if (tg) ctx.globalAlpha = s.alpha || 0.22;
-          for (const seg of this.segments(pts)) {
+          for (const seg of this.segments(pts, s.maxGap ?? this.o.maxGap)) {
             ctx.beginPath();
             seg.forEach((p, i) => (i ? ctx.lineTo(X(p[0]), Y(p[2])) : ctx.moveTo(X(p[0]), Y(p[2]))));
             for (let i = seg.length - 1; i >= 0; i--) ctx.lineTo(X(seg[i][0]), Y(seg[i][1]));
@@ -334,7 +375,7 @@
           continue;
         }
 
-        for (const seg of this.segments(pts)) {
+        for (const seg of this.segments(pts, s.maxGap ?? this.o.maxGap)) {
           if (s.fill && seg.length > 1) {
             ctx.beginPath();
             ctx.moveTo(X(seg[0][0]), Y(lo));
@@ -351,7 +392,9 @@
           ctx.strokeStyle = tg ? tg.stroke : col; ctx.lineWidth = s.width || 2;
           ctx.lineJoin = "round"; ctx.lineCap = "round";
           if (s.alpha) ctx.globalAlpha = s.alpha;
+          if (s.dash) ctx.setLineDash(s.dash);
           ctx.stroke();
+          ctx.setLineDash([]);
           ctx.globalAlpha = 1;
         }
 
@@ -361,6 +404,7 @@
         }
       }
       ctx.restore();
+      ({ Y, lo, hi } = axisOf({}));
 
       // Réticule
       this._hits = [];
@@ -384,8 +428,9 @@
             if (!isNum(p[1]) || s.ghost) continue;
             const ts = s.tempScale && window.TempScale;
             const col = (v) => (ts ? TempScale.lineColor(v) : css(s.color));
-            if (s.type === "line" || s.type === "dots") dot(ctx, X(p[0]), Y(p[1]), col(p[1]), surface);
-            else if (s.type === "band") { dot(ctx, X(p[0]), Y(p[1]), col(p[1]), surface, 3); dot(ctx, X(p[0]), Y(p[2]), col(p[2]), surface, 3); }
+            const Ys = axisOf(s).Y;
+            if (s.type === "line" || s.type === "dots") dot(ctx, X(p[0]), Ys(p[1]), col(p[1]), surface);
+            else if (s.type === "band") { dot(ctx, X(p[0]), Ys(p[1]), col(p[1]), surface, 3); dot(ctx, X(p[0]), Ys(p[2]), col(p[2]), surface, 3); }
           }
         }
       }
@@ -403,6 +448,9 @@
       else if (s.type === "bar") head = `${fr(p[0], { hour: "2-digit", minute: "2-digit" })} – ${fr(MiniChart.barEnd(s, p), { hour: "2-digit", minute: "2-digit" })}`;
       else head = fr(p[0], { weekday: "short", hour: "2-digit", minute: "2-digit" });
       const rows = this._hits.map(({ s, p }) => {
+        // seconde échelle : unité et décimales propres (options y2), sinon celles du graphique
+        const y2 = s.axis === "right" ? (this.o.y2 || {}) : {};
+        const d = y2.decimals ?? this.o.decimals, u = esc(y2.unit ?? this.o.unit ?? "");
         const val = this.o.valueFormat ? `<b>${this.o.valueFormat(p[1])}</b>`
           : s.type === "range" && s.midTick && p[3] !== null && p[3] !== undefined
             ? `<b>${fmtNum(p[1], d)}</b> – <b>${fmtNum(p[2], d)}</b> ${u} · moy. <b>${fmtNum(p[3], d)}</b> ${u}`

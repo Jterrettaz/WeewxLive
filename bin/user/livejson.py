@@ -57,7 +57,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.79"
+VERSION = "1.84"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -771,6 +771,8 @@ class LiveJSON(SearchList):
             # ordre des cadres du tableau de bord (index.html.tmpl)
             "livejson_dash_order": self.dash_order,
             "livejson_refresh": self.page_refresh,
+            # fenêtre des graphiques du tableau de bord (heures, [LiveJSON] hours)
+            "livejson_hours": self.hours,
             # fuseau horaire de la station (wxtime.js.tmpl), chaîne JSON ou null
             "livejson_tz": json.dumps(self.tz),
             "livejson_fc_days": self._fc_days(),
@@ -844,6 +846,8 @@ class LiveJSON(SearchList):
             "hardware": self.hardware_label(),
             "logo": self.logo,
             "timezone": self.tz,
+            # fenêtre des graphiques et cumuls glissants du tableau de bord (heures)
+            "hours": self.hours,
             "latitude": lat,
             "longitude": lon,
             # pages d'archives : archive/day-AAAA-MM-JJ.html, month-…, year-…, climato-…

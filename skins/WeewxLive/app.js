@@ -1,6 +1,6 @@
 /* weewx-live — panneaux de mesures du tableau de bord (index.html) et des pages « jour »
  * (archive/day-AAAA-MM-JJ.html) : valeurs en temps réel (MQTT, weewx-mqtt) ou mises à jour
- * à chaque archive weewx (MQTT désactivé), historique 24 h (data/history.json), panneaux
+ * à chaque archive weewx (MQTT désactivé), historique de [LiveJSON] hours (data/history.json), panneaux
  * configurés dans skin.conf [[parameters]] (standard, génériques, groupés), panneaux
  * réduits / développés. Mode démo : ?demo. */
 (function () {
@@ -11,7 +11,10 @@
   // ni MQTT ni relecture ; graphiques de minuit à minuit
   const DAY = window.WEEWX_DAY || null;
   const nowS = () => (DAY ? DAY.stop : Date.now() / 1000);
-  const SPAN = 24 * 3600;
+  // fenêtre des graphiques et des cumuls glissants : [LiveJSON] hours (configuration intégrée
+  // à la page ; 24 h par défaut, et sur les pages « jour »)
+  const HOURS = DAY ? 24 : Math.max(1, Math.min(72, +((window.WEEWX_CONFIG || {}).hours) || 24));
+  const SPAN = HOURS * 3600;
   const HISTORY_REFRESH = 5 * 60 * 1000;    // relecture de data/history.json avec MQTT (régénéré par weewx)
   const FETCH_TIMEOUT = 15000;              // ms : une requête bloquée ne fige pas la page
   const HISTORY_STALE = 30 * 60;            // au-delà (s), on signale un historique non mis à jour
@@ -165,7 +168,7 @@
   // skin.conf), pas pour un panneau générique qui reprend l'id d'un paramètre standard
   const mkChart = (k, opts) => {
     const el = cardChart(k, k);
-    return el && !el.closest("[data-generic]") ? new MiniChart(el, opts) : null;
+    return el && !el.closest("[data-generic]") ? new MiniChart(el, Object.assign({ span: SPAN }, opts)) : null;
   };
   // courbes en °C : couleur selon la valeur (paliers de 3 °C, TempScale de minichart.js)
   const lineChart = (k, color, label, unit, opt = {}) => mkChart(k, Object.assign({
@@ -183,18 +186,19 @@
         { label: "Rafales", color: "--gust", type: "line", width: 1.5, endDot: false, data: S.series.windGust },
       ],
     }),
-    // Direction du vent sur 24 h : nuage de points, axe N / E / S / O
+    // Direction du vent sur la fenêtre (HOURS) : nuage de points, axe N / E / S / O
     windDir: mkChart("windDir", {
       unit: "°", decimals: 0, yFixed: [0, 360, 90], maxGap: 1e9,
       yFormat: (v) => ["N", "E", "S", "O", "N"][Math.round(v / 90)] || "",
       valueFormat: (v) => `${dirName(v)} ${Math.round(v)}°`,
       series: [{ label: "Direction", color: "--wind", type: "dots", endDot: false, data: S.series.windDir }],
     }),
+    // pluie horaire (échelle de gauche) et cumul glissant (échelle de droite)
     rain: mkChart("rain", {
-      unit: "mm", decimals: 1, floor: 0, minRange: 1,
+      unit: "mm", decimals: 1, floor: 0, minRange: 1, y2: { floor: 0, minRange: 1 },
       series: [
         { label: "Pluie horaire", color: "--rain", type: "bar", bucket: 3600, data: [] },
-        { label: "Cumul 24 h", color: "--rainsum", type: "line", fill: false, data: [] },
+        { label: `Cumul ${HOURS} h`, color: "--rainsum", type: "line", fill: false, axis: "right", maxGap: 1e9, data: [] },
       ],
     }),
   };
@@ -208,6 +212,10 @@
     ["outHumidity", "outHumidity", "Humidité relative"], ["barometer", "barometer", "Pression"],
   ].map(([pid, key, title]) => ({ id: pid, key, title, mqtt: key, builtin: true }));
   const GENERIC_COLORS = ["--press", "--hum", "--sun", "--temp", "--wind"];
+  // mesure en degrés Celsius (unité « °C ») : courbe colorée selon la température
+  const isCelsius = (u) => /^\s*°\s*C\s*$/i.test(u || "");
+  // motifs des courbes de température d'un panneau groupé : plein, tirets, pointillés
+  const TEMP_DASHES = [null, [7, 4], [1.5, 4]];
   // couleur d'un paramètre : nom de variable CSS uniquement (sécurité du HTML produit)
   const safeColor = (c) => (/^--[\w-]+$/.test(c || "") ? c : "");
   let PARAMS = DEFAULT_PARAMS;
@@ -226,7 +234,7 @@
          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
       : p.aggregate === "max"
         ? `<div><dt>Max du jour</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
-        : `<div><dt>Cumul 24 h</dt><dd><b data-k="sum24">--</b><small>${escH(p.unit)}</small></dd></div>`;
+        : `<div><dt>Cumul ${HOURS} h</dt><dd><b data-k="sum24">--</b><small>${escH(p.unit)}</small></dd></div>`;
     const el = document.createElement("article");
     el.className = "card";
     el.dataset.param = p.id;
@@ -240,8 +248,8 @@
         <dl class="ext">${ext}</dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur 24 heures"></div>
-        ${p.aggregate === "sum" ? `<ul class="legend"><li><i style="background:var(${p.color})"></i>Cumul horaire</li><li><i style="background:var(--text-2)"></i>Cumul 24 h</li></ul>` : ""}
+        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur ${HOURS} heures"></div>
+        ${p.aggregate === "sum" ? `<ul class="legend"><li><i style="background:var(${p.color})"></i>Cumul horaire</li><li><i style="background:var(--text-2)"></i>Cumul ${HOURS} h (échelle de droite)</li></ul>` : ""}
       </div>`;
     return el;
   }
@@ -271,7 +279,7 @@
           <tbody>${rows}</tbody></table>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur 24 heures"></div>
+        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur ${HOURS} heures"></div>
         <ul class="legend">${p.members.map((m) => `<li><i style="background:var(${m.color})"></i>${escH(m.title)}</li>`).join("")}</ul>
       </div>`;
     return el;
@@ -306,13 +314,13 @@
       if (!grid.querySelector(`:scope > .card[data-param="${CSS.escape(p.id)}"]`)) grid.appendChild(genericCard(p));
       const el = cardChart(p.id, p.key);
       if (!el) continue;
-      const opts = { unit: p.unit, decimals: p.decimals };
+      const opts = { unit: p.unit, decimals: p.decimals, span: SPAN };
       charts["g:" + p.key] = p.aggregate === "sum"
-        ? new MiniChart(el, Object.assign(opts, { floor: 0, minRange: 1, maxGap: 1e9, series: [
+        ? new MiniChart(el, Object.assign(opts, { floor: 0, minRange: 1, maxGap: 1e9, y2: { floor: 0, minRange: 1 }, series: [
           { label: "Cumul horaire", color: p.color, type: "bar", bucket: 3600, data: [] },
-          { label: "Cumul 24 h", color: "--text-2", type: "line", data: [] }] }))
+          { label: `Cumul ${HOURS} h`, color: "--text-2", type: "line", axis: "right", data: [] }] }))
         : new MiniChart(el, Object.assign(opts, { minRange: 1, series: [
-          { label: p.title, color: p.color, type: "line", fill: true, tempScale: p.unit === "°C", data: S.series[p.key] }] }));
+          { label: p.title, color: p.color, type: "line", fill: true, tempScale: isCelsius(p.unit), data: S.series[p.key] }] }));
     }
     // graphiques des panneaux retirés : libérés
     for (const [k, c] of Object.entries(charts)) if (c && !c.el.isConnected) { c.destroy(); charts[k] = null; }
@@ -337,10 +345,26 @@
     const el = cardChart(p.id, p.key);
     if (!el) return;
     const units = new Set(p.members.map((m) => m.unit));
+    // mesures en °C : courbes colorées selon la température (TempScale), distinguées par le
+    // trait (plein, tirets, pointillés)
+    let nt = 0;
+    const ti = p.members.map((m) => (isCelsius(m.unit) ? nt++ : -1));
     charts["grp:" + p.key] = new MiniChart(el, {
-      unit: units.size === 1 ? p.members[0].unit : "", decimals: p.members[0].decimals, minRange: 1,
-      series: p.members.map((m) => ({ label: m.title, color: m.color, type: "line", width: 1.75, endDot: true, data: S.series[m.key] })),
+      span: SPAN, unit: units.size === 1 ? p.members[0].unit : "", decimals: p.members[0].decimals, minRange: 1,
+      series: p.members.map((m, i) => ({ label: m.title, color: m.color, type: "line", width: 1.75, endDot: true,
+        tempScale: ti[i] >= 0, dash: ti[i] >= 0 ? TEMP_DASHES[ti[i] % TEMP_DASHES.length] : undefined, data: S.series[m.key] })),
     });
+    // légende et pastilles du tableau : dégradé des températures, au motif du trait
+    if (nt && window.TempScale) {
+      const card = el.closest(".card"), lis = card.querySelectorAll(".legend li"), rows = card.querySelectorAll(".gtab tbody tr");
+      p.members.forEach((m, i) => {
+        if (ti[i] < 0) return;
+        const sw = (extra) => TempScale.swatch().replace('class="tgrad"', `class="${extra}tgrad ln-${ti[i] % TEMP_DASHES.length}"`);
+        const a = lis[i] && lis[i].querySelector("i"), b = rows[i] && rows[i].querySelector("i.sw");
+        if (a) a.outerHTML = sw("");
+        if (b) b.outerHTML = sw("sw ");
+      });
+    }
   }
 
   function genericSumSeries(key, now) {
@@ -372,8 +396,8 @@
     drawRose(now);
     for (const c of Object.values(charts)) if (c) { c.setNow(now); c.draw(); }
   }
-  // Cumul glissant depuis le début de la fenêtre de 24 h, échantillonné toutes les 5 min
-  // (+ le point « maintenant ») : la courbe se termine sur la valeur « Cumul 24 h ».
+  // Cumul glissant depuis le début de la fenêtre (HOURS), échantillonné toutes les 5 min
+  // (+ le point « maintenant ») : la courbe se termine sur la valeur « Cumul … h ».
   function rainCumul(now) {
     const t0 = now - SPAN, step = 300;
     const pts = S.rainPoints.filter((p) => p[0] > t0).sort((a, b) => a[0] - b[0]);
@@ -390,7 +414,7 @@
   }
 
   // ------------------------------------------------------------------
-  // Rose des vents 24 h : 16 secteurs, fréquence par classe de vitesse
+  // Rose des vents sur la fenêtre (HOURS) : 16 secteurs, fréquence par classe de vitesse
   // ------------------------------------------------------------------
   // classes de vitesse (légende : panels.inc)
   const ROSE_CLASSES = [
@@ -466,7 +490,7 @@
     out += `<circle class="calm" r="${r0 - 1}"/>`;
     svg.innerHTML = out;
     svg.setAttribute("aria-label", n
-      ? `Rose des vents ${DAY ? "de la journée" : "sur 24 h"} : direction dominante ${dom >= 0 ? DIRS[dom] : "aucune"}, calme ${fmt(calm / n * 100, 0)} % du temps`
+      ? `Rose des vents ${DAY ? "de la journée" : `sur ${HOURS} h`} : direction dominante ${dom >= 0 ? DIRS[dom] : "aucune"}, calme ${fmt(calm / n * 100, 0)} % du temps`
       : "Rose des vents : pas encore de données");
     set("windDir", "dominant", dom >= 0 ? DIRS[dom] : "--");
     set("windDir", "calm", n ? `${fmt(calm / n * 100, 0)} %` : "--");
@@ -776,7 +800,7 @@
       for (const k of Object.keys(daySum)) daySum[k] = null;
     }
 
-    // Paramètres configurés : séries 24 h, cumuls horaires
+    // Paramètres configurés : séries de la fenêtre, cumuls horaires
     for (const g of GENERIC) {
       const hist = hs[g.key] || [];
       if (g.aggregate === "sum") {
@@ -1111,7 +1135,7 @@
   }
   const ICON_REDUCE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10l5-5 5 5"/></svg>';
   const ICON_EXPAND = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5"/></svg>';
-  // panneaux réduits affichés en tête (style.css), sinon ordre du document (layout.js)
+  // panneaux développés en tête, panneaux réduits en dessous (style.css) ; sinon ordre du document (layout.js)
   function applyCompact(cardEl, compact) {
     cardEl.classList.toggle("compact", compact);
     const b = cardEl.querySelector(".size-btn");

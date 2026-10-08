@@ -2,6 +2,8 @@
 ## Variable $day_page (#set global avant l'#include) : vrai sur une page « jour »
 ## Panneaux : un par paramètre de skin.conf [[parameters]], dans l'ordre configuré.
 ## Paramètres standard : panneau spécialisé ; autres : panneau générique (min-max, max, sum).
+## $hrs : fenêtre des graphiques et cumuls glissants ([LiveJSON] hours ; 24 h sur une page « jour »)
+#set $hrs = 24 if $day_page else $livejson_hours
 #for $p in $livejson_params
 #if $p.builtin and $p.id == "outTemp"
     <!-- Température -->
@@ -19,7 +21,7 @@
         </dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="outTemp" role="img" aria-label="Température #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
+        <div class="chart" data-chart="outTemp" role="img" aria-label="Température #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
       </div>
     </article>
 #elif $p.builtin and $p.id == "wind"
@@ -48,7 +50,7 @@
         </dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="wind" role="img" aria-label="Vent #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
+        <div class="chart" data-chart="wind" role="img" aria-label="Vent #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
         <ul class="legend"><li><i style="background:var(--wind)"></i>Vent moyen</li><li><i style="background:var(--gust)"></i>Rafales</li></ul>
       </div>
     </article>
@@ -56,11 +58,11 @@
     <!-- Direction du vent -->
     <article class="card" data-param="windDir" style="--c: var(--wind)">
       <div class="card-main">
-        <header><h2>$p.title</h2><span class="hint">#if $day_page#vent dominant du jour#else#24 dernières heures#end if#</span></header>
+        <header><h2>$p.title</h2><span class="hint">#if $day_page#vent dominant du jour#else#$hrs dernières heures#end if#</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-k="deg"></span></div>
         <p class="aux">Dominante <b data-k="dominant">--</b><span class="aux-sep">·</span>Calme <b data-k="calm">--</b></p>
         <div class="rose-row">
-          <svg class="rose" id="rose" viewBox="-110 -110 220 220" role="img" aria-label="Rose des vents #if $day_page#sur la journée#else#sur 24 heures#end if#"></svg>
+          <svg class="rose" id="rose" viewBox="-110 -110 220 220" role="img" aria-label="Rose des vents #if $day_page#sur la journée#else#sur $hrs heures#end if#"></svg>
           <ul class="rose-legend" aria-label="Classes de vitesse de la rose des vents">
             <li><i style="background:var(--ws4)"></i>≥ 30 km/h</li>
             <li><i style="background:var(--ws3)"></i>20–30</li>
@@ -72,7 +74,7 @@
       </div>
       <div class="card-side">
         <div class="mini-label">Direction relevée (un point par mesure)</div>
-        <div class="chart dir-chart" data-chart="windDir" role="img" aria-label="Direction du vent #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
+        <div class="chart dir-chart" data-chart="windDir" role="img" aria-label="Direction du vent #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
       </div>
     </article>
 #elif $p.builtin and $p.id == "rain"
@@ -86,12 +88,12 @@
 #end if
         <dl class="ext">
           <div><dt>Intensité max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
-          <div><dt>Cumul 24 h</dt><dd><b data-k="sum24">--</b><small>mm</small></dd></div>
+          <div><dt>Cumul $hrs h</dt><dd><b data-k="sum24">--</b><small>mm</small></dd></div>
         </dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="rain" role="img" aria-label="Pluie horaire et cumul #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
-        <ul class="legend"><li><i style="background:var(--rain)"></i>Pluie horaire</li><li><i style="background:var(--rainsum)"></i>Cumul 24 h</li></ul>
+        <div class="chart" data-chart="rain" role="img" aria-label="Pluie horaire et cumul #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
+        <ul class="legend"><li><i style="background:var(--rain)"></i>Pluie horaire</li><li><i style="background:var(--rainsum)"></i>Cumul $hrs h (échelle de droite)</li></ul>
       </div>
     </article>
 #elif $p.builtin and $p.id == "outHumidity"
@@ -106,7 +108,7 @@
         </dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="outHumidity" role="img" aria-label="Humidité #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
+        <div class="chart" data-chart="outHumidity" role="img" aria-label="Humidité #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
       </div>
     </article>
 #elif $p.builtin and $p.id == "barometer"
@@ -124,7 +126,7 @@
         </dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="barometer" role="img" aria-label="Pression #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
+        <div class="chart" data-chart="barometer" role="img" aria-label="Pression #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
       </div>
     </article>
 #elif $p.type == "group"
@@ -149,7 +151,7 @@
         </table>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="$p.key" role="img" aria-label="$p.title #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
+        <div class="chart" data-chart="$p.key" role="img" aria-label="$p.title #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
         <ul class="legend">#for $m in $p.members#<li><i style="background:var($m.color)"></i>$m.title</li>#end for#</ul>
       </div>
     </article>
@@ -166,14 +168,14 @@
 #elif $p.aggregate == "max"
           <div><dt>Max du jour</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>
 #else
-          <div><dt>Cumul 24 h</dt><dd><b data-k="sum24">--</b><small>$p.unit</small></dd></div>
+          <div><dt>Cumul $hrs h</dt><dd><b data-k="sum24">--</b><small>$p.unit</small></dd></div>
 #end if
         </dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="$p.key" role="img" aria-label="$p.title #if $day_page#sur la journée#else#sur 24 heures#end if#"></div>
+        <div class="chart" data-chart="$p.key" role="img" aria-label="$p.title #if $day_page#sur la journée#else#sur $hrs heures#end if#"></div>
 #if $p.aggregate == "sum"
-        <ul class="legend"><li><i style="background:var($p.color)"></i>Cumul horaire</li><li><i style="background:var(--text-2)"></i>Cumul 24 h</li></ul>
+        <ul class="legend"><li><i style="background:var($p.color)"></i>Cumul horaire</li><li><i style="background:var(--text-2)"></i>Cumul $hrs h (échelle de droite)</li></ul>
 #end if
       </div>
     </article>

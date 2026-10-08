@@ -2,17 +2,17 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.79.
+et n'a pas besoin d'être joignable depuis internet. Version 1.84.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
-  du jour (avec l'heure) et graphique sur 24 h. Mise à jour **en temps réel par MQTT**, ou à
+  du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
   **chaque archive weewx** si MQTT est désactivé.
   - Panneaux spécialisés : température (écarts sur 1 h et 24 h, durée du gel en cours), vent (boussole, rafales),
     direction du vent (rose des vents et graphique de la direction sur 24 h), pluie (barres
-    horaires + courbe de cumul), humidité, pression (tendance sur 3 h).
+    horaires + courbe de cumul, sur une seconde échelle à droite), humidité, pression (tendance sur 3 h).
   - Paramètres supplémentaires et **panneaux groupés** (ex. particules PM1 / PM2.5 / PM10).
-  - Chaque panneau peut être **réduit** (valeurs seules) ; les panneaux réduits sont regroupés
-    en tête, en tuiles. Choix mémorisé par panneau dans le navigateur ; « Tout réduire » /
+  - Chaque panneau peut être **réduit** (valeurs seules) ; les panneaux développés sont affichés
+    en tête, les panneaux réduits regroupés en dessous, en tuiles. Choix mémorisé par panneau dans le navigateur ; « Tout réduire » /
     « Tout développer ».
   - **Soleil et Lune** : lever / coucher du soleil et de la lune, durée du jour et écart avec
     la veille, phase de la lune, courbes de hauteur et position actuelle.
@@ -351,7 +351,7 @@ Dans `skins/WeewxLive/skin.conf` (dossier skins de weewx, ex. `/etc/weewx/skins/
 
 ```ini
 [LiveJSON]
-    hours = 24                   # profondeur de l'historique du tableau de bord (1 à 72 h)
+    hours = 24                   # fenêtre des graphiques du tableau de bord (1 à 72 h)
     station_name = ""            # vide = [Station] location de weewx.conf
     timezone = ""                # fuseau des heures affichées (ex. Europe/Paris ; vide = celui du système)
     page_refresh = 300           # rechargement complet du tableau de bord (s, 0 = jamais, max. 86400)
@@ -467,7 +467,10 @@ d'affichage**.
   `skin.conf` : `aggregate = max`, `color = --sun`).
 - `color` : nom d'une variable CSS du thème (`--temp`, `--wind`, `--rain`, `--sun`, `--hum`,
   `--press`…) ; toute autre valeur est ignorée.
-- Un paramètre en °C (ex. température intérieure) a sa courbe colorée selon la température.
+- Un paramètre en °C (ex. température intérieure, température du sol) a sa courbe colorée
+  selon la température, avec le même code de couleur que la température extérieure. Dans un
+  panneau groupé, chaque mesure en °C est colorée de même et se distingue par son trait (plein,
+  tirets, pointillés), repris dans la légende.
 - Le tableau de bord (`index.html`) est **généré par weewx** à partir de
   `index.html.tmpl` : panneaux, titres et ordre suivent `[[parameters]]`, et la
   configuration est intégrée à la page. Après une modification, la page est régénérée à

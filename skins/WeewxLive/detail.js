@@ -236,9 +236,13 @@
       return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, round(v), nextMonth(t)]);
     }
 
+    // cumul sur la période, au pas le plus fin disponible : relevés (24 h), heures (7 jours),
+    // sinon jours ; chaque point est daté de la fin de son intervalle
     function rainCumul(d) {
+      const hourly = d.resolution === "hour" && ((d.series || {})[def.sumKey] || {}).sum;
       const fine = d.resolution === "raw"
         ? ((d.series || {})[def.sumKey] || [])
+        : hourly && hourly.length ? hourly.map(([t, v]) => [t + 3600, v || 0])
         : ((d.daily && d.daily[def.sumKey]) || []).map(([t, v]) => [nextMidnight(t), v]);
       const out = [[d.start, 0]];
       let s = 0;
@@ -329,8 +333,9 @@
         const col = def.generic ? def.color : "--rain";
         series.push({ type: "bar", label: lab, color: col, data: bars, month: LONG });
         const cumCol = def.generic ? "--text-2" : "--rainsum";
-        series.push({ type: "line", label: "Cumul", color: cumCol, data: rainCumul(d) });
-        legend.push(swatch(col) + (def.generic ? `${name} : cumul ${unitLabel}` : lab), swatch(cumCol) + "Cumul sur la période");
+        // cumul sur la période : seconde échelle, à droite (barres lisibles même si le cumul est fort)
+        series.push({ type: "line", label: "Cumul", color: cumCol, axis: "right", maxGap: 1e9, data: rainCumul(d) });
+        legend.push(swatch(col) + (def.generic ? `${name} : cumul ${unitLabel}` : lab), swatch(cumCol) + "Cumul sur la période (échelle de droite)");
       }
       return { series, legend };
     }
@@ -366,6 +371,7 @@
       const opts = {
         unit: def.unit, decimals: def.dec, floor: def.floor, ceil: def.ceil, minRange: def.minRange,
         range: [d.start, d.stop], xTicks: PERIODS[period].xTicks, yTicks: 4, padLeft: 44,
+        y2: { floor: 0, minRange: 1 },     // cumul de pluie (série axis: "right")
         maxGap: res === "raw" ? 3600 : res === "hour" ? 3 * 3600 : 3 * 86400,
         tipHead: tipHead(res),
       };

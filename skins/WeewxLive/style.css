@@ -421,9 +421,10 @@ button.fc-day:focus-visible, .fh-close:focus-visible { outline: 2px solid var(--
 }
 
 /* ---------- Panneaux réduits (sans graphique) ---------- */
-.grid > .card { grid-column: 1 / -1; order: 1; }
-/* les panneaux réduits sont regroupés en tête, en tuiles côte à côte */
-.grid > .card.compact { grid-column: auto; order: 0; flex-direction: column; gap: 0; }
+.grid > .card { grid-column: 1 / -1; order: 0; }
+/* panneaux développés en tête (pleine largeur) ; les panneaux réduits sont regroupés
+   en dessous, en tuiles côte à côte */
+.grid > .card.compact { grid-column: auto; order: 1; flex-direction: column; gap: 0; }
 .card.compact .card-side, .card.compact .rose-row { display: none; }
 .card.compact .card-main { flex: 1 1 auto; }
 .card.compact .val { font-size: 38px; }
@@ -515,6 +516,10 @@ button.fc-day:focus-visible, .fh-close:focus-visible { outline: 2px solid var(--
   .gstats td small.u { display: none; }
 }
 .legend i.tgrad { width: 18px; }
+/* courbes de température d'un panneau groupé : pastille au motif du trait */
+.gtab i.sw.tgrad { width: 14px; height: 3px; border-radius: 2px; vertical-align: 3px; }
+i.tgrad.ln-1 { -webkit-mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 8px); mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 8px); }
+i.tgrad.ln-2 { -webkit-mask: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 5px); mask: repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 5px); }
 .dd-sep { height: 1px; margin: 6px 4px; background: var(--border); }
 
 /* ---------- Page « Extrêmes » ---------- */
