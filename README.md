@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.84.
+et n'a pas besoin d'être joignable depuis internet. Version 1.85.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
@@ -288,7 +288,8 @@ affichée telle quelle.
 chaque message les clés `OutTemp-1h_C` (température d'il y a une heure) et `OutTemp-24h_C`
 (il y a 24 heures) ; noms réglables par `temp_1h_key` et `temp_24h_key` dans `[[mqtt]]`.
 Tant qu'une clé n'est pas reçue, l'écart est estimé à partir de l'historique weewx et suivi
-d'un astérisque.
+d'un astérisque. Avec `temp_deltas = false` dans `[[mqtt]]`, la ligne « Sur 1 h · Sur 24 h »
+n'est pas affichée et ces clés ne sont pas lues.
 
 **Durée du gel en cours** (panneau Température, tableau de bord seulement) : quand la
 température actuelle est inférieure à 0 °C, une ligne bleue indique le temps écoulé depuis

@@ -40,11 +40,14 @@
   const OBS = ["dateTime", "outTemp", "outHumidity", "barometer", "windSpeed", "windGust",
                "windDir", "rain", "rainRate", "dayRain"];
 
-  // Clés MQTT des températures passées (réglables : [[mqtt]] temp_1h_key / temp_24h_key)
+  // Clés MQTT des températures passées (réglables : [[mqtt]] temp_1h_key / temp_24h_key ;
+  // non lues avec temp_deltas = false)
   // clé en minuscules -> champ du paquet normalisé
   const PAST_KEYS = { "outtemp-1h_c": "outTemp1h", "outtemp-24h_c": "outTemp24h" };
-  function setPastKeys(k1, k24) {
+  // enable = false ([[mqtt]] temp_deltas) : aucune clé lue
+  function setPastKeys(k1, k24, enable = true) {
     for (const k of Object.keys(PAST_KEYS)) delete PAST_KEYS[k];
+    if (!enable) return;
     PAST_KEYS[(k1 || "OutTemp-1h_C").toLowerCase()] = "outTemp1h";
     PAST_KEYS[(k24 || "OutTemp-24h_C").toLowerCase()] = "outTemp24h";
   }
@@ -959,7 +962,7 @@
       setArchiveMode(m.archivePoll || 60, "mqtt.js introuvable");
       return showBanner("lib", "La bibliothèque mqtt.js n'a pas pu être chargée (voir README : vendor/mqtt.min.js) : mise à jour à chaque archive weewx.");
     }
-    setPastKeys(m.temp1hKey, m.temp24hKey);
+    setPastKeys(m.temp1hKey, m.temp24hKey, m.tempDeltas !== false);
     const client = mqtt.connect(m.url, {
       username: m.username || undefined,
       password: m.password || undefined,

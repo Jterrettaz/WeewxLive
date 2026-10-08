@@ -57,7 +57,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.84"
+VERSION = "1.85"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -658,6 +658,8 @@ class LiveJSON(SearchList):
         self.om_tz = self.tz or "auto"
         self.logo = self._logo(opts)
         self.mqtt = dict(opts.get("mqtt", {}))
+        # écarts de température sur 1 h et 24 h du panneau Température ([[mqtt]] temp_deltas)
+        self.temp_deltas = to_bool(self.mqtt.get("temp_deltas", True))
         self.forecast = dict(opts.get("forecast", {}))
         self.radar = dict(opts.get("radar", {}))
         self.satellite = dict(opts.get("satellite", {}))
@@ -771,6 +773,8 @@ class LiveJSON(SearchList):
             # ordre des cadres du tableau de bord (index.html.tmpl)
             "livejson_dash_order": self.dash_order,
             "livejson_refresh": self.page_refresh,
+            # ligne « Sur 1 h · Sur 24 h » du panneau Température ([[mqtt]] temp_deltas)
+            "livejson_temp_deltas": self.temp_deltas,
             # fenêtre des graphiques du tableau de bord (heures, [LiveJSON] hours)
             "livejson_hours": self.hours,
             # fuseau horaire de la station (wxtime.js.tmpl), chaîne JSON ou null
@@ -907,7 +911,9 @@ class LiveJSON(SearchList):
                 "topic": self.mqtt.get("topic", "weather/loop"),
                 "username": self.mqtt.get("username", ""),
                 "password": self.mqtt.get("password", ""),
-                # clés du paquet MQTT portant la température d'il y a 1 h et 24 h
+                # écarts « Sur 1 h / Sur 24 h » (false : ni affichés, ni clés lues) et clés
+                # du paquet MQTT portant la température d'il y a 1 h et 24 h
+                "tempDeltas": self.temp_deltas,
                 "temp1hKey": self.mqtt.get("temp_1h_key", "OutTemp-1h_C"),
                 "temp24hKey": self.mqtt.get("temp_24h_key", "OutTemp-24h_C"),
             },

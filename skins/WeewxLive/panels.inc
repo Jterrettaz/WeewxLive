@@ -12,7 +12,9 @@
         <header><h2><a class="more" data-detail="outTemp" href="detail.html?p=outTemp">$p.title</a></h2><span class="hint">#if $day_page#moyenne du jour#else#extérieure#end if#</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit">°C</span></div>
 #if not $day_page
+#if $livejson_temp_deltas
         <p class="aux" title="Écart avec la température d'il y a 1 h et 24 h (* : estimé d'après l'historique)">Sur 1 h <b data-k="d1h">--</b><span class="aux-sep">·</span>Sur 24 h <b data-k="d24h">--</b></p>
+#end if
         <p class="aux frost" data-k="frostRow" hidden title="Temps écoulé depuis la dernière mesure à 0 °C ou plus">Durée du gel en cours : <b data-k="frost">--</b></p>
 #end if
         <dl class="ext">
