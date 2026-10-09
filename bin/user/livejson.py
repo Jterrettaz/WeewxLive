@@ -55,11 +55,12 @@ import weewx.almanac
 import weewx.units
 import weewx.xtypes
 from weewx.cheetahgenerator import CheetahGenerator, SearchList
-from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
+from weeutil.config import accumulateLeaves
+from weeutil.weeutil import TimeSpan, archiveDaySpan, getFileName, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.87"
+VERSION = "1.88"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -1666,6 +1667,16 @@ class LiveJSON(SearchList):
         obs = o.get("obs") or []
         return sum(obs) / len(obs) if len(obs) >= self.OMM_SYNOP_MIN else None
 
+    def _final_times(self, d):
+        """Instants où les valeurs du jour d deviennent définitives : (Tn, Tx et pluie).
+        omm : J 18 h UTC et J+1 6 h UTC ; civil : fin de la journée (minuit local)."""
+        if self.arch["climato_method"] == "omm":
+            nxt = d + datetime.timedelta(days=1)
+            return (calendar.timegm((d.year, d.month, d.day, 18, 0, 0)),
+                    calendar.timegm((nxt.year, nxt.month, nxt.day, 6, 0, 0)))
+        end = int(time.mktime((d + datetime.timedelta(days=1)).timetuple()))
+        return end, end
+
     def _disp(self, v, obs):
         """Valeur en °C (outTemp) ou mm (rain) -> unité affichée."""
         if v is None:
@@ -1785,6 +1796,19 @@ class LiveJSON(SearchList):
                               ("rain", sum(rrs) if rrs else None, "rain")):
                 if v is not None:
                     total[k] = _round(self._disp(v, obs), 1)
+
+        # valeurs provisoires : fenêtre du jour pas encore close à la dernière archive (Tn ;
+        # Tx et pluie) -> {clé: instant où la valeur devient définitive} ; ligne « Mois » :
+        # colonnes dont au moins un jour est provisoire
+        prov_cols = set()
+        for r in days:
+            ftn, ftx = self._final_times(datetime.date.fromisoformat(r["iso"]))
+            p = {k: f for k, f in (("tmin", ftn), ("tmax", ftx), ("rain", ftx)) if k in r and last < f}
+            if p:
+                r["prov"] = p
+                prov_cols.update(p)
+        if prov_cols:
+            total["prov"] = sorted(prov_cols)
 
         units = {k: self.units.get(obs, "") for k, obs, _c, _h in self.CLIMATO_COLS}
         log.debug("livejson: tableau climatologique généré en %.2f s", time.time() - t1)
@@ -1924,13 +1948,24 @@ class LiveJSON(SearchList):
             return out
 
         y = datetime.date.fromtimestamp(start + 43200).year
+        # mois provisoire : son dernier jour n'est pas encore définitif à la dernière archive
+        # (Tx et pluie : lendemain 6 h UTC en méthode omm, minuit sinon)
+        last_ts = int(dbm.lastGoodStamp() or 0)
+        out_months = []
+        for i, d in enumerate(months):
+            row = dict(finish(d), m=i + 1, ym="%04d-%02d" % (y, i + 1))
+            last_day = datetime.date(y + (i == 11), 1 if i == 11 else i + 2, 1) - datetime.timedelta(days=1)
+            if len(row) > 2 and last_ts < self._final_times(last_day)[1]:
+                row["prov"] = True
+            out_months.append(row)
         res = {"version": VERSION, "generated": int(time.time()), "year": y,
                "units": {"temp": self.units.get("outTemp", ""), "rain": self.units.get("rain", ""),
                          "wind": self.units.get("windSpeed", ""), "gust": self.units.get("windGust", "")},
                "thresholds": {"frost": FROST_C, "ice": self.CLIMATO_ICE_C, "heat": self.CLIMATO_HEAT_C,
                               "rain": RAIN_DAY_MM, "heavy": self.CLIMATO_HEAVY_MM},
-               "months": [dict(finish(d), m=i + 1, ym="%04d-%02d" % (y, i + 1)) for i, d in enumerate(months)],
-               "total": finish(year), "method": method}
+               "months": out_months,
+               "total": dict(finish(year), **({"prov": True} if any(r.get("prov") for r in out_months) else {})),
+               "method": method}
         log.debug("livejson: tableau climatologique annuel généré en %.2f s", time.time() - t1)
         return res
 
@@ -2535,12 +2570,39 @@ ARCH_TEMPLATE_RE = re.compile(r"^(day|month|year|climato)-%")
 
 class LiveCheetahGenerator(CheetahGenerator):
 
+    def _refresh_closed(self, section, gen_ts):
+        """Méthode omm : le tableau climatologique du mois (ou de l'année) précédent a été
+        produit pour la dernière fois avant que les valeurs de son dernier jour soient
+        définitives (Tx et pluie : le 1er à 6 h UTC). weewx ne refait jamais la page d'une
+        période passée : elle est supprimée, une seule fois après cette heure, pour être
+        régénérée aussitôt avec les valeurs définitives."""
+        try:
+            rd = accumulateLeaves(section)
+            by = rd.get("summarize_by")
+            if by not in ("SummaryByMonth", "SummaryByYear"):
+                return
+            template, dest_dir, _enc, _binding = self._prepGen(rd)
+            ref = gen_ts or time.time()
+            today = datetime.date.fromtimestamp(ref - 1)
+            cur = today.replace(day=1) if by == "SummaryByMonth" else today.replace(month=1, day=1)
+            prev_last = cur - datetime.timedelta(days=1)
+            prev = prev_last.replace(day=1) if by == "SummaryByMonth" else prev_last.replace(month=1, day=1)
+            final = calendar.timegm((cur.year, cur.month, cur.day, 6, 0, 0))
+            path = os.path.join(dest_dir, getFileName(template, time.mktime(prev.timetuple())))
+            if ref >= final and os.path.exists(path) and os.path.getmtime(path) < final:
+                os.remove(path)
+                log.info("livejson: %s régénéré (valeurs devenues définitives)", os.path.basename(path))
+        except Exception as e:
+            log.debug("livejson: rafraîchissement du tableau climatologique précédent : %s", e)
+
     def generate(self, section, section_name, gen_ts):
         a = _archive_options(self.skin_dict.get("LiveJSON", {}))
         if "template" in section:
             m = ARCH_TEMPLATE_RE.match(os.path.basename(str(section["template"])))
             if m and not a[m.group(1)]:
                 return 0
+            if m and m.group(1) == "climato" and a["climato_method"] == "omm":
+                self._refresh_closed(section, gen_ts)
         if section_name != "SummaryByDay" or not a["day"] or not a["days"]:
             return CheetahGenerator.generate(self, section, section_name, gen_ts)
         ref = gen_ts or time.time()

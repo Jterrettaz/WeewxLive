@@ -3,6 +3,16 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 1.88
+
+- Tableaux climatologiques : **valeurs provisoires** marquées (italique et astérisque, heure
+  de passage en définitif dans l'infobulle) tant que la fenêtre du jour n'est pas close — Tn
+  jusqu'à 18 h UTC, Tx et pluie jusqu'au lendemain 6 h UTC (méthode `omm`) ; minuit (méthode
+  `civil`). Tableau annuel : mois en cours (et ligne « Année ») provisoires jusqu'à la clôture
+  de son dernier jour.
+- Méthode `omm` : le tableau du mois (ou de l'année) qui vient de se terminer est régénéré une
+  fois après le 1er à 6 h UTC, pour inscrire les valeurs définitives de son dernier jour.
+
 ## 1.87
 
 - Ajout de ce journal des modifications (`changelog.md`), tenu à jour à chaque version.

@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.87.
+et n'a pas besoin d'être joignable depuis internet. Version 1.88.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
@@ -823,6 +823,16 @@ l'enregistrement le plus proche de l'heure synoptique (à 10 min près, ou une d
 d'intervalle d'archive). Dans les tableaux annuels, jours de gel, sans dégel, de forte chaleur
 et de pluie se comptent sur ces mêmes Tn, Tx et RR. La méthode utilisée est rappelée sous
 chaque tableau.
+
+**Valeurs provisoires** : tant que la fenêtre d'un jour n'est pas close à la dernière archive,
+ses Tn, Tx et pluie sont affichés *en italique avec un astérisque* (infobulle : heure à
+laquelle la valeur deviendra définitive). Méthode `omm` : Tn définitive le jour même à 18 h
+UTC, Tx et pluie le lendemain à 6 h UTC ; méthode `civil` : à minuit. La ligne « Mois » est
+marquée de même pour les colonnes concernées. Dans le tableau annuel, la ligne du mois en
+cours (et la ligne « Année ») reste provisoire jusqu'à ce que le dernier jour du mois soit
+définitif. Avec `omm`, le tableau du mois (ou de l'année) qui vient de se terminer est
+régénéré une fois, après le 1er à 6 h UTC, pour y inscrire les valeurs définitives de son
+dernier jour (weewx ne refait jamais d'elle-même la page d'une période passée).
 
 Les pages des mois et années passés ne sont générées qu'une fois : après un changement de
 méthode, supprimez les fichiers `archive/climato-*.html` de `HTML_ROOT` pour les refaire.

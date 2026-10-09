@@ -640,6 +640,9 @@ i.tgrad.ln-2 { -webkit-mask: repeating-linear-gradient(90deg, #000 0 2px, transp
 .cm-table tbody th { text-align: left; font-weight: 500; background: var(--bg); position: sticky; left: 0; z-index: 1; }
 .cm-table td .u { font-size: .86em; }
 .cm-table td.cm-rec { font-weight: 800; }
+/* valeurs provisoires (journée climatologique pas encore close) : italique + astérisque */
+.cm-table td.cm-prov { font-style: italic; }
+.cm-p { margin-left: 1px; font-weight: 700; font-style: normal; }
 .cm-table tfoot th, .cm-table tfoot td { border-top: 2px solid var(--text); border-bottom: 0; background: color-mix(in oklab, var(--text) 9%, var(--surface));
   font-weight: 600; }
 .cm-table tfoot th { position: sticky; left: 0; z-index: 1; text-align: left; }

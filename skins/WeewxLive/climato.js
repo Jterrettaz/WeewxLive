@@ -29,6 +29,18 @@
     ? "Méthode OMM (heures UTC) : Tn de la veille 18 h au jour 18 h ; Tx et pluie du jour 6 h au lendemain 6 h ; " +
       "température moyenne : moyenne des 8 relevés trihoraires (0, 3 … 21 h) ; vent, humidité et pression : journée de 0 h à 24 h."
     : "Journées de 0 h à 24 h (heure de la station), d'après les résumés journaliers de weewx.";
+  // valeurs provisoires (fenêtre du jour pas encore close) : italique et astérisque ;
+  // « until » : instant où la valeur devient définitive (infobulle), true si non précisé
+  const PROV_NOTE = D.method === "omm"
+    ? "* Valeur provisoire : Tn définitive à 18 h UTC, Tx et pluie le lendemain à 6 h UTC."
+    : "* Valeur provisoire : définitive à la fin de la journée (minuit).";
+  const provAttr = (until) => {
+    if (!until) return "";
+    const when = typeof until === "number" && window.WXT
+      ? ` (définitive le ${WXT.fmt(until, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})` : "";
+    return ` data-prov="1" title="${esc("Valeur provisoire" + when)}"`;
+  };
+  const provMark = (until) => (until ? '<span class="cm-p" aria-label="provisoire">*</span>' : "");
   const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
   // ------------------------------------------------------------------
@@ -100,8 +112,13 @@
     const has = (...ks) => ks.some((k) => M.some((r) => isNum(r[k])) || isNum(T[k]));
     const any = (r) => Object.keys(r).some((k) => k !== "m" && k !== "ym" && isNum(r[k]));
     const ext = (k, f) => { const v = M.map((r) => r[k]).filter(isNum); return v.length ? f(...v) : null; };
-    const val = (v, u, d, style, rec) => `<td${style || ""}${rec ? ' class="cm-rec"' : ""}>${isNum(v) ? (u === null ? v : withUnit(v, u, d)) : "—"}</td>`;
-    const cnt = (v) => val(v, null);
+    // cellule ; prov : valeur provisoire (mois en cours non clos)
+    const val = (v, u, d, style, rec, prov) => {
+      const p = prov && isNum(v);
+      const cls = [rec ? "cm-rec" : "", p ? "cm-prov" : ""].filter(Boolean).join(" ");
+      return `<td${style || ""}${cls ? ` class="${cls}"` : ""}${p ? provAttr(true) : ""}>${isNum(v) ? (u === null ? v : withUnit(v, u, d)) + provMark(p) : "—"}</td>`;
+    };
+    const cnt = (v, r) => val(v, null, 0, "", false, r && r.prov);
     const monthCell = (r) => {
       const label = `${MONTHS[r.m - 1]} ${D.year}`;
       return `<th scope="row">${any(r)
@@ -122,33 +139,33 @@
 
     if (has("tavg", "tmin", "tmax")) {
       const lo = ext("tmin", Math.min), hi = ext("tmax", Math.max);
-      const tc = (k, rec) => (r, tot) => val(r[k], ut, 1, tot ? "" : tFill(r[k]), !tot && rec && r[k] === rec);
+      const tc = (k, rec) => (r, tot) => val(r[k], ut, 1, tot ? "" : tFill(r[k]), !tot && rec && r[k] === rec, r.prov);
       out.push(table("Température", [
         ["moy", tc("tavg")], ["moy min", tc("tminAvg")], ["min", tc("tmin", lo)],
         ["moy max", tc("tmaxAvg")], ["max", tc("tmax", hi)],
-        [`Jours sans dégel<br><small>(max ≤ ${num(TH.ice)} °C)</small>`, (r) => cnt(r.ice)],
-        [`Jours de gel<br><small>(min &lt; ${num(TH.frost)} °C)</small>`, (r) => cnt(r.frost)],
-        [`Jours<br><small>(max &gt; ${num(TH.heat)} °C)</small>`, (r) => cnt(r.heat)],
+        [`Jours sans dégel<br><small>(max ≤ ${num(TH.ice)} °C)</small>`, (r) => cnt(r.ice, r)],
+        [`Jours de gel<br><small>(min &lt; ${num(TH.frost)} °C)</small>`, (r) => cnt(r.frost, r)],
+        [`Jours<br><small>(max &gt; ${num(TH.heat)} °C)</small>`, (r) => cnt(r.heat, r)],
       ], `Températures par mois, ${D.year}`));
     }
     if (has("rain")) {
       const top = ext("rain", Math.max);
       out.push(table("Pluie", [
-        ["pluie totale", (r, tot) => val(r.rain, ur, 1, tot ? "" : rmFill(r.rain), !tot && r.rain === top && top > 0)],
-        [`jours de pluie<br><small>(≥ ${num(TH.rain)} mm)</small>`, (r) => cnt(r.rainDays)],
-        [`jours ≥ ${num(TH.heavy)} mm`, (r) => cnt(r.heavyDays)],
+        ["pluie totale", (r, tot) => val(r.rain, ur, 1, tot ? "" : rmFill(r.rain), !tot && r.rain === top && top > 0, r.prov)],
+        [`jours de pluie<br><small>(≥ ${num(TH.rain)} mm)</small>`, (r) => cnt(r.rainDays, r)],
+        [`jours ≥ ${num(TH.heavy)} mm`, (r) => cnt(r.heavyDays, r)],
       ], `Pluie par mois, ${D.year}`));
     }
     if (has("wind", "gust")) {
       const mw = ext("windMax", Math.max), mg = ext("gust", Math.max);
       out.push(table("Vent", [
-        ["vent moyen", (r) => val(r.wind, U.wind, 1)],
-        ["vent moyen max<br><small>(intervalle d'archive)</small>", (r, tot) => val(r.windMax, U.wind, 1, tot ? "" : grey(r.windMax, mw), !tot && r.windMax === mw)],
-        ["rafale maximum", (r, tot) => val(r.gust, U.gust, 1, tot ? "" : grey(r.gust, mg), !tot && r.gust === mg)],
+        ["vent moyen", (r) => val(r.wind, U.wind, 1, "", false, r.prov)],
+        ["vent moyen max<br><small>(intervalle d'archive)</small>", (r, tot) => val(r.windMax, U.wind, 1, tot ? "" : grey(r.windMax, mw), !tot && r.windMax === mw, r.prov)],
+        ["rafale maximum", (r, tot) => val(r.gust, U.gust, 1, tot ? "" : grey(r.gust, mg), !tot && r.gust === mg, r.prov)],
       ], `Vent par mois, ${D.year}`));
     }
     wrap.innerHTML = out.length ? `<div class="cm-tables">${out.join("")}</div>
-      <p class="cm-note">${esc(METHOD)} En gras : extrêmes de l'année.
+      <p class="cm-note">${esc(METHOD)} En gras : extrêmes de l'année.${M.some((r) => r.prov) ? ` <span class="cm-p">*</span> Mois en cours : valeurs provisoires (le dernier jour du mois n'est pas encore clos).` : ""}
       Ligne « Année » : moyennes, extrêmes, cumuls et totaux de l'année.</p>`
       : `<p class="muted">Pas de données pour cette année.</p>`;
   }
@@ -168,7 +185,14 @@
     const [y, m] = ((days[0] && days[0].iso) || "").split("-");
     const mName = m ? `${MONTHS[+m - 1]} ${y}` : "";
 
-    const td = (v, u, d, style, bold) => `<td${style || ""}${bold ? ' class="cm-rec"' : ""}>${isNum(v) ? withUnit(v, u, d) : "—"}</td>`;
+    // cellule ; prov : instant où la valeur devient définitive (ou true), sinon rien
+    const td = (v, u, d, style, bold, prov) => {
+      const p = prov && isNum(v);
+      const cls = [bold ? "cm-rec" : "", p ? "cm-prov" : ""].filter(Boolean).join(" ");
+      return `<td${style || ""}${cls ? ` class="${cls}"` : ""}${p ? provAttr(prov) : ""}>${isNum(v) ? withUnit(v, u, d) + provMark(p) : "—"}</td>`;
+    };
+    // jour : r.prov = {clé: instant} ; ligne « Mois » : r.prov = [clés]
+    const pv = (r, k) => (Array.isArray(r.prov) ? r.prov.includes(k) : r.prov && r.prov[k]);
     const windCell = (r, total) => {
       const w = isNum(r.wind) ? withUnit(r.wind, U.wind, 1) : "—";
       const g = isNum(r.gust) ? ` (${withUnit(r.gust, U.gust, 1)})` : "";
@@ -176,12 +200,12 @@
       return `<td class="cm-wind${rec ? " cm-rec" : ""}"${total ? "" : grey(r.wind, windMax)}>${w}${g}</td>`;
     };
     const cells = (r, total) => [
-      cols.temp ? td(r.tmin, U.tmin, 1, total ? "" : tFill(r.tmin), !total && r.tmin === lowMin) +
+      cols.temp ? td(r.tmin, U.tmin, 1, total ? "" : tFill(r.tmin), !total && r.tmin === lowMin, pv(r, "tmin")) +
                   td(r.tavg, U.tavg, 1, total ? "" : tFill(r.tavg)) +
-                  td(r.tmax, U.tmax, 1, total ? "" : tFill(r.tmax), !total && r.tmax === highMax) : "",
+                  td(r.tmax, U.tmax, 1, total ? "" : tFill(r.tmax), !total && r.tmax === highMax, pv(r, "tmax")) : "",
       cols.wind ? windCell(r, total) : "",
       cols.dir ? `<td class="cm-dir">${isNum(r.dir) ? sector(r.dir) : "—"}</td>` : "",
-      cols.rain ? td(r.rain, U.rain, 1, total ? "" : rFill(r.rain)) : "",
+      cols.rain ? td(r.rain, U.rain, 1, total ? "" : rFill(r.rain), false, pv(r, "rain")) : "",
       cols.hum ? td(r.hum, U.hum, 0, total ? "" : hFill(r.hum)) : "",
       cols.baro ? td(r.baro, U.baro, U.baro === "inHg" ? 2 : 1, total ? "" : pFill(r.baro)) : "",
     ].join("");
@@ -217,7 +241,7 @@
         <tbody>${rows}</tbody>
         <tfoot><tr><th scope="row" class="cm-tot">Mois</th>${cells(T, true)}</tr></tfoot>
       </table>
-      <p class="cm-note">${esc(METHOD)} En gras : température la plus basse, la plus haute et rafale la plus forte du mois.
+      <p class="cm-note">${esc(METHOD)} En gras : température la plus basse, la plus haute et rafale la plus forte du mois.${days.some((r) => r.prov) ? ` <span class="cm-p">*</span> ${esc(PROV_NOTE.slice(2))}` : ""}
       Ligne « Mois » : minimum, moyenne et maximum du mois, vent moyen (rafale max.), cumul de pluie, humidité et pression moyennes.</p>`
       : `<p class="muted">Pas de données pour ce mois.</p>`;
   }
