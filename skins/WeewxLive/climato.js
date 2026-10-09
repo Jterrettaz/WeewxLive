@@ -24,6 +24,11 @@
   const withUnit = (v, u, d) => `${num(v, d)}<span class="u"> ${esc(u || "")}</span>`;
   const SECT = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
   const sector = (deg) => SECT[Math.round(deg / 45) % 8];
+  // méthode de calcul (skin.conf [[archives]] climato_method) : texte de la note des tableaux
+  const METHOD = D.method === "omm"
+    ? "Méthode OMM (heures UTC) : Tn de la veille 18 h au jour 18 h ; Tx et pluie du jour 6 h au lendemain 6 h ; " +
+      "température moyenne : moyenne des 8 relevés trihoraires (0, 3 … 21 h) ; vent, humidité et pression : journée de 0 h à 24 h."
+    : "Journées de 0 h à 24 h (heure de la station), d'après les résumés journaliers de weewx.";
   const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
   // ------------------------------------------------------------------
@@ -143,7 +148,7 @@
       ], `Vent par mois, ${D.year}`));
     }
     wrap.innerHTML = out.length ? `<div class="cm-tables">${out.join("")}</div>
-      <p class="cm-note">Valeurs calculées à partir des résumés journaliers (de 0 h à 24 h). En gras : extrêmes de l'année.
+      <p class="cm-note">${esc(METHOD)} En gras : extrêmes de l'année.
       Ligne « Année » : moyennes, extrêmes, cumuls et totaux de l'année.</p>`
       : `<p class="muted">Pas de données pour cette année.</p>`;
   }
@@ -212,7 +217,7 @@
         <tbody>${rows}</tbody>
         <tfoot><tr><th scope="row" class="cm-tot">Mois</th>${cells(T, true)}</tr></tfoot>
       </table>
-      <p class="cm-note">En gras : température la plus basse, la plus haute et rafale la plus forte du mois.
+      <p class="cm-note">${esc(METHOD)} En gras : température la plus basse, la plus haute et rafale la plus forte du mois.
       Ligne « Mois » : minimum, moyenne et maximum du mois, vent moyen (rafale max.), cumul de pluie, humidité et pression moyennes.</p>`
       : `<p class="muted">Pas de données pour ce mois.</p>`;
   }

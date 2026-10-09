@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.85.
+et n'a pas besoin d'être joignable depuis internet. Version 1.87.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
@@ -81,6 +81,7 @@ aucun port à ouvrir sur votre box.
 | Fichier | Rôle |
 |---|---|
 | `install.py` | installeur pour `weectl extension install` |
+| `changelog.md` | journal des modifications, version par version |
 | `bin/user/livejson.py` | extension weewx (SearchList) : calcule tous les fichiers JSON et les valeurs du gabarit |
 | `skins/WeewxLive/skin.conf` | configuration du rapport : paramètres affichés, MQTT, prévisions, cartes, extrêmes |
 | `skins/WeewxLive/panels.inc` | panneaux des paramètres, partagés par le tableau de bord et les pages d'archives « jour » |
@@ -142,10 +143,10 @@ le système d'unités de la base (US, METRIC, METRICWX) : °C, km/h, mm, mm/h, h
 `livejson.py` ; les autres mesures restent dans l'unité de la base).
 
 ## 1. Installer l'extension
-Télécharger le fichier .zip du dernier "Release" Github 
+
 ```bash
 # weewx 5
-weectl extension install WeewxLive-x.xxzip
+weectl extension install weewx-live.zip
 # weewx 4
 sudo wee_extension --install weewx-live.zip
 ```
@@ -763,6 +764,7 @@ qu'une fois (si le fichier n'existe pas déjà).
         month = true      # pages « mois » (toutes, depuis le début de la base)
         year = true       # pages « année » (toutes)
         climato = true    # tableaux climatologiques mensuels et annuels (tous)
+        climato_method = civil   # civil (0 h à 24 h) ou omm (fenêtres UTC de l'OMM), voir ci-dessous
         days = 0          # pages « jour » produites en remontant depuis aujourd'hui (0 = toutes, défaut)
 ```
 
@@ -802,6 +804,28 @@ horizontalement (colonne « Jour » fixe).
 
 Les couleurs de la pression supposent des hPa (conversion automatique depuis inHg, mmHg,
 kPa) ; celles de la pluie, des mm (conversion depuis in et cm).
+
+### Méthode de calcul des tableaux climatologiques (`climato_method`)
+
+Option `climato_method` de `[[archives]]` (s'applique aux tableaux mensuels et annuels) :
+
+| Valeur | Journée climatologique |
+|---|---|
+| `civil` (défaut) | de 0 h à 24 h, heure de la station, pour toutes les colonnes, d'après les résumés journaliers de weewx |
+| `omm` | règles horaires de l'OMM (pratique de Météo-France) pour la température et la pluie, en heures UTC : **Tn** du jour J = minimum de J-1 18 h à J 18 h ; **Tx** et **pluie (RR)** du jour J = maximum et cumul de J 6 h à J+1 6 h ; **température moyenne** = moyenne des 8 relevés trihoraires (0, 3, 6 … 21 h) — par jour (au moins 6 relevés sur 8) et, pour le mois et l'année, moyenne de tous les relevés. Vent, humidité et pression restent calculés de 0 h à 24 h. |
+
+Avec `omm`, les valeurs sont calculées sur les **enregistrements d'archive** (les résumés
+journaliers de weewx sont découpés de minuit à minuit) : Tn et Tx viennent des colonnes
+`lowOutTemp` / `highOutTemp` si la base les contient, sinon de `outTemp`, moyenne de chaque
+intervalle d'archive (5 min en général) : les extrêmes peuvent alors être un peu moins marqués
+que ceux de la méthode `civil`, qui utilise les extrêmes instantanés. Un relevé trihoraire est
+l'enregistrement le plus proche de l'heure synoptique (à 10 min près, ou une demi-durée
+d'intervalle d'archive). Dans les tableaux annuels, jours de gel, sans dégel, de forte chaleur
+et de pluie se comptent sur ces mêmes Tn, Tx et RR. La méthode utilisée est rappelée sous
+chaque tableau.
+
+Les pages des mois et années passés ne sont générées qu'une fois : après un changement de
+méthode, supprimez les fichiers `archive/climato-*.html` de `HTML_ROOT` pour les refaire.
 
 ### Climatologie annuelle
 

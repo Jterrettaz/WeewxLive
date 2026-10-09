@@ -18,7 +18,7 @@
 
   <main class="cm-page">
     <h2 class="cm-title">Climatologie mensuelle pour $a.label</h2>
-    <p class="cm-sub">Valeurs journalières de 0 h à 24 h</p>
+    <p class="cm-sub">#if $livejson_climato_method == "omm"#Valeurs journalières selon les règles horaires de l'OMM (heures UTC)#else#Valeurs journalières de 0 h à 24 h#end if#</p>
 
     <!-- choix du mois (climato.js), mois précédent / suivant, autres pages du mois -->
     <form class="cm-bar" id="cm-bar" data-first="$a.first" data-today="$a.today" data-ym="$a.ym" data-day="${1 if $a.day else 0}" data-day-first="$a.dayFirst">

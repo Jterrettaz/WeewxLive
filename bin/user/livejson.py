@@ -36,6 +36,8 @@ d'unités de la base (paramètres standard et groupes d'unités de GROUP_TARGET 
 mesures sont publiées dans l'unité de la base).
 """
 
+import bisect
+import calendar
 import datetime
 import html
 import re
@@ -57,7 +59,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.85"
+VERSION = "1.87"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -273,6 +275,9 @@ def _archive_options(opts):
         "month": to_bool(a.get("month", True)),
         "year": to_bool(a.get("year", True)),
         "climato": to_bool(a.get("climato", True)),    # tableaux climatologiques mensuels et annuels
+        # méthode des tableaux climatologiques : civil (journées de 0 h à 24 h, résumés
+        # journaliers) ou omm (fenêtres UTC de l'OMM / Météo-France, enregistrements d'archive)
+        "climato_method": "omm" if str(a.get("climato_method", "civil")).strip().lower() in ("omm", "wmo") else "civil",
     }
 
 
@@ -773,6 +778,8 @@ class LiveJSON(SearchList):
             # ordre des cadres du tableau de bord (index.html.tmpl)
             "livejson_dash_order": self.dash_order,
             "livejson_refresh": self.page_refresh,
+            # méthode des tableaux climatologiques (civil / omm), sous-titre des pages climato
+            "livejson_climato_method": self.arch["climato_method"],
             # ligne « Sur 1 h · Sur 24 h » du panneau Température ([[mqtt]] temp_deltas)
             "livejson_temp_deltas": self.temp_deltas,
             # fenêtre des graphiques du tableau de bord (heures, [LiveJSON] hours)
@@ -1568,6 +1575,104 @@ class LiveJSON(SearchList):
             return None
         return round((90.0 - math.degrees(math.atan2(y, x))) % 360.0)
 
+    # ------------------------------------------------------------------
+    # Journées climatologiques selon les règles horaires de l'OMM (Météo-France) :
+    #   Tn du jour J : minimum de J-1 18 h UTC à J 18 h UTC ;
+    #   Tx et RR du jour J : maximum et cumul de J 6 h UTC à J+1 6 h UTC ;
+    #   Tm : moyenne des 8 relevés trihoraires de J (0, 3, 6 … 21 h UTC).
+    # Calcul sur les enregistrements d'archive (horodatage = fin de l'intervalle) ; Tn et Tx
+    # viennent des colonnes lowOutTemp / highOutTemp si la base les contient, sinon de outTemp
+    # (moyenne de l'intervalle d'archive : extrêmes un peu atténués).
+    # ------------------------------------------------------------------
+    OMM_SYNOP_MIN = 6          # relevés trihoraires requis pour la Tm d'un jour (sur 8)
+    OMM_SYNOP_TOL = 600        # s : écart toléré entre un relevé et l'heure synoptique (au
+                               # moins la moitié de l'intervalle d'archive)
+
+    def _omm_days(self, first, last, dbm):
+        """{date: {"tn", "tx", "rr", "obs": [températures trihoraires]}} du jour first au jour
+        last (dates civiles, inclus), en °C et mm."""
+        col_t, col_r, table = self.col("outTemp"), self.col("rain"), dbm.table_name
+        keys = set(getattr(dbm, "sqlkeys", ()) or ())
+        lo = "lowOutTemp" if col_t == "outTemp" and "lowOutTemp" in keys else col_t
+        hi = "highOutTemp" if col_t == "outTemp" and "highOutTemp" in keys else col_t
+
+        def utc(d, h):
+            return calendar.timegm((d.year, d.month, d.day, h, 0, 0))
+        one = datetime.timedelta(days=1)
+        t0, t1 = utc(first - one, 18), utc(last + one, 6)
+        sql = ("SELECT dateTime, usUnits, `interval`, %s, %s, %s, %s FROM %s WHERE dateTime > ? AND dateTime <= ? "
+               "ORDER BY dateTime" % (col_t, lo, hi, col_r, table))
+        try:
+            rows = list(dbm.genSql(sql, (t0, t1)))
+        except Exception as e:
+            log.error("livejson: climatologie OMM : lecture de l'archive impossible : %s", e)
+            return {}
+
+        # conversions (affines) vers °C et mm, par système d'unités des enregistrements
+        lin = {}
+
+        def to(us, obs, target):
+            k = (us, obs)
+            if k not in lin:
+                unit, grp = weewx.units.getStandardUnitType(us, obs)
+                f = lambda v: weewx.units.convert(weewx.units.ValueTuple(v, unit, grp), target)[0]
+                b = f(0.0)
+                lin[k] = (f(1.0) - b, b)
+            a, b = lin[k]
+            return lambda v: None if v is None else a * v + b
+
+        days = {}
+
+        def day(d):
+            return days.setdefault(d, {"tn": None, "tx": None, "rr": None, "obs": []})
+        ts_list, temps, tols = [], [], []
+        for ts, us, iv, t, tl, th, r in rows:
+            ct, cr = to(us, "outTemp", "degree_C"), to(us, "rain", "mm")
+            t, tl, th, r = ct(t), ct(tl if tl is not None else t), ct(th if th is not None else t), cr(r)
+            # Tn : (J-1 18 h, J 18 h] UTC ; Tx et RR : (J 6 h, J+1 6 h] UTC
+            dn = datetime.datetime.fromtimestamp(ts - 1 + 21600, datetime.timezone.utc).date()
+            dx = datetime.datetime.fromtimestamp(ts - 1 - 21600, datetime.timezone.utc).date()
+            if tl is not None and first <= dn <= last:
+                d = day(dn)
+                d["tn"] = tl if d["tn"] is None else min(d["tn"], tl)
+            if first <= dx <= last:
+                d = day(dx)
+                if th is not None:
+                    d["tx"] = th if d["tx"] is None else max(d["tx"], th)
+                if r is not None:
+                    d["rr"] = (d["rr"] or 0.0) + r
+            if t is not None:
+                ts_list.append(ts)
+                temps.append(t)
+                tols.append(max(self.OMM_SYNOP_TOL, (iv or 0) * 30))   # interval en minutes
+        # relevés trihoraires : enregistrement à l'heure synoptique, sinon le plus proche
+        d = first
+        while d <= last:
+            for h in range(0, 24, 3):
+                s = utc(d, h)
+                i = bisect.bisect_left(ts_list, s)
+                best = None
+                for j in (i - 1, i):
+                    if 0 <= j < len(ts_list) and abs(ts_list[j] - s) <= tols[j]:
+                        if best is None or abs(ts_list[j] - s) < abs(ts_list[best] - s):
+                            best = j
+                if best is not None:
+                    day(d)["obs"].append(temps[best])
+            d += one
+        return days
+
+    def _omm_tm(self, o):
+        """Tm d'un jour : moyenne des relevés trihoraires (au moins OMM_SYNOP_MIN sur 8)."""
+        obs = o.get("obs") or []
+        return sum(obs) / len(obs) if len(obs) >= self.OMM_SYNOP_MIN else None
+
+    def _disp(self, v, obs):
+        """Valeur en °C (outTemp) ou mm (rain) -> unité affichée."""
+        if v is None:
+            return None
+        unit, grp = ("degree_C", "group_temperature") if obs == "outTemp" else ("mm", "group_rain")
+        return self._conv(weewx.units.ValueTuple(v, unit, grp), obs).value
+
     def climato_data(self, timespan, db_lookup):
         t1 = time.time()
         dbm = db_lookup(self.binding)
@@ -1650,10 +1755,41 @@ class LiveJSON(SearchList):
         except Exception as e:
             log.debug("livejson: direction dominante du mois indisponible : %s", e)
 
+        method = self.arch["climato_method"]
+        if method == "omm" and days:
+            # températures et pluie selon les fenêtres UTC de l'OMM (le reste : journée civile)
+            od = self._omm_days(first, datetime.date.fromisoformat(days[-1]["iso"]), dbm)
+            obs_all, tns, txs, rrs = [], [], [], []
+            for r in days:
+                o = od.get(datetime.date.fromisoformat(r["iso"]), {})
+                for k in ("tmin", "tavg", "tmax", "rain"):
+                    r.pop(k, None)
+                vals = {"tmin": (o.get("tn"), "outTemp"), "tavg": (self._omm_tm(o), "outTemp"),
+                        "tmax": (o.get("tx"), "outTemp"), "rain": (o.get("rr"), "rain")}
+                for k, (v, obs) in vals.items():
+                    if v is not None:
+                        r[k] = _round(self._disp(v, obs), 1)
+                obs_all += o.get("obs") or []
+                if o.get("tn") is not None:
+                    tns.append(o["tn"])
+                if o.get("tx") is not None:
+                    txs.append(o["tx"])
+                if o.get("rr") is not None:
+                    rrs.append(o["rr"])
+            for k in ("tmin", "tavg", "tmax", "rain"):
+                total.pop(k, None)
+            # mois : Tn la plus basse, Tx la plus haute, moyenne de tous les relevés trihoraires
+            for k, v, obs in (("tmin", min(tns) if tns else None, "outTemp"),
+                              ("tavg", sum(obs_all) / len(obs_all) if obs_all else None, "outTemp"),
+                              ("tmax", max(txs) if txs else None, "outTemp"),
+                              ("rain", sum(rrs) if rrs else None, "rain")):
+                if v is not None:
+                    total[k] = _round(self._disp(v, obs), 1)
+
         units = {k: self.units.get(obs, "") for k, obs, _c, _h in self.CLIMATO_COLS}
         log.debug("livejson: tableau climatologique généré en %.2f s", time.time() - t1)
         return {"version": VERSION, "generated": int(time.time()), "start": start, "end": end,
-                "stop": stop, "units": units, "days": days, "total": total}
+                "stop": stop, "units": units, "days": days, "total": total, "method": method}
 
     # Tableau climatologique annuel (archive/climato-AAAA.html) : une ligne par mois, en
     # trois tableaux (températures et nombres de jours, pluie, vent) et une ligne « Année ».
@@ -1705,30 +1841,59 @@ class LiveJSON(SearchList):
                     w, t = d.get(key, (0.0, 0.0))
                     d[key] = (w + v[0], t + v[1])
 
-        rows, conv, ref = table("outTemp", self.col("outTemp"), "min, max, wsum, sumtime")
-        for day, (mn, mx, ws, st) in rows or ():
-            m = day.month - 1
-            if mn is not None:
-                acc(m, "tmin", conv(mn), "min")
-                acc(m, "tminAvg", conv(mn), "mean")
-                acc(m, "frost", 1 if ref(mn, "degree_C") < FROST_C else 0, "count")
-            if mx is not None:
-                acc(m, "tmax", conv(mx), "max")
-                acc(m, "tmaxAvg", conv(mx), "mean")
-                acc(m, "ice", 1 if ref(mx, "degree_C") <= self.CLIMATO_ICE_C else 0, "count")
-                acc(m, "heat", 1 if ref(mx, "degree_C") > self.CLIMATO_HEAT_C else 0, "count")
-            if ws is not None and st:
-                acc(m, "tavg", (ws, st), "wavg")
-                # moyenne affichée : convertie à la fin (température : conversion affine)
-        rows, conv_r, ref_r = table("rain", self.col("rain"), "sum")
-        for day, (sm,) in rows or ():
-            if sm is None:
-                continue
-            m = day.month - 1
-            mm = ref_r(sm, "mm")
-            acc(m, "rain", sm, "sum")
-            acc(m, "rainDays", 1 if mm >= RAIN_DAY_MM - 1e-6 else 0, "count")
-            acc(m, "heavyDays", 1 if mm >= self.CLIMATO_HEAVY_MM else 0, "count")
+        method = self.arch["climato_method"]
+        if method == "omm":
+            # températures et pluie selon les fenêtres UTC de l'OMM (_omm_days) ; valeurs déjà
+            # dans les unités affichées (conv, conv_r : identité)
+            conv = conv_r = (lambda v: v)
+            jan1 = datetime.date.fromtimestamp(start + 43200).replace(month=1, day=1)
+            last_d = datetime.date.fromtimestamp(min(end, int(dbm.lastGoodStamp() or end)) - 1)
+            last_d = min(last_d, jan1.replace(month=12, day=31))
+            od = self._omm_days(jan1, last_d, dbm) if last_d >= jan1 else {}
+            for day, o in sorted(od.items()):
+                m = day.month - 1
+                tn, tx, rr, obs = o["tn"], o["tx"], o["rr"], o["obs"]
+                if tn is not None:
+                    acc(m, "tmin", self._disp(tn, "outTemp"), "min")
+                    acc(m, "tminAvg", self._disp(tn, "outTemp"), "mean")
+                    acc(m, "frost", 1 if tn < FROST_C else 0, "count")
+                if tx is not None:
+                    acc(m, "tmax", self._disp(tx, "outTemp"), "max")
+                    acc(m, "tmaxAvg", self._disp(tx, "outTemp"), "mean")
+                    acc(m, "ice", 1 if tx <= self.CLIMATO_ICE_C else 0, "count")
+                    acc(m, "heat", 1 if tx > self.CLIMATO_HEAT_C else 0, "count")
+                if obs:
+                    # moyenne de tous les relevés trihoraires du mois (et de l'année)
+                    acc(m, "tavg", (sum(self._disp(v, "outTemp") for v in obs), len(obs)), "wavg")
+                if rr is not None:
+                    acc(m, "rain", self._disp(rr, "rain"), "sum")
+                    acc(m, "rainDays", 1 if rr >= RAIN_DAY_MM - 1e-6 else 0, "count")
+                    acc(m, "heavyDays", 1 if rr >= self.CLIMATO_HEAVY_MM else 0, "count")
+        else:
+            rows, conv, ref = table("outTemp", self.col("outTemp"), "min, max, wsum, sumtime")
+            for day, (mn, mx, ws, st) in rows or ():
+                m = day.month - 1
+                if mn is not None:
+                    acc(m, "tmin", conv(mn), "min")
+                    acc(m, "tminAvg", conv(mn), "mean")
+                    acc(m, "frost", 1 if ref(mn, "degree_C") < FROST_C else 0, "count")
+                if mx is not None:
+                    acc(m, "tmax", conv(mx), "max")
+                    acc(m, "tmaxAvg", conv(mx), "mean")
+                    acc(m, "ice", 1 if ref(mx, "degree_C") <= self.CLIMATO_ICE_C else 0, "count")
+                    acc(m, "heat", 1 if ref(mx, "degree_C") > self.CLIMATO_HEAT_C else 0, "count")
+                if ws is not None and st:
+                    acc(m, "tavg", (ws, st), "wavg")
+                    # moyenne affichée : convertie à la fin (température : conversion affine)
+            rows, conv_r, ref_r = table("rain", self.col("rain"), "sum")
+            for day, (sm,) in rows or ():
+                if sm is None:
+                    continue
+                m = day.month - 1
+                mm = ref_r(sm, "mm")
+                acc(m, "rain", sm, "sum")
+                acc(m, "rainDays", 1 if mm >= RAIN_DAY_MM - 1e-6 else 0, "count")
+                acc(m, "heavyDays", 1 if mm >= self.CLIMATO_HEAVY_MM else 0, "count")
         rows, conv_w, _ = table("windSpeed", self.col("windSpeed"), "max, wsum, sumtime")
         for day, (mx, ws, st) in rows or ():
             m = day.month - 1
@@ -1765,7 +1930,7 @@ class LiveJSON(SearchList):
                "thresholds": {"frost": FROST_C, "ice": self.CLIMATO_ICE_C, "heat": self.CLIMATO_HEAT_C,
                               "rain": RAIN_DAY_MM, "heavy": self.CLIMATO_HEAVY_MM},
                "months": [dict(finish(d), m=i + 1, ym="%04d-%02d" % (y, i + 1)) for i, d in enumerate(months)],
-               "total": finish(year)}
+               "total": finish(year), "method": method}
         log.debug("livejson: tableau climatologique annuel généré en %.2f s", time.time() - t1)
         return res
 

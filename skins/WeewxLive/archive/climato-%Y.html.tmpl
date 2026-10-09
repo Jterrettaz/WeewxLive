@@ -17,7 +17,7 @@
 
   <main class="cm-page">
     <h2 class="cm-title">Climatologie annuelle pour $a.y</h2>
-    <p class="cm-sub">Valeurs journalières de 0 h à 24 h</p>
+    <p class="cm-sub">#if $livejson_climato_method == "omm"#Valeurs journalières selon les règles horaires de l'OMM (heures UTC)#else#Valeurs journalières de 0 h à 24 h#end if#</p>
 
     <!-- choix de l'année (climato.js), année précédente / suivante, autres pages de l'année -->
     <form class="cm-bar" id="cm-bar" data-first="$a.first" data-today="$a.today" data-y="$a.y">
