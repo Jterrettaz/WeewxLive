@@ -35,6 +35,9 @@
   // dates et heures : fuseau de la station (WXT, nav.js) ; t en secondes. Les prévisions
   // Open-Meteo sont demandées dans ce fuseau (dates « AAAA-MM-JJTHH:MM » lues par WXT.iso).
   const hm = (t) => WXT.hm(t);
+  // unités d'affichage (WXU, nav.js) : données métriques converties à l'affichage
+  const uf = (g, v, d = 0) => WXU.fmt(g, v, d);
+  const ul = (g) => WXU.get(g);
 
   // configuration intégrée à la page ou requête partagée avec nav.js (window.weewxConfig)
   async function getConfig() {
@@ -209,11 +212,11 @@
           <span class="fc-when"><b><span class="long">${esc(name)}</span><span class="short">${esc(short)}</span></b><span>${WXT.fmt(date, { day: "numeric", month: "short" })}</span></span>
           ${icon(ic, label)}
           <span class="fc-desc">${esc(label)}</span>
-          <span class="fc-temp"><b${tcol(hi)}>${fmt(hi)}°</b><span${tcol(lo)}>${fmt(lo)}°</span></span>
+          <span class="fc-temp"><b${tcol(hi)}>${uf("temp", hi)}°</b><span${tcol(lo)}>${uf("temp", lo)}°</span></span>
           <span class="fc-bar" aria-hidden="true"><i style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%;background:linear-gradient(90deg, ${tstep(lo)}, ${tstep(hi)})"></i></span>
-          <span class="fc-rain${pr > 0 ? "" : " dry"}"><span>${fmt(pr, 1)} mm</span>${pp !== null && pp !== undefined ? `<span class="pp">${fmt(pp)} %</span>` : ""}</span>
+          <span class="fc-rain${pr > 0 ? "" : " dry"}"><span>${uf("rain", pr, 1)} ${ul("rain")}</span>${pp !== null && pp !== undefined ? `<span class="pp">${fmt(pp)} %</span>` : ""}</span>
           <span class="fc-wind">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}
-            ${fmt(d.wind_speed_10m_max[i])} km/h ${esc(dirName(wd))}<span>raf. ${fmt(d.wind_gusts_10m_max[i])}</span></span>
+            ${uf("wind", d.wind_speed_10m_max[i])} ${ul("wind")} ${esc(dirName(wd))}<span>raf. ${uf("wind", d.wind_gusts_10m_max[i])}</span></span>
         </button></li>`);
     }
     $("forecast").innerHTML = `<ol class="fc" style="--n:${n}">${days.join("")}</ol>
@@ -285,9 +288,9 @@
       return `<li class="fh-hour${t === nowH ? " now" : ""}${t < nowH ? " past" : ""}">
         <span class="fh-h">${t === nowH ? "Maint." : WXT.parts(t).h + " h"}</span>
         ${icon(nightIcon(ic, h.is_day ? h.is_day[k] : 1), label)}
-        <b class="fh-t"${tcol(h.temperature_2m[k])}>${fmt(h.temperature_2m[k])}°</b>
-        <span class="fh-r${pr > 0 ? "" : " dry"}">${fmt(pr, 1)} mm${pp !== null && pp !== undefined ? `<small>${fmt(pp)} %</small>` : ""}</span>
-        <span class="fh-w">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}${fmt(h.wind_speed_10m[k])}<small>raf. ${fmt(h.wind_gusts_10m[k])}</small></span>
+        <b class="fh-t"${tcol(h.temperature_2m[k])}>${uf("temp", h.temperature_2m[k])}°</b>
+        <span class="fh-r${pr > 0 ? "" : " dry"}">${uf("rain", pr, 1)} ${ul("rain")}${pp !== null && pp !== undefined ? `<small>${fmt(pp)} %</small>` : ""}</span>
+        <span class="fh-w">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}${uf("wind", h.wind_speed_10m[k])}<small>raf. ${uf("wind", h.wind_gusts_10m[k])}</small></span>
         <span class="fh-hu">${fmt(h.relative_humidity_2m[k])} %</span>
       </li>`;
     }).join("");
@@ -437,7 +440,8 @@
       overlay: c.overlay, product: c.product,
       menu: "", message: "true", marker: "true", calendar: "now", pressure: "",
       type: "map", location: "coordinates", detail: "",
-      metricWind: "km/h", metricTemp: "°C", radarRange: "-1",
+      // unités de la carte : celles choisies pour l'affichage (WXU)
+      metricWind: { kn: "kt" }[ul("wind")] || ul("wind"), metricTemp: ul("temp"), radarRange: "-1",
     });
     const f = document.createElement("iframe");
     // adresse personnalisée (générateur embed.windy.com) ou construite à partir des réglages

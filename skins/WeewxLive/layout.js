@@ -62,6 +62,12 @@
   };
   applyHidden();
 
+  // panneau réservé à l'admin hors mode admin (masqué par la feuille de style) : absent de
+  // la liste « Réorganiser » et sauté par ↑ / ↓
+  const adminHidden = (c) => !!c && c.matches && c.matches("[data-admin]") &&
+    !document.documentElement.classList.contains("wx-admin");
+  const shownPanels = () => PANELS.items().filter((c) => !adminHidden(c));
+
   // nom d'un panneau (titre, sans la flèche du lien de détail)
   const panelName = (c) => {
     const h = c.querySelector("h2");
@@ -98,11 +104,11 @@
       bar.innerHTML = `<span class="dash-name">${esc(name)}</span>${moveButtons(name, "move")}${hideButton(name, "hb", b.dataset.block, hidden.b.has(b.dataset.block))}`;
       b.prepend(bar);
       // panneaux de mesures : sous-liste réordonnable
-      if (b.contains(grid) && PANELS.items().length > 1) {
+      if (b.contains(grid) && shownPanels().length > 1) {
         const sub = document.createElement("ol");
         sub.className = "dash-sub";
         sub.setAttribute("aria-label", "Ordre des panneaux de mesures");
-        sub.innerHTML = PANELS.items().map((c) => `<li data-param="${esc(c.dataset.param)}"${hidden.p.has(c.dataset.param) ? ' class="is-hidden"' : ""}>
+        sub.innerHTML = shownPanels().map((c) => `<li data-param="${esc(c.dataset.param)}"${hidden.p.has(c.dataset.param) ? ' class="is-hidden"' : ""}>
           <span class="dash-pname">${esc(panelName(c))}</span>${moveButtons(panelName(c), "pmove")}${hideButton(panelName(c), "hp", c.dataset.param, hidden.p.has(c.dataset.param))}</li>`).join("");
         bar.after(sub);
       }
@@ -122,7 +128,9 @@
   }
   // échange un élément avec son voisin (dir -1 / +1) dans son conteneur
   function swap(el, dir) {
-    const other = dir < 0 ? el.previousElementSibling : el.nextElementSibling;
+    const step = (x) => (dir < 0 ? x.previousElementSibling : x.nextElementSibling);
+    let other = step(el);
+    while (adminHidden(other)) other = step(other);
     if (!other || other.matches(".dash-bar, .dash-sub")) return false;
     if (dir < 0) el.parentNode.insertBefore(el, other); else el.parentNode.insertBefore(other, el);
     return true;
@@ -161,7 +169,8 @@
       if (!card || !swap(li, dir)) return;
       swap(card, dir);
       PANELS.save(); refresh();
-      live.textContent = `« ${panelName(card)} » : position ${PANELS.ids().indexOf(card.dataset.param) + 1} sur ${PANELS.ids().length}`;
+      const ids = shownPanels().map((c) => c.dataset.param);
+      live.textContent = `« ${panelName(card)} » : position ${ids.indexOf(card.dataset.param) + 1} sur ${ids.length}`;
       (m.disabled ? li.querySelector(`[data-pmove="${-dir}"]`) : m).focus();
     }
   });

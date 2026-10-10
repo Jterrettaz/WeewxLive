@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.88.
+et n'a pas besoin d'être joignable depuis internet. Version 1.95.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
@@ -13,7 +13,13 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.88.
   - Paramètres supplémentaires et **panneaux groupés** (ex. particules PM1 / PM2.5 / PM10).
   - Chaque panneau peut être **réduit** (valeurs seules) ; les panneaux développés sont affichés
     en tête, les panneaux réduits regroupés en dessous, en tuiles. Choix mémorisé par panneau dans le navigateur ; « Tout réduire » /
-    « Tout développer ».
+    « Tout développer ». Au premier affichage du tableau de bord, et pour tout paramètre
+    ajouté ensuite dans `skin.conf`, les panneaux sont **réduits** (pages « jour » :
+    développés).
+  - **Légendes cliquables** : sur les graphiques à plusieurs courbes (tableau de bord, pages
+    de détail et d'archives, Soleil et Lune, Ensembles, Météogramme), un clic (ou Entrée) sur
+    un élément de la légende masque la courbe correspondante, un second clic la réaffiche.
+    L'échelle et l'infobulle s'adaptent ; tout réapparaît au rechargement de la page.
   - **Soleil et Lune** : lever / coucher du soleil et de la lune, durée du jour et écart avec
     la veille, phase de la lune, courbes de hauteur et position actuelle.
   - **Prévisions Open-Meteo** (7 jours, détail heure par heure, modèle au choix parmi 5),
@@ -101,8 +107,11 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/ensembles.html`, `ensembles.js` | page « Prévisions - Ensembles » |
 | `skins/WeewxLive/meteogram.html`, `meteogram.js` | page « Météogramme » |
 | `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
+| `skins/WeewxLive/units.html`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
+| `skins/WeewxLive/webcam.html`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
+| `skins/WeewxLive/admin.html`, `admin.js` | page « Réglages → Admin » (entrée et sortie du [mode admin](#mode-admin-paramètres-réservés)) |
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
-| `skins/WeewxLive/nav.js` | heure de la station (fonctions de date), menu commun ; nom, sous-titre et logo des pages statiques |
+| `skins/WeewxLive/nav.js` | heure de la station (fonctions de date), unités, mode admin, menu commun ; nom, sous-titre et logo des pages statiques |
 | `skins/WeewxLive/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
 | `skins/WeewxLive/style.css` | thème (clair / sombre) |
 | `skins/WeewxLive/data/*.json.tmpl`, `config.json.tmpl` | gabarits des fichiers JSON |
@@ -128,7 +137,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression, 5 modèles) | toutes les 30 min, téléchargement au plus une fois par heure et par modèle |
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
 Les pages d'archives des périodes passées ne sont générées qu'une fois : après une mise à
 jour de weewx-live, elles gardent l'ancienne présentation (elles restent utilisables, à
@@ -429,6 +438,33 @@ Pour retirer un élément pour tous les visiteurs : `enable = false` dans `[[for
 `[[radar]]`, `[[satellite]]`, `[[astro]]` ou dans le paramètre de `[[parameters]]` (le cadre
 « au fil des ans » n'a pas d'option de désactivation).
 
+### Unités affichées (`[[units]]`)
+
+Les données restent en unités métriques (°C, km/h, mm, mm/h, hPa, m, cm) ; la conversion se
+fait dans le navigateur, sur **toutes les pages** (valeurs, graphiques, infobulles, tableaux,
+prévisions, météogramme). L'administrateur choisit les unités par défaut du site :
+
+```ini
+    [[units]]
+        temperature = °F       # °C, °F
+        wind = mph             # km/h, m/s, mph, kn
+        rain = in              # mm, in
+        rain_rate = in/h       # mm/h, in/h
+        pressure = inHg        # hPa, inHg, mmHg, kPa
+        altitude = ft          # m, ft (météogramme : altitudes, isotherme 0 °C)
+        snow = in              # cm, in (météogramme)
+```
+
+Option absente : unité métrique. `kmh` vaut `km/h` ; les noms d'unités de weewx sont aussi acceptés (`degree_F`,
+`mile_per_hour`, `inch`, `inch_per_hour`, `inHg`, `mmHg`, `foot`…) ; une valeur inconnue est
+signalée dans le journal de weewx et ignorée.
+
+Chaque **visiteur** peut choisir les siennes : menu **« Réglages → Unités »** (`units.html`),
+une unité par grandeur, mémorisée par son navigateur ; **« Revenir aux unités du site »**
+efface ce choix. Les paramètres ajoutés (`[[parameters]]`) dont l'unité est °C, km/h, mm,
+mm/h, hPa, m ou cm sont convertis de la même façon. Les seuils (jours de gel, jours de pluie…)
+et les couleurs des températures restent calculés sur les valeurs métriques.
+
 ## 5. Paramètres affichés (`[[parameters]]`)
 
 La liste des paramètres du tableau de bord, des pages de détail et du menu « Données » se
@@ -450,6 +486,7 @@ d'affichage**.
             mqtt = UV
             aggregate = max
             decimals = 1              # facultatif ; aussi : unit, hint, color (ex. --sun)
+            # admin = true            # facultatif : seulement en mode admin (voir plus bas)
 ```
 
 | Agrégat | Tableau de bord | Pages de détail |
@@ -482,6 +519,45 @@ d'affichage**.
   peut contenir « _ » (`pm2_5`) ; plusieurs paramètres peuvent lire la même mesure.
 - Une mesure sans résumé journalier dans la base (type calculé par weewx) est agrégée par
   weewx pour les pages 30 / 365 jours (plus lent).
+
+### Mode admin (paramètres réservés)
+
+Un paramètre (ou un panneau groupé) marqué `admin = true` n'est affiché qu'en **mode admin** :
+tableau de bord (et liste « Réorganiser »), pages d'archives « jour », pages de détail, pages
+par période et d'archives « mois » / « année », menu « Données ». Le mot de passe se définit
+dans `[[admin]]` :
+
+```ini
+[LiveJSON]
+    [[admin]]
+        password = mon-mot-de-passe     # vide : mode admin désactivé
+    [[parameters]]
+        [[[inTemp]]]
+            title = Température intérieure
+            column = inTemp
+            admin = true
+```
+
+- Le visiteur entre le mot de passe sur la page **« Réglages → Admin »** (`admin.html`). Le
+  mode admin est mémorisé par son navigateur ; le bouton « Quitter le mode admin » de la
+  même page en sort. Le menu affiche « Admin (actif) » tant qu'il est actif.
+- Le mot de passe n'est pas publié : `wxtime.js` contient seulement son empreinte SHA-256,
+  comparée à celle que le navigateur a mémorisée. **Changer le mot de passe fait sortir du
+  mode admin** tous les navigateurs.
+- Sans mot de passe, les paramètres `admin = true` ne sont affichés à personne (message dans
+  le journal de weewx).
+- Mot de passe contenant une virgule : l'écrire entre guillemets (`password = "a,b"`).
+- Pour ne pas le perdre à la réinstallation, le placer dans `weewx.conf`
+  (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[admin]]]]`, voir
+  [Conserver ses réglages](#conserver-ses-réglages-lors-des-mises-à-jour-weewxconf)).
+- **Il s'agit d'un masquage à l'affichage, pas d'une protection** : un site statique ne peut
+  pas contrôler l'accès aux fichiers. Les mesures des paramètres réservés restent lisibles
+  dans les fichiers publiés (`data/*.json`, `config.json`, pages d'archives) et dans les
+  messages MQTT. Un mot de passe court peut aussi être retrouvé à partir de son empreinte :
+  choisissez-en un long, différent de vos autres mots de passe. Pour une vraie protection,
+  utilisez celle de l'hébergeur (`.htaccess`, accès protégé par mot de passe).
+- Les pages d'archives des périodes passées, générées une seule fois, gardent les réglages
+  `admin` du moment de leur génération (voir [Archives](#archives-pages-jour-mois-année)).
 
 ### Panneaux groupés (plusieurs mesures dans un panneau)
 
@@ -688,6 +764,57 @@ Depuis l'été 2026, CARTO exige une clé d'API pour ses fonds de carte (sans cl
 
 Les noms des couches EUMETView peuvent évoluer : liste à jour dans le
 [GetCapabilities](https://view.eumetsat.int/geoserver/ows?service=WMS&version=1.3.0&request=GetCapabilities).
+
+### Webcam (`[[webcam]]`)
+
+Le menu **« Webcam »** ouvre la page `webcam.html` : images (jpg, png, gif, webp) et vidéos
+(mp4, webm…) l'une sous l'autre, dans l'ordre des sous-sections de `[[webcam]]`.
+
+```ini
+[LiveJSON]
+    [[webcam]]
+        refresh = 60                  # images : rechargement (s) par défaut ; 0 = jamais
+        [[[lac]]]
+            title = Vue sur le lac
+            url = https://exemple.org/webcam/lac.jpg
+            caption = Orientée nord-est         # facultatif
+        [[[jardin]]]
+            title = Jardin
+            url = img/jardin.jpg      # fichier placé dans skins/WeewxLive/img/
+            admin = true              # seulement en mode admin
+        [[[timelapse]]]
+            title = Timelapse du jour
+            url = https://exemple.org/webcam/timelapse.mp4
+            autoplay = true           # lecture automatique, sans le son, en boucle
+```
+
+- `url` : adresse `https://…`, chemin absolu (`/webcam/lac.jpg`) ou relatif au site.
+- `type = image | video` : facultatif, déduit de l'extension (`.mp4`, `.webm`, `.mov`… : vidéo).
+- `admin = true` : élément affiché seulement en [mode admin](#mode-admin-paramètres-réservés)
+  (badge « admin »). Le menu « Webcam » n'apparaît que si le visiteur peut voir au moins un
+  élément ; sans sous-section, pas de menu.
+- Images rechargées toutes les `refresh` secondes (option de l'élément ou de `[[webcam]]`),
+  sans clignotement, et aussitôt au retour sur l'onglet ; heure du dernier chargement
+  affichée ; clic sur l'image : ouverture en grand dans un nouvel onglet. Fichier absent :
+  « Image indisponible ».
+- Vidéos : lecteur du navigateur (sans le son par défaut). Le format mp4 doit être en H.264
+  pour être lu par tous les navigateurs.
+- Simple masquage pour les éléments admin : leurs adresses restent lisibles dans
+  `config.json`.
+
+### Éclairs (`[[lightning]]`)
+
+Le menu **« Éclairs »** ouvre dans un nouvel onglet la carte des éclairs en temps réel de
+[Blitzortung](https://maps.blitzortung.org), centrée sur la station
+(`https://maps.blitzortung.org/fr/#7/<latitude>/<longitude>`). Coordonnées : celles de
+`[Station]` dans `weewx.conf`, ou `[[forecast]] latitude / longitude`.
+
+```ini
+[LiveJSON]
+    [[lightning]]
+        enable = true     # false : pas de menu « Éclairs »
+        zoom = 7          # niveau de zoom de la carte (2 à 12)
+```
 
 ## 7. Ce jour et ce mois au fil des ans
 

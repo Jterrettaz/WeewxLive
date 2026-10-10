@@ -20,6 +20,11 @@
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
   // jours « AAAA-MM-JJ » et heures : fuseau de la station (WXT, nav.js)
   const tOf = WXT.iso;
+  // unités d'affichage (WXU, nav.js) : données métriques converties à l'affichage ;
+  // ud : écart (sans décalage, °C -> °F × 1,8)
+  const uf = (g, v, d) => (isNum(v) ? WXU.fmt(g, v, d) : "—");
+  const ul = (g) => WXU.get(g);
+  const ud = (g, v, d) => fmt(WXU.delta(g, v), WXU.dec(g, d));
   const dayLabel = (iso) => WXT.fmt(tOf(iso), { weekday: "short", day: "numeric", month: "short" });
   const sum = (a) => a.reduce((x, y) => x + y, 0);
   const mean = (a) => (a.length ? sum(a) / a.length : null);
@@ -248,8 +253,8 @@
     const s = [
       { type: "band", label: "10–90 %", color: "--text-2", alpha: 0.13, tipRank: 2,
         data: h.grp.map(([t, st]) => [t, st && st.n >= 3 ? st.p10 : null, st && st.n >= 3 ? st.p90 : null]) },
-      ...h.members.map(({ m, data }) => ({ type: "line", label: m.short, color: m.color, width: 1, alpha: many ? 0.22 : 0.32, endDot: false, noTip: true, data })),
-      ...h.perModel.map(({ m, data }) => ({ type: "line", ghost: true, label: m.short, color: m.color, tipRank: 3, data })),
+      ...h.members.map(({ m, data }) => ({ type: "line", label: m.short, color: m.color, width: 1, alpha: many ? 0.22 : 0.32, endDot: false, noTip: true, data, _m: m })),
+      ...h.perModel.map(({ m, data }) => ({ type: "line", ghost: true, label: m.short, color: m.color, tipRank: 3, data, _m: m })),
       { type: "line", label: "Moyenne groupée", color: "--text", width: 2.5, endDot: false, tipRank: 1,
         data: h.grp.map(([t, st]) => [t, st ? st.mean : null]) },
     ];
@@ -261,8 +266,12 @@
     draw(id, o);
     const leg = $("en-leg-" + key);
     if (leg) {
-      leg.innerHTML = selected().map((m) => `<li><i style="background:var(${m.color})"></i>${esc(m.short)}</li>`).join("") +
-        `<li><i style="background:var(--text)"></i>Moyenne groupée</li><li><i class="band" style="background:var(--text-2);opacity:.35"></i>10–90 %</li>`;
+      // indices des séries de chaque modèle (membres + moyenne du modèle) : clic sur la
+      // légende = masquer / réafficher ce modèle
+      const idx = (m) => s.map((x, i) => (x._m === m ? i : -1)).filter((i) => i >= 0).join(",");
+      leg.innerHTML = selected().map((m) => `<li data-s="${idx(m)}"><i style="background:var(${m.color})"></i>${esc(m.short)}</li>`).join("") +
+        `<li data-s="${s.length - 1}"><i style="background:var(--text)"></i>Moyenne groupée</li><li data-s="0"><i class="band" style="background:var(--text-2);opacity:.35"></i>10–90 %</li>`;
+      MiniChart.linkLegend(leg, charts[id]);
     }
   }
 
@@ -289,13 +298,16 @@
     draw("en-prob", { unit: "%", decimals: 0, range: [w.day0, w.end], xTicks: "day", yFixed: [0, 100, 50], maxGap: 86400 * 1.5, padLeft: 44,
       yFormat: (v) => `${v} %`,
       tipHead: (t) => WXT.fmt(t, { weekday: "short", day: "numeric", month: "short" }),
-      series: [{ type: "line", label: `Membres avec pluie (≥ ${fmt(D.threshold, 1)} mm)`, color: "--text", width: 2, endDot: false,
+      series: [{ type: "line", label: `Membres avec pluie (≥ ${uf("rain", D.threshold, 1)} ${ul("rain")})`, color: "--text", width: 2, endDot: false,
         data: days.filter((r) => isNum(r.prob)).map((r) => [tOf(r.iso) + 43200, Math.round(r.prob * 100)]) },
       { type: "dots", label: "", color: "--text", r: 3, alpha: 1, noTip: true,
         data: days.filter((r) => isNum(r.prob)).map((r) => [tOf(r.iso) + 43200, Math.round(r.prob * 100)]) }] });
-    $("en-leg-rain").innerHTML = `<li><i style="background:var(--grid)"></i>90e centile</li><li><i style="background:var(--rain)"></i>Moyenne groupée</li>` +
-      selected().map((m) => `<li><i class="dot" style="background:var(${m.color})"></i>${esc(m.short)}</li>`).join("") +
-      `<li><i style="background:var(--text)"></i>% des membres avec pluie (≥ ${fmt(D.threshold, 1)} mm)</li>`;
+    // légende commune aux deux graphiques ; clic : masquer / réafficher une série du
+    // graphique de pluie (0, 1, puis un modèle par série) ; probabilité : non masquable
+    $("en-leg-rain").innerHTML = `<li data-s="0"><i style="background:var(--grid)"></i>90e centile</li><li data-s="1"><i style="background:var(--rain)"></i>Moyenne groupée</li>` +
+      selected().map((m, i) => `<li data-s="${i + 2}"><i class="dot" style="background:var(${m.color})"></i>${esc(m.short)}</li>`).join("") +
+      `<li><i style="background:var(--text)"></i>% des membres avec pluie (≥ ${uf("rain", D.threshold, 1)} ${ul("rain")})</li>`;
+    MiniChart.linkLegend($("en-leg-rain"), charts["en-rain"]);
   }
 
   // ------------------------------------------------------------------
@@ -321,36 +333,36 @@
     return `<header><h2>Comparaison des modèles · ${nj(days.length)}</h2></header>
       <div class="cm-scroll"><table class="en-table">
         <thead><tr><th scope="col">Modèle</th><th scope="col">Membres</th><th scope="col">Moy. max</th><th scope="col">Moy. min</th>
-          <th scope="col">Pluie</th><th scope="col">Vent km/h</th><th scope="col">hPa</th><th scope="col">Jours</th></tr></thead>
+          <th scope="col">Pluie</th><th scope="col">Vent ${ul("wind")}</th><th scope="col">${ul("press")}</th><th scope="col">Jours</th></tr></thead>
         <tbody>${cmp.map((c) => `<tr>
           <th scope="row"><span class="en-sq" style="background:var(${c.m.color})"></span><b>${esc(c.m.label)}</b><small>${esc(c.m.origin || "")}</small></th>
           <td>${esc(c.m.members)}</td>
           <td>${tcol(c.tmax)}${c === hot ? '<small class="en-hot">le plus chaud</small>' : c === cold ? '<small class="en-cold">le plus frais</small>' : ""}</td>
-          <td>${tcol(c.tmin)}</td><td>${isNum(c.rain) ? `${fmt(c.rain, 1)} mm` : "—"}</td>
-          <td>${fmt(c.wind, 0)}</td><td>${fmt(c.press, 0)}</td><td>${c.days}/${days.length}</td></tr>`).join("")}</tbody>
+          <td>${tcol(c.tmin)}</td><td>${isNum(c.rain) ? `${uf("rain", c.rain, 1)} ${ul("rain")}` : "—"}</td>
+          <td>${uf("wind", c.wind, 0)}</td><td>${uf("press", c.press, 0)}</td><td>${c.days}/${days.length}</td></tr>`).join("")}</tbody>
       </table></div>`;
   }
-  const tcol = (v) => (isNum(v) ? `<span class="en-t"${window.TempScale ? ` style="color:${TempScale.textColor(Math.round(v * 10) / 10)}"` : ""}>${fmt(v, 1)}°</span>` : "—");
+  const tcol = (v) => (isNum(v) ? `<span class="en-t"${window.TempScale ? ` style="color:${TempScale.textColor(Math.round(v * 10) / 10)}"` : ""}>${uf("temp", v, 1)}°</span>` : "—");
 
   function dayTable(days) {
     const nS = selected().length;
     return `<header><h2>Jour après jour · tous les modèles confondus</h2></header>
       <div class="cm-scroll"><table class="en-table en-days">
-        <thead><tr><th scope="col">Jour</th><th scope="col">Max °C</th><th scope="col">Min °C</th><th scope="col">Conf. temp.</th>
-          <th scope="col">Risque de pluie</th><th scope="col">Pluie mm</th><th scope="col">Conf. pluie</th><th scope="col">Vent km/h</th><th scope="col">hPa</th></tr></thead>
+        <thead><tr><th scope="col">Jour</th><th scope="col">Max ${ul("temp")}</th><th scope="col">Min ${ul("temp")}</th><th scope="col">Conf. temp.</th>
+          <th scope="col">Risque de pluie</th><th scope="col">Pluie ${ul("rain")}</th><th scope="col">Conf. pluie</th><th scope="col">Vent ${ul("wind")}</th><th scope="col">${ul("press")}</th></tr></thead>
         <tbody>${days.map((r) => `<tr>
           <th scope="row">${dayLabel(r.iso)}${r.models < nS ? ` <small class="en-cov" title="modèles disponibles ce jour-là">${r.models}/${nS}</small>` : ""}</th>
-          <td>${r.tmax ? `${tcol(r.tmax.mean)}<small>${fmt(r.tmax.p10, 1)}–${fmt(r.tmax.p90, 1)}° · pic ${fmt(r.tmax.max, 1)}°</small>` : "—"}</td>
-          <td>${r.tmin ? `${tcol(r.tmin.mean)}<small>${fmt(r.tmin.p10, 1)}–${fmt(r.tmin.p90, 1)}° · min. ${fmt(r.tmin.min, 1)}°</small>` : "—"}</td>
+          <td>${r.tmax ? `${tcol(r.tmax.mean)}<small>${uf("temp", r.tmax.p10, 1)}–${uf("temp", r.tmax.p90, 1)}° · pic ${uf("temp", r.tmax.max, 1)}°</small>` : "—"}</td>
+          <td>${r.tmin ? `${tcol(r.tmin.mean)}<small>${uf("temp", r.tmin.p10, 1)}–${uf("temp", r.tmin.p90, 1)}° · min. ${uf("temp", r.tmin.min, 1)}°</small>` : "—"}</td>
           <td class="${isNum(r.confT) ? confCls(r.confT) : ""}">${isNum(r.confT) ? CONF[r.confT] : "—"}</td>
           <td>${isNum(r.prob) ? `<span class="en-pbar"><i style="width:${Math.round(r.prob * 100)}%"></i></span><small>${Math.round(r.prob * 100)} % des membres</small>` : "—"}</td>
-          <td>${r.rain ? `<b>${fmt(r.rain.mean, 1)}</b><small>${fmt(r.rain.p10, 1)}–${fmt(r.rain.p90, 1)} · max ${fmt(r.rain.max, 1)} mm</small>` : "—"}</td>
+          <td>${r.rain ? `<b>${uf("rain", r.rain.mean, 1)}</b><small>${uf("rain", r.rain.p10, 1)}–${uf("rain", r.rain.p90, 1)} · max ${uf("rain", r.rain.max, 1)} ${ul("rain")}</small>` : "—"}</td>
           <td class="${isNum(r.confR) ? confCls(r.confR) : ""}">${isNum(r.confR) ? CONF[r.confR] : "—"}</td>
-          <td>${r.wind ? `<b>${fmt(r.wind.mean, 0)}</b><small>p90 ${fmt(r.wind.p90, 0)}</small>` : "—"}</td>
-          <td>${r.press ? fmt(r.press.mean, 0) : "—"}</td></tr>`).join("")}</tbody>
+          <td>${r.wind ? `<b>${uf("wind", r.wind.mean, 0)}</b><small>p90 ${uf("wind", r.wind.p90, 0)}</small>` : "—"}</td>
+          <td>${r.press ? uf("press", r.press.mean, 0) : "—"}</td></tr>`).join("")}</tbody>
       </table></div>
       <p class="cm-note">Max / min : moyenne des membres, puis intervalle 10–90 % et extrême. Risque de pluie : part des membres prévoyant au moins
-        ${fmt(D.threshold, 1)} mm. Confiance température : écart 10–90 % des maximales (haut ≤ 2,5 °C, moyen ≤ 5 °C) ; confiance pluie : accord des
+        ${uf("rain", D.threshold, 1)} ${ul("rain")}. Confiance température : écart 10–90 % des maximales (haut ≤ ${ud("temp", 2.5, 1)} ${ul("temp")}, moyen ≤ ${ud("temp", 5, 0)} ${ul("temp")}) ; confiance pluie : accord des
         membres sur la pluie (≥ 85 % haut, ≥ 70 % moyen) et dispersion des cumuls. Vent : maximum journalier du vent moyen.</p>`;
   }
 

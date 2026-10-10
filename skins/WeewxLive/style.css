@@ -153,6 +153,12 @@ body {
 
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; list-style: none; margin: 6px 0 0; padding: 0; font-size: 12px; color: var(--text-2); }
 .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
+/* légende cliquable (minichart.js, meteogram.js) : masquer / réafficher une courbe */
+.legend li.lg-tg { cursor: pointer; user-select: none; -webkit-user-select: none; border-radius: 6px; padding: 1px 4px; margin: -1px -4px; }
+.legend li.lg-tg:hover { color: var(--text); background: var(--grid); }
+.legend li.lg-tg:focus-visible { outline: 2px solid var(--wind); outline-offset: 1px; }
+.legend li.lg-off { opacity: .45; text-decoration: line-through; }
+.legend li.lg-off i { filter: grayscale(1); }
 
 /* ---------- Infobulle ---------- */
 .tip {
@@ -180,6 +186,9 @@ body {
 }
 .menu a:hover { background: var(--surface); border-color: var(--border); color: var(--text); }
 .menu a[aria-current="page"] { background: var(--text); color: var(--bg); font-weight: 600; }
+/* lien vers un site extérieur (« Éclairs », nouvel onglet) */
+.menu a.ext-link { display: inline-flex; align-items: center; gap: 5px; }
+.menu a.ext-link svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
 .menu a:focus-visible, .dd-btn:focus-visible, .card h2 a:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
 
 /* titres des cartes du tableau de bord : lien vers la page de détail */
@@ -776,3 +785,66 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 /* fond de carte sans version sombre (OpenStreetMap, OpenTopoMap) : assombri en thème sombre ;
    seule la première couche (le fond) est filtrée, pas le radar ni le satellite */
 .map-dim .leaflet-tile-pane > .leaflet-layer:first-child { filter: invert(1) hue-rotate(180deg) brightness(.82) contrast(.9) saturate(.55); }
+
+/* Page « Réglages → Unités » (units.html) */
+.u-card { max-width: 760px; }
+.units-page .p-last { margin-left: 0; max-width: 760px; }
+.u-list { display: grid; gap: 4px; }
+.u-row { display: grid; grid-template-columns: 170px minmax(0, 260px) 1fr; gap: 6px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--grid); }
+.u-row label { font-weight: 600; font-size: 14px; }
+.u-row select {
+  font: inherit; font-size: 14px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; min-width: 0;
+}
+.u-row select:focus-visible, .u-tools button:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+.u-ex { color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+.u-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+.u-tools button {
+  font: inherit; font-size: 13px; color: var(--text-2); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; cursor: pointer;
+}
+.u-tools button:hover:not(:disabled) { color: var(--text); }
+.u-tools button:disabled { opacity: .5; cursor: default; }
+.u-live { color: var(--text-3); font-size: 13px; }
+@media (max-width: 640px) {
+  .u-row { grid-template-columns: 1fr; }
+}
+
+/* Mode admin (nav.js, WXA) : éléments réservés masqués hors mode admin */
+html:not(.wx-admin) [data-admin] { display: none !important; }
+
+/* Page « Réglages → Admin » (admin.html) */
+.admin-page .p-last { margin-left: 0; max-width: 760px; }
+.a-card { max-width: 560px; }
+.a-state { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-weight: 600; font-size: 15px; }
+.a-state i { width: 10px; height: 10px; border-radius: 50%; background: var(--text-3); flex: none; }
+.a-state.on i { background: var(--hum); }
+.a-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.a-row label { font-weight: 600; font-size: 14px; }
+.a-row input {
+  font: inherit; font-size: 14px; color: var(--text); background: var(--bg); min-width: 0; flex: 1 1 200px;
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; max-width: 280px;
+}
+.a-row input:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+.a-card .u-tools { margin-top: 12px; }
+.a-msg { color: var(--text-3); font-size: 13px; }
+.a-msg.err { color: var(--text); font-weight: 600; }
+.a-list { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); font-size: 14px; }
+
+/* Page « Webcam » (webcam.html) : images et vidéos l'une sous l'autre */
+.webcam-page .p-last { margin-left: 0; }
+.wc-list { display: grid; gap: 16px; max-width: 1100px; margin-top: 12px; }
+.wc-card { margin: 0; display: block; }
+.wc-card > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 10px; }
+.wc-card h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.wc-time { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.wc-admin { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  vertical-align: 2px; color: var(--text-2); border: 1px solid var(--border); }
+.wc-box { position: relative; border-radius: 10px; overflow: hidden; background: var(--grid); }
+.wc-link { display: block; }
+.wc-media { display: block; width: 100%; height: auto; max-height: 80vh; object-fit: contain; background: #000; }
+.wc-media.wc-broken { min-height: 120px; visibility: hidden; }
+.wc-err { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0;
+  color: var(--text-2); font-size: 14px; }
+.wc-err[hidden] { display: none; }
+.wc-cap { margin: 8px 0 0; color: var(--text-2); font-size: 13px; }

@@ -127,6 +127,7 @@
       }, opts));
     } else chart.setSeries(s, opts);
     chart.draw();
+    MiniChart.linkLegend($("astro-legend"), chart);   // clic : masquer / réafficher une courbe
     $("astro-chart").setAttribute("aria-label", "Hauteur du soleil et de la lune aujourd'hui" +
       (isNum(cur.sAlt) ? ` ; soleil actuellement à ${deg(cur.sAlt)}, lune à ${deg(cur.mAlt)}` : ""));
   }

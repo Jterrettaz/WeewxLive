@@ -3,6 +3,75 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 1.95
+
+- Nouvelle page **« Webcam »** (`webcam.html`, `webcam.js`, menu « Webcam ») : images et
+  vidéos l'une sous l'autre, configurées dans `[[webcam]]` (une sous-section par élément :
+  `url`, `title`, `caption`, `type`, `admin`, `refresh`, `autoplay`, `enable`).
+- `admin = true` : élément affiché seulement en mode admin ; menu « Webcam » seulement si le
+  visiteur peut voir au moins un élément.
+- Images rechargées périodiquement sans clignotement, heure du dernier chargement, ouverture
+  en grand ; message « indisponible » si le fichier est absent.
+
+## 1.94
+
+- Menu **« Éclairs »** : ouvre dans un nouvel onglet la carte Blitzortung centrée sur la
+  station (`https://maps.blitzortung.org/fr/#7/<latitude>/<longitude>`), sur toutes les
+  pages. Section `[[lightning]]` (`enable`, `zoom`) ; coordonnées de `[Station]` ou de
+  `[[forecast]]`.
+
+## 1.93
+
+- **Légendes cliquables** sur les graphiques à plusieurs courbes : un clic (ou Entrée /
+  Espace) sur un élément de la légende masque la courbe, un second la réaffiche (élément
+  barré et grisé). Masquage temporaire, jusqu'au rechargement de la page.
+  - Tableau de bord et pages « jour » : vent (moyen / rafales), pluie (horaire / cumul),
+    panneaux groupés (une mesure), cumuls génériques ; « Soleil et Lune » (soleil, lune, jour).
+  - Pages de détail, par période, « mois » et « année » : chaque courbe de la légende.
+  - Ensembles : un modèle (ses membres), moyenne groupée, bande 10–90 %, séries de pluie.
+  - Météogramme : précipitations, averses, cumul ; neige ; nuages, isotherme ; température,
+    isotherme et vent en altitude ; vent moyen, rafales, direction.
+- Les courbes masquées sortent de l'échelle (ex. rafales masquées : axe ajusté au vent moyen)
+  et de l'infobulle.
+- `minichart.js` : `MiniChart.linkLegend(ul, graphique)`, attribut `data-s` des éléments de
+  légende (indices des séries).
+
+## 1.92
+
+- Tableau de bord : panneaux **réduits par défaut**. Un nouveau visiteur voit tous les
+  panneaux réduits ; un paramètre ajouté dans `skin.conf` apparaît réduit, y compris chez les
+  visiteurs ayant déjà choisi « Tout développer ». Les choix mémorisés (panneau développé
+  ou réduit) sont conservés ; pages « jour » : panneaux toujours développés par défaut.
+
+## 1.91
+
+- **Mode admin** : option `admin = true` d'un paramètre ou d'un panneau groupé de
+  `[[parameters]]` ; ce paramètre n'est affiché qu'en mode admin (tableau de bord et liste
+  « Réorganiser », pages « jour », pages de détail, par période, « mois » et « année », menu
+  « Données »).
+- Nouvelle page **« Réglages → Admin »** (`admin.html`, `admin.js`) : entrée du mot de passe,
+  mémorisé par le navigateur, et bouton « Quitter le mode admin » ; menu « Admin (actif) ».
+- Mot de passe dans `[LiveJSON] [[admin]] password` ; seule son empreinte SHA-256 est
+  publiée (`window.WX_ADMIN` dans `wxtime.js`). Calcul de l'empreinte aussi sans
+  `crypto.subtle` (page servie en http sur le réseau local).
+- Simple masquage à l'affichage : les données restent dans les fichiers publiés et dans MQTT.
+
+## 1.90
+
+- `skin.conf` : section `[[units]]` livrée avec les unités métriques, chaque option suivie
+  de la liste des unités possibles ; `kmh` accepté pour `km/h`.
+
+## 1.89
+
+- **Unités d'affichage** : `[LiveJSON] [[units]]` choisit les unités par défaut du site
+  (température °C/°F, vent km/h, m/s, mph, kn, pluie mm/in, intensité mm/h, in/h, pression
+  hPa, inHg, mmHg, kPa, altitude m/ft, neige cm/in). Les données restent métriques ; la
+  conversion se fait à l'affichage sur toutes les pages (valeurs, graphiques, infobulles,
+  tableaux climatologiques, records, prévisions, ensembles, météogramme).
+- Nouveau menu **« Réglages → Unités »** (`units.html`) : chaque visiteur choisit ses unités,
+  mémorisées par son navigateur.
+- Carte Windy affichée dans les unités choisies.
+
 ## 1.88
 
 - Tableaux climatologiques : **valeurs provisoires** marquées (italique et astérisque, heure

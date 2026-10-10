@@ -5,7 +5,6 @@
 
   const REFRESH = 30 * 60 * 1000;
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
-  const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   // dates et heures : fuseau de la station (WXT, nav.js)
   const day = (t) => (t ? WXT.fmt(t, { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
@@ -13,12 +12,14 @@
   const month = (y, m) => new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   const $ = (id) => document.getElementById(id);
 
-  // températures colorées comme sur le tableau de bord (paliers de 3 °C, minichart.js)
+  // valeurs métriques affichées dans les unités choisies (WXU, nav.js)
+  const U = (g) => WXU.get(g);
+  // températures colorées comme sur le tableau de bord (paliers de 3 °C, minichart.js : en °C)
   const temp = (v) => {
     const c = window.TempScale && isNum(v) ? ` style="color:${TempScale.textColor(Math.round(v * 10) / 10)}"` : "";
-    return `<b${c}>${fmt(v)} °C</b>`;
+    return `<b${c}>${WXU.fmt("temp", v, 1)} ${U("temp")}</b>`;
   };
-  const mm = (v) => `<b>${fmt(v)} mm</b>`;
+  const mm = (v) => `<b>${WXU.fmt("rain", v, 1)} ${U("rain")}</b>`;
   // durée « 13 j et 17 h » (arrondie à l'heure)
   const dur = (s) => {
     const H = Math.round(s / 3600), d = Math.floor(H / 24), h = H % 24;
@@ -47,10 +48,10 @@
     const rec = r.tmin || r.tmax ? `<div class="stats x-records">
         ${tile("Température la plus basse", r.tmin ? temp(r.tmin.v) : "--", when(r.tmin))}
         ${tile("Température la plus haute", r.tmax ? temp(r.tmax.v) : "--", when(r.tmax))}
-        ${tile("Pression la plus basse", r.pmin ? `<b>${fmt(r.pmin.v)}</b><span>hPa</span>` : "--", when(r.pmin))}
-        ${tile("Pression la plus haute", r.pmax ? `<b>${fmt(r.pmax.v)}</b><span>hPa</span>` : "--", when(r.pmax))}
-        ${tile("Rafale la plus forte", r.gust ? `<b>${fmt(r.gust.v)}</b><span>km/h</span>` : "--", when(r.gust))}
-        ${tile("Pluie la plus forte en un jour", r.rainDay ? `<b>${fmt(r.rainDay.v)}</b><span>mm</span>` : "--", r.rainDay ? "le " + day(r.rainDay.t) : "")}
+        ${tile("Pression la plus basse", r.pmin ? `<b>${WXU.fmt("press", r.pmin.v, 1)}</b><span>${U("press")}</span>` : "--", when(r.pmin))}
+        ${tile("Pression la plus haute", r.pmax ? `<b>${WXU.fmt("press", r.pmax.v, 1)}</b><span>${U("press")}</span>` : "--", when(r.pmax))}
+        ${tile("Rafale la plus forte", r.gust ? `<b>${WXU.fmt("wind", r.gust.v, 1)}</b><span>${U("wind")}</span>` : "--", when(r.gust))}
+        ${tile("Pluie la plus forte en un jour", r.rainDay ? `<b>${WXU.fmt("rain", r.rainDay.v, 1)}</b><span>${U("rain")}</span>` : "--", r.rainDay ? "le " + day(r.rainDay.t) : "")}
       </div>` : "";
 
     const T = (k) => d[k] || [];
@@ -68,13 +69,13 @@
       table(`Les ${top} mois les plus secs`, "", ["Pluie du mois", "Mois"], T("dryMonths").map((x) => [mm(x.v), month(x.y, x.m)])),
     ];
     const periods = [
-      table(`Les ${top} plus longues périodes de gel`, "Température continuellement inférieure à 0 °C",
+      table(`Les ${top} plus longues périodes de gel`, `Température continuellement inférieure à ${WXU.fmt("temp", 0, 0)} ${U("temp")}`,
         ["Durée du gel", "Début", "Fin", "Température moyenne", "Température minimum"],
         T("frost").map((x) => [`<b>${dur(x.dur)}</b>`, `${day(x.start)}<small>${hm(x.start)}</small>`, `${day(x.end)}<small>${hm(x.end)}</small>`, temp(x.avg), temp(x.min)]), true),
       table(`Les ${top} plus longues périodes de sécheresse`, "Jours consécutifs sans pluie mesurée",
         ["Durée (jours)", "Premier jour sec", "Dernier jour sec"],
         T("dry").map((x) => [`<b>${esc(x.days)}</b>`, day(x.start), day(x.end)])),
-      table(`Les ${top} plus longues périodes de pluie`, `Jours consécutifs avec pluie journalière > ${fmt(th.rainDay ?? 0.2)} mm`,
+      table(`Les ${top} plus longues périodes de pluie`, `Jours consécutifs avec pluie journalière > ${WXU.fmt("rain", th.rainDay ?? 0.2, 1)} ${U("rain")}`,
         ["Durée (jours)", "Premier jour pluvieux", "Dernier jour pluvieux", "Pluie totale de la période"],
         T("wet").map((x) => [`<b>${esc(x.days)}</b>`, day(x.start), day(x.end), mm(x.total)]), true),
     ];

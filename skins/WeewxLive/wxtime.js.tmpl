@@ -1,3 +1,9 @@
-## weewx-live — fuseau horaire de la station, lu par nav.js (fonctions WXT)
+## weewx-live — fuseau horaire et unités par défaut de la station, empreinte du mot de passe
+## admin, lus par nav.js (WXT, WXU, WXA)
 /* weewx-live — fuseau horaire de la station (nom IANA, ou null : fuseau du navigateur) */
 window.WX_TZ = $livejson_tz;
+/* unités d'affichage par défaut du site ([LiveJSON] [[units]] ; {} : unités métriques) */
+window.WX_UNITS = $livejson_units;
+/* empreinte du mot de passe admin ([LiveJSON] [[admin]] password ; null : mode admin non
+   configuré), comparée par nav.js (WXA) à celle mémorisée par le navigateur */
+window.WX_ADMIN = $livejson_admin;

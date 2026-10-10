@@ -9,7 +9,11 @@
   const $ = (id) => document.getElementById(id);
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
-  const B = (v, u, d = 1) => `<b>${fmt(v, d)}${u ? " " + u : ""}</b>`;
+  // valeur en gras ; unité métrique convertie dans l'unité d'affichage choisie (WXU, nav.js)
+  const B = (v, u, d = 1) => {
+    const g = WXU.groupOf(u);
+    return `<b>${g ? WXU.fmt(g, v, d) : fmt(v, d)}${u ? " " + (g ? WXU.get(g) : u) : ""}</b>`;
+  };
   // dates et heures : fuseau de la station (WXT, nav.js)
   const hm = (t) => (isNum(t) ? WXT.hm(t) : "--");
   const dmy = (t) => (isNum(t) ? WXT.fmt(t, { day: "2-digit", month: "long", year: "numeric" }) : "--");

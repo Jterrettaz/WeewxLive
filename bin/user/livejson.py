@@ -23,6 +23,8 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
   $livejson_dash_order, $livejson_refresh, $livejson_fc_days : valeurs pour les gabarits
                            HTML (index.html.tmpl, pages d'archives)
   $livejson_tz             fuseau horaire de la station, chaîne JSON (wxtime.js.tmpl)
+  $livejson_units          unités d'affichage par défaut, objet JSON (wxtime.js.tmpl)
+  $livejson_admin          empreinte du mot de passe admin, chaîne JSON ou null (wxtime.js.tmpl)
 
 Le générateur LiveCheetahGenerator applique l'option [[archives]] (types de pages
 d'archives produits, nombre de pages « jour »).
@@ -39,12 +41,13 @@ mesures sont publiées dans l'unité de la base).
 import bisect
 import calendar
 import datetime
+import hashlib
 import html
-import re
 import json
 import logging
 import math
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -60,7 +63,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, getFileName, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.88"
+VERSION = "1.95"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -331,8 +334,30 @@ def _parse_params(opts):
             "decimals": _int(conf.get("decimals"), decimals, 0, 4),
             "color": color,
             "hint": conf.get("hint", "cumul du jour" if agg == "sum" and not builtin else ""),
+            # admin = true : affiché seulement en mode admin ([[admin]] password)
+            "admin": to_bool(conf.get("admin", False)),
         })
     return out
+
+
+ADMIN_SALT = "weewx-live:"     # préfixe du mot de passe avant le calcul de l'empreinte
+
+
+def _admin_hash(opts, params):
+    """[[admin]] password : empreinte SHA-256 (hexadécimal) de ADMIN_SALT + mot de passe,
+    publiée dans wxtime.js à la place du mot de passe ; None si aucun mot de passe."""
+    adm = opts.get("admin", {}) or {}
+    pw = adm.get("password", "")
+    if isinstance(pw, (list, tuple)):         # configobj : virgules -> liste
+        pw = ",".join(str(x) for x in pw)
+    pw = str(pw or "")
+    n_admin = [p["id"] for p in params if p.get("admin")]
+    if not pw:
+        if n_admin:
+            log.error("livejson: paramètres réservés à l'admin (%s) sans [[admin]] password : "
+                      "ils ne sont affichés à personne", ", ".join(n_admin))
+        return None
+    return hashlib.sha256((ADMIN_SALT + pw).encode("utf-8")).hexdigest()
 
 
 def _apply_order(ids, order):
@@ -382,7 +407,7 @@ def _parse_group(gid, sec, conf, seen):
             "unit": m.get("unit", conf.get("unit", label if target else "")),
             "decimals": _int(m.get("decimals", conf.get("decimals")), decimals, 0, 4),
             "color": _color(m.get("color"), GROUP_PALETTE[len(members) % len(GROUP_PALETTE)]),
-            "hint": "",
+            "hint": "", "admin": False,
         })
     if not members:
         log.error("livejson: groupe %s sans mesure, ignoré", gid)
@@ -395,6 +420,7 @@ def _parse_group(gid, sec, conf, seen):
         "unit": unit,
         "decimals": _int(conf.get("decimals"), members[0]["decimals"], 0, 4),
         "color": "", "hint": conf.get("hint", unit), "members": members,
+        "admin": to_bool(conf.get("admin", False)),
     }
 
 
@@ -436,6 +462,57 @@ def _layers(spec):
         name, _, label = item.partition("|")
         out.append({"name": name.strip(), "label": (label or name).strip()})
     return out
+
+
+# ----------------------------------------------------------------------
+# Page « Webcam » ([[webcam]])
+# ----------------------------------------------------------------------
+WEBCAM_VIDEO_EXT = (".mp4", ".m4v", ".webm", ".mov", ".ogv")
+WEBCAM_IMAGE_EXT = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif")
+
+
+def _media_url(src):
+    """Adresse d'une image ou d'une vidéo : http(s), chemin absolu ou relatif ; None sinon."""
+    src = str(src or "").strip()
+    if not src:
+        return None
+    low = src.lower()
+    if ":" in low.split("/")[0] and not low.startswith(("http://", "https://")):
+        return None
+    return src
+
+
+def _webcam(opts):
+    """[[webcam]] : une sous-section par image ou vidéo, dans l'ordre d'affichage
+    (title, url, type = image | video, sinon déduit de l'extension, admin, refresh)."""
+    sec = opts.get("webcam", {}) or {}
+    refresh = _int(sec.get("refresh"), 60, 0, 86400)
+    items = []
+    for wid in getattr(sec, "sections", []):
+        w = sec[wid]
+        if not to_bool(w.get("enable", True)):
+            continue
+        url = _media_url(w.get("url"))
+        if not url:
+            log.error("livejson: [[webcam]] %s : adresse (url) absente ou non autorisée, élément ignoré", wid)
+            continue
+        kind = str(w.get("type", "") or "").strip().lower()
+        if kind not in ("image", "video"):
+            if kind:
+                log.error("livejson: [[webcam]] %s : type « %s » inconnu (image, video)", wid, kind)
+            path = url.split("?", 1)[0].split("#", 1)[0].lower()
+            kind = "video" if path.endswith(WEBCAM_VIDEO_EXT) else "image"
+            if not path.endswith(WEBCAM_VIDEO_EXT + WEBCAM_IMAGE_EXT):
+                log.info("livejson: [[webcam]] %s : extension non reconnue, affiché comme image (type = video sinon)", wid)
+        items.append({
+            "id": wid, "title": str(w.get("title", wid) or wid), "url": url, "type": kind,
+            "caption": str(w.get("caption", "") or ""),
+            "admin": to_bool(w.get("admin", False)),
+            # images : rechargement (s, 0 = jamais) ; vidéos : lecture automatique (muette)
+            "refresh": _int(w.get("refresh"), refresh, 0, 86400),
+            "autoplay": to_bool(w.get("autoplay", False)),
+        })
+    return {"enable": to_bool(sec.get("enable", True)) and bool(items), "items": items}
 
 
 # ----------------------------------------------------------------------
@@ -598,6 +675,44 @@ def _dash_order(opts):
     return order + [b for b in DASH_BLOCKS if b not in order]
 
 
+# unités d'affichage par défaut ([LiveJSON] [[units]]) : option -> (grandeur de nav.js (WXU),
+# {nom accepté (minuscules) : libellé affiché}). Les données restent métriques ; la conversion
+# se fait dans le navigateur, et chaque visiteur peut choisir les siennes (Réglages → Unités).
+DISPLAY_UNITS = {
+    "temperature": ("temp", {"°c": "°C", "c": "°C", "degree_c": "°C", "celsius": "°C",
+                             "°f": "°F", "f": "°F", "degree_f": "°F", "fahrenheit": "°F"}),
+    "wind": ("wind", {"km/h": "km/h", "km_per_hour": "km/h", "kmh": "km/h",
+                      "m/s": "m/s", "meter_per_second": "m/s", "mph": "mph", "mile_per_hour": "mph",
+                      "kn": "kn", "knot": "kn", "kt": "kn", "nœud": "kn", "noeud": "kn"}),
+    "rain": ("rain", {"mm": "mm", "in": "in", "inch": "in"}),
+    "rain_rate": ("rainRate", {"mm/h": "mm/h", "mm_per_hour": "mm/h",
+                               "in/h": "in/h", "inch_per_hour": "in/h"}),
+    "pressure": ("press", {"hpa": "hPa", "mbar": "hPa", "inhg": "inHg", "inch_hg": "inHg",
+                           "mmhg": "mmHg", "mm_hg": "mmHg", "kpa": "kPa"}),
+    "altitude": ("alt", {"m": "m", "meter": "m", "ft": "ft", "foot": "ft"}),
+    "snow": ("snow", {"cm": "cm", "in": "in", "inch": "in"}),
+}
+
+
+def _display_units(opts):
+    """Unités par défaut des pages ({grandeur WXU : libellé}), options invalides ignorées."""
+    sec = opts.get("units", {}) or {}
+    out = {}
+    for k, v in sec.items():
+        key = str(k).strip().lower()
+        if key not in DISPLAY_UNITS:
+            log.error("livejson: [[units]] : grandeur « %s » inconnue (%s)", k, ", ".join(DISPLAY_UNITS))
+            continue
+        g, names = DISPLAY_UNITS[key]
+        u = names.get(str(v).strip().lower())
+        if u is None:
+            log.error("livejson: [[units]] %s = %s : unité inconnue (%s)", k, v,
+                      ", ".join(sorted(set(names.values()), key=list(names.values()).index)))
+            continue
+        out[g] = u
+    return out
+
+
 def _as_list(v):
     """Liste d'une option configobj (« a, b » -> ['a', 'b'])."""
     if v is None:
@@ -674,7 +789,11 @@ class LiveJSON(SearchList):
         self.astro = dict(opts.get("astro", {}))
         self.ensembles = dict(opts.get("ensembles", {}))
         self.meteogram = dict(opts.get("meteogram", {}))
+        self.lightning = dict(opts.get("lightning", {}))
+        self.webcam = _webcam(opts)
         self.dash_order = _dash_order(opts)
+        # unités d'affichage par défaut ([[units]]) : window.WX_UNITS (wxtime.js) et config.json
+        self.display_units = _display_units(opts)
         self.arch = _archive_options(opts)
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
@@ -684,6 +803,7 @@ class LiveJSON(SearchList):
         cov = _to_float(ext.get("min_day_coverage"), 0.75)
         self.ext_cover = min(1.0, max(0.0, cov / 100.0 if cov > 1 else cov))
         self._setup_params(opts)
+        self.admin_hash = _admin_hash(opts, self.params)
 
     def _setup_params(self, opts):
         """Prépare colonnes, unités et agrégats à calculer selon [[parameters]]."""
@@ -787,6 +907,10 @@ class LiveJSON(SearchList):
             "livejson_hours": self.hours,
             # fuseau horaire de la station (wxtime.js.tmpl), chaîne JSON ou null
             "livejson_tz": json.dumps(self.tz),
+            # empreinte du mot de passe admin (null : mode admin non configuré), wxtime.js
+            "livejson_admin": json.dumps(self.admin_hash),
+            # unités d'affichage par défaut (wxtime.js.tmpl), objet JSON
+            "livejson_units": json.dumps(self.display_units, ensure_ascii=True),
             "livejson_fc_days": self._fc_days(),
             "livejson_config_inline": _Lazy(lambda: self._dump(self.config()).replace("</", "<\\/")),
             # $livejson_period.p7d, etc.
@@ -858,6 +982,8 @@ class LiveJSON(SearchList):
             "hardware": self.hardware_label(),
             "logo": self.logo,
             "timezone": self.tz,
+            # unités d'affichage par défaut ({grandeur : unité}, [[units]]), lues par nav.js (WXU)
+            "units": self.display_units,
             # fenêtre des graphiques et cumuls glissants du tableau de bord (heures)
             "hours": self.hours,
             "latitude": lat,
@@ -871,6 +997,11 @@ class LiveJSON(SearchList):
             # prévisions d'ensemble (menu « Prévisions », page ensembles.html)
             "ensembles": {"enable": to_bool(self.ensembles.get("enable", True))},
             "meteogram": {"enable": to_bool(self.meteogram.get("enable", True))},
+            # menu « Éclairs » : carte Blitzortung centrée sur la station (nouvel onglet)
+            "lightning": {"enable": to_bool(self.lightning.get("enable", True)),
+                          "zoom": _int(self.lightning.get("zoom"), 7, 2, 12)},
+            # page « Webcam » : images et vidéos ([[webcam]]), éléments admin compris
+            "webcam": self.webcam,
             "forecast": {
                 "enable": to_bool(f.get("enable", True)),
                 # modèle par défaut et modèles de la liste déroulante (identifiant, nom)
@@ -942,7 +1073,7 @@ class LiveJSON(SearchList):
     @staticmethod
     def _public_param(p):
         q = {k: p[k] for k in ("id", "key", "type", "title", "column", "mqtt", "aggregate",
-                               "builtin", "unit", "decimals", "color", "hint")}
+                               "builtin", "unit", "decimals", "color", "hint", "admin")}
         if p["type"] == "group":
             q["members"] = [LiveJSON._public_param(m) for m in p["members"]]
         return q

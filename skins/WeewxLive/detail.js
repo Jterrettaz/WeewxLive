@@ -40,8 +40,10 @@
   // définitions des paramètres supplémentaires (agrégat min-max, max ou sum)
   const GENERIC_COLORS = ["--press", "--hum", "--sun", "--temp", "--wind"];
   const MEMBER_COLORS = ["--wind", "--temp", "--hum", "--sun", "--press"];
+  // Paramètres réservés à l'admin (admin = true) : retirés hors mode admin (WXA, nav.js)
   function applyParams(list) {
     if (!list || !list.length) return;
+    list = list.filter((p) => WXA.visible(p));
     for (const k of Object.keys(P)) if (!list.some((p) => p.id === k && p.builtin)) delete P[k];
     let gi = 0;
     for (const p of list) {
@@ -76,6 +78,12 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const fmt = (v, d) => isNum(v)
     ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--";
+  // unités d'affichage (WXU, nav.js) : valeurs métriques converties, libellé de l'unité retenue ;
+  // unité sans grandeur connue (%, µg/m³…) : inchangée
+  const ufmt = (v, unit, d) => { const g = WXU.groupOf(unit); return g ? WXU.fmt(g, v, d) : fmt(v, d); };
+  const ulab = (unit) => { const g = WXU.groupOf(unit); return g ? WXU.get(g) : unit; };
+  // écart (amplitude…) : sans décalage (°C -> °F : × 1,8)
+  const dfmt = (v, unit, d) => { const g = WXU.groupOf(unit); return g ? fmt(WXU.delta(g, v), WXU.dec(g, d)) : fmt(v, d); };
   // dates et heures : fuseau de la station (WXT, nav.js)
   const fr = (t, o) => WXT.fmt(t, o);
   const hm = (t) => fr(t, { hour: "2-digit", minute: "2-digit" });
@@ -132,7 +140,9 @@
       const st = d.stats || {}, S = d.series || {}, days = d.days, th = (days && days.thresholds) || {};
       const u = def.unit, n = def.dec;
       const T = [];
-      const add = (label, value, unit, sub, dec = n) => T.push({ label, value: fmt(value, dec), unit: isNum(value) ? unit : "", sub: sub || "" });
+      const add = (label, value, unit, sub, dec = n, diff = false) => T.push({
+        label, value: (diff ? dfmt : ufmt)(value, unit, dec), unit: isNum(value) ? ulab(unit) : "", sub: sub || "",
+      });
       // pluie sur 24 h : plus forte heure [début, mm, fin]
       const maxHour = (hours) => {
         const best = hours.reduce((a, b) => (!a || b[1] > a[1] ? b : a), null);
@@ -145,11 +155,11 @@
         add("Maximum", s.max, u, when(s.maxTime));
         add("Moyenne", s.avg, u);
         if (param === "outTemp" || param === "barometer") {
-          add(param === "outTemp" ? "Amplitude" : "Écart", isNum(s.max) && isNum(s.min) ? s.max - s.min : null, u, "entre min. et max.");
+          add(param === "outTemp" ? "Amplitude" : "Écart", isNum(s.max) && isNum(s.min) ? s.max - s.min : null, u, "entre min. et max.", n, true);
         }
         if (param === "outTemp" && days) {
-          add("Jours de gel", days.frostDays, "", `min. < ${fmt(th.frost, 0)} °C · sur ${days.days} j`, 0);
-          add("Jours chauds", days.hotDays, "", `max. ≥ ${fmt(th.hot, 0)} °C · sur ${days.days} j`, 0);
+          add("Jours de gel", days.frostDays, "", `min. < ${WXU.fmt("temp", th.frost, 0)} ${WXU.get("temp")} · sur ${days.days} j`, 0);
+          add("Jours chauds", days.hotDays, "", `max. ≥ ${WXU.fmt("temp", th.hot, 0)} ${WXU.get("temp")} · sur ${days.days} j`, 0);
         }
       } else if (def.kind === "wind") {
         const s = st.windSpeed || {}, g = st.windGust || {}, dir = (st.windDir || {}).vecdir;
@@ -180,7 +190,7 @@
         add("Cumul", r.sum, u);
         add("Intensité max.", rr.max, "mm/h", rr.max ? when(rr.maxTime) : "");
         if (days) {
-          add("Jours de pluie", days.rainDays, "", `≥ ${fmt(th.rain, 1)} mm · sur ${days.days} j`, 0);
+          add("Jours de pluie", days.rainDays, "", `≥ ${WXU.fmt("rain", th.rain, 1)} ${WXU.get("rain")} · sur ${days.days} j`, 0);
           const m = days.maxDailyRain;
           add("Max. journalier", m ? m.value : null, u, m && m.value ? dayLabel(m.time) : "");
         } else {
@@ -195,7 +205,7 @@
     // Panneau groupé : tableau (une ligne par mesure) au lieu des tuiles
     function groupTable(d) {
       const st = d.stats || {}, mm = def.agg === "min-max";
-      const cell = (v, m, t) => `<td><b>${esc(fmt(v, m.dec))}</b>${isNum(v) && m.unit ? `<small class="u">${esc(m.unit)}</small>` : ""}${t ? `<small>${esc(when(t))}</small>` : ""}</td>`;
+      const cell = (v, m, t) => `<td><b>${esc(ufmt(v, m.unit, m.dec))}</b>${isNum(v) && m.unit ? `<small class="u">${esc(ulab(m.unit))}</small>` : ""}${t ? `<small>${esc(when(t))}</small>` : ""}</td>`;
       const rows = def.members.map((m) => {
         const s = st[m.key] || {};
         return `<tr><th scope="row"><i class="sw" style="background:var(${m.color})"></i>${esc(m.title)}</th>
@@ -254,6 +264,7 @@
       const res = d.resolution, S = d.series || {};
       const bucket = res === "hour" ? 3600 : res === "day" ? 86400 : 0;
       const mid = (p) => [p[0] + bucket / 2, p[1]];
+      // légende : texte seul, ou [texte, indices des séries] (clic : masquer / réafficher)
       const series = [], legend = [];
       const swatch = (color, band) => band
         ? `<i class="band" style="background:color-mix(in srgb, var(${color}) 30%, transparent)"></i>`
@@ -271,8 +282,8 @@
           pointColor: (p) => (isNum(p[3]) ? TempScale.color(p[3]) : "var(--text-3)"),
         });
         series.push({ type: "line", label: "Moyenne", color: "--text-2", width: 1.5, endDot: false, data: (o.avg || []).map((p) => [p[0] + 43200, p[1]]) });
-        legend.push(`${TempScale.hiloSwatch()}Min. – max. du jour`);
-        legend.push(swatch("--text-2") + "Moyenne journalière");
+        legend.push([`${TempScale.hiloSwatch()}Min. – max. du jour`, 0]);
+        legend.push([swatch("--text-2") + "Moyenne journalière", 1]);
         legend.push(TempScale.legend());
       } else if (def.kind === "band") {
         const o = S[def.obs] || (res === "raw" ? [] : {});
@@ -287,20 +298,20 @@
           const band = (o.max || []).filter((p) => mins.has(p[0])).map((p) => [p[0] + bucket / 2, mins.get(p[0]), p[1]]);
           series.push({ type: "band", tempScale: ts, label: "Min. – max.", color: def.color, data: band });
           series.push({ type: "line", tempScale: ts, label: "Moyenne", color: def.color, endDot: false, data: (o.avg || []).map(mid) });
-          legend.push(sw(true) + (res === "hour" ? "Min. – max. horaires" : "Min. – max. journaliers"));
-          legend.push(sw(false) + (res === "hour" ? "Moyenne horaire" : "Moyenne journalière"));
+          legend.push([sw(true) + (res === "hour" ? "Min. – max. horaires" : "Min. – max. journaliers"), 0]);
+          legend.push([sw(false) + (res === "hour" ? "Moyenne horaire" : "Moyenne journalière"), 1]);
           if (ts) legend.push(TempScale.stepLegend());
         }
       } else if (def.kind === "wind") {
         if (res === "raw") {
           series.push({ type: "line", fill: true, label: "Moyen", color: "--wind", data: S.windSpeed || [] });
           series.push({ type: "line", label: "Rafales", color: "--gust", width: 1.5, endDot: false, data: S.windGust || [] });
-          legend.push(swatch("--wind") + "Vent moyen", swatch("--gust") + "Rafales");
+          legend.push([swatch("--wind") + "Vent moyen", 0], [swatch("--gust") + "Rafales", 1]);
         } else {
           series.push({ type: "line", fill: true, label: "Moyen", color: "--wind", endDot: false, data: ((S.windSpeed || {}).avg || []).map(mid) });
           series.push({ type: "line", label: "Rafale max.", color: "--gust", width: 1.5, endDot: false, data: ((S.windGust || {}).max || []).map(mid) });
           const per = res === "hour" ? "horaire" : "journalier";
-          legend.push(swatch("--wind") + `Vent moyen ${per}`, swatch("--gust") + `Rafale max. ${res === "hour" ? "horaire" : "journalière"}`);
+          legend.push([swatch("--wind") + `Vent moyen ${per}`, 0], [swatch("--gust") + `Rafale max. ${res === "hour" ? "horaire" : "journalière"}`, 1]);
         }
       } else if (def.kind === "max") {
         const o = S[def.obs] || (res === "raw" ? [] : {});
@@ -309,8 +320,8 @@
         } else {
           series.push({ type: "line", fill: true, label: "Maximum", color: def.color, endDot: false, data: (o.max || []).map(mid) });
           if (o.avg && o.avg.length) series.push({ type: "line", label: "Moyenne", color: "--text-3", width: 1.5, endDot: false, data: o.avg.map(mid) });
-          legend.push(swatch(def.color) + (res === "hour" ? "Maximum horaire" : "Maximum journalier"));
-          if (o.avg && o.avg.length) legend.push(swatch("--text-3") + (res === "hour" ? "Moyenne horaire" : "Moyenne journalière"));
+          legend.push([swatch(def.color) + (res === "hour" ? "Maximum horaire" : "Maximum journalier"), 0]);
+          if (o.avg && o.avg.length) legend.push([swatch("--text-3") + (res === "hour" ? "Moyenne horaire" : "Moyenne journalière"), 1]);
         }
       } else if (def.kind === "group") {
         // une courbe par mesure : relevés bruts (24 h), sinon moyenne ou maximum horaire / journalier
@@ -318,8 +329,8 @@
         for (const m of def.members) {
           const o = S[m.key] || (res === "raw" ? [] : {});
           const data = res === "raw" ? o : (o[agg] || []).map(mid);
+          legend.push([swatch(m.color) + esc(m.title), series.length]);
           series.push({ type: "line", label: m.title, color: m.color, width: 1.75, endDot: res === "raw", data });
-          legend.push(swatch(m.color) + esc(m.title));
         }
         if (res !== "raw") {
           legend.push(`<span class="lg-note">${agg === "max" ? (res === "hour" ? "maximum horaire" : "maximum journalier")
@@ -335,7 +346,7 @@
         const cumCol = def.generic ? "--text-2" : "--rainsum";
         // cumul sur la période : seconde échelle, à droite (barres lisibles même si le cumul est fort)
         series.push({ type: "line", label: "Cumul", color: cumCol, axis: "right", maxGap: 1e9, data: rainCumul(d) });
-        legend.push(swatch(col) + (def.generic ? `${name} : cumul ${unitLabel}` : lab), swatch(cumCol) + "Cumul sur la période (échelle de droite)");
+        legend.push([swatch(col) + (def.generic ? `${name} : cumul ${unitLabel}` : lab), 0], [swatch(cumCol) + "Cumul sur la période (échelle de droite)", 1]);
       }
       return { series, legend };
     }
@@ -375,11 +386,17 @@
         maxGap: res === "raw" ? 3600 : res === "hour" ? 3 * 3600 : 3 * 86400,
         tipHead: tipHead(res),
       };
+      // panneau groupé sans unité commune : grandeur commune à toutes les mesures, sinon pas de conversion
+      if (def.kind === "group" && !def.unit) {
+        const gs = new Set(def.members.map((m) => WXU.groupOf(m.unit)));
+        opts.ugroup = gs.size === 1 ? [...gs][0] : null;
+      }
       if (!chart) chart = new MiniChart($q(".chart"), Object.assign({ series }, opts));
       else chart.setSeries(series, opts);
       chart.draw();
       $q(".chart-title").textContent = chartTitle(res);
-      $q(".legend").innerHTML = legend.map((l) => `<li>${l}</li>`).join("");
+      $q(".legend").innerHTML = legend.map((l) => (Array.isArray(l) ? `<li data-s="${l[1]}">${l[0]}</li>` : `<li>${l}</li>`)).join("");
+      MiniChart.linkLegend($q(".legend"), chart);
     }
 
     let last = null;   // dernières données (redessin au changement de thème clair / sombre)

@@ -19,11 +19,20 @@
  *   alpha (line) : opacité de la courbe ; tipRank : ordre dans l'infobulle (croissant)
  *   tempScale: true colore la courbe selon la valeur, par paliers de 3 °C (TempScale,
  *   TEMP_STEPS) — dégradé vertical sur l'axe Y. Une valeur null interrompt la courbe.
+ * Unités : les données sont en unités métriques ; si « unit » (ou y2.unit) est une unité
+ * convertible (°C, km/h, mm, mm/h, hPa, m, cm : WXU.groupOf, nav.js), le graphique affiche
+ * l'unité choisie par le visiteur (copie convertie des séries, données intactes) ; floor,
+ * ceil et minRange restent exprimés en unités métriques. ugroup : grandeur imposée (null : aucune).
  * Options : unit, decimals, floor, ceil, minRange, maxGap, padLeft, yTicks,
  *   span (fenêtre glissante, s) ou range [t0, t1] (fenêtre fixe),
  *   xTicks : "h6" | "day" | "week" | "month" | "list" (+ xTickList [{t, label}]),
  *   tipHead(t, série, point) -> en-tête de l'infobulle,
  *   yFixed [lo, hi, pas] (axe Y fixe), yFormat(v) (étiquettes Y), valueFormat(v) (valeur de l'infobulle)
+ * Courbes masquées (temporairement, jusqu'au rechargement de la page) par un clic sur leur
+ * légende : MiniChart.linkLegend(ul, graphique ou [graphiques]) ; chaque <li data-s="0,2">
+ * masque / réaffiche les séries d'indices 0 et 2 (data-sc="1" : du 2e graphique de la liste).
+ * Sans data-s, si la légende a autant d'éléments que le graphique de séries, l'élément i
+ * correspond à la série i. Les séries masquées sont exclues de l'échelle et de l'infobulle.
  */
 (function () {
   "use strict";
@@ -94,6 +103,7 @@
       this.el = el;
       this.o = Object.assign({ span: 86400, decimals: 1, maxGap: 1200, minRange: 1, xTicks: "h6" }, o);
       this.series = o.series;
+      this.off = new Set();      // indices des séries masquées par le visiteur (légende)
       this.now = Date.now() / 1000;
       this.hover = null;
       this.canvas = document.createElement("canvas");
@@ -129,6 +139,8 @@
     setNow(t) { this.now = t; }
     setRange(t0, t1) { this.o.range = [t0, t1]; }
     setSeries(series, opts) {
+      // autre composition (nombre de séries) : courbes masquées réaffichées
+      if (!series || !this.series || series.length !== this.series.length) this.off.clear();
       this.series = series; if (opts) Object.assign(this.o, opts);
       if (this.hover !== null) { this.hover = null; hideTip(); }
     }
@@ -193,7 +205,7 @@
     yRange2(left) {
       const list = this.series.filter((s) => s.axis === "right");
       if (!list.length) return null;
-      const o = Object.assign({ floor: 0, minRange: 1 }, this.o.y2);
+      const o = this._o2 || Object.assign({ floor: 0, minRange: 1 }, this.o.y2);
       const r = this.yRange(list, Object.assign({}, o, { ceil: undefined }));
       const n = Math.max(1, Math.round((left.hi - left.lo) / left.step));
       const raw = Math.max(r.hi - r.lo, o.minRange) / n;
@@ -201,6 +213,54 @@
       const step = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((m) => m * p).find((v) => v >= raw - 1e-9) || 10 * p;
       const lo = r.lo;
       return { lo, hi: lo + step * n, step, o };
+    }
+
+    // Vue des séries dans les unités affichées (WXU) : copies converties, mises en cache tant
+    // que les données d'origine ne changent pas ; chaque point converti garde l'original
+    // (q._src : couleurs calculées en métrique, ex. pointColor) ; s._g : grandeur de la série.
+    // Prépare aussi les options d'échelle converties (this._oL, this._o2) et les libellés.
+    _view() {
+      const W = window.WXU, o = this.o;
+      const grp = (unit, forced) => (forced !== undefined ? forced : W ? W.groupOf(unit) : null);
+      const gL = W ? grp(o.unit, o.ugroup) : null;
+      const y2 = o.y2 || {};
+      const gR = W ? grp(y2.unit ?? o.unit, y2.ugroup !== undefined ? y2.ugroup : o.ugroup) : null;
+      const scaleOpts = (src, g) => {
+        if (!g) return src;
+        const out = Object.assign({}, src);
+        for (const k of ["floor", "ceil"]) if (isNum(src[k])) out[k] = W.conv(g, src[k]);
+        if (isNum(src.minRange)) out.minRange = W.delta(g, src.minRange);
+        if (src.yFixed) out.yFixed = src.yFixed;
+        return out;
+      };
+      this._oL = scaleOpts(o, gL);
+      this._o2 = scaleOpts(Object.assign({ floor: 0, minRange: 1 }, y2), gR);
+      this._u = {
+        L: { d: gL ? W.dec(gL, o.decimals) : o.decimals, u: gL ? W.label(gL) : (o.unit || "") },
+        R: { d: gR ? W.dec(gR, y2.decimals ?? o.decimals) : (y2.decimals ?? o.decimals), u: gR ? W.label(gR) : (y2.unit ?? o.unit ?? "") },
+      };
+      if (!gL && !gR) return this.series;
+      this._vc = this._vc || new WeakMap();
+      return this.series.map((s) => {
+        const g = s.axis === "right" ? gR : gL;
+        if (!g) return s;
+        const u = W.get(g), src = s.data, n = src.length, last = n ? src[n - 1] : null;
+        let c = this._vc.get(s);
+        const lv = last ? String(last.slice(1)) : "";
+        if (!c || c.src !== src || c.n !== n || c.last !== last || c.lv !== lv || c.u !== u) {
+          const two = s.type === "band" || s.type === "range";
+          const data = src.map((p) => {
+            const q = p.slice(); q._src = p;
+            if (isNum(q[1])) q[1] = W.conv(g, q[1]);
+            if (two && isNum(q[2])) q[2] = W.conv(g, q[2]);
+            if (s.type === "range" && isNum(q[3])) q[3] = W.conv(g, q[3]);
+            return q;
+          });
+          c = { src, n, last, lv, u, view: Object.assign(Object.create(s), { data, _g: g }) };
+          this._vc.set(s, c);
+        }
+        return c.view;
+      });
     }
 
     // tronçons continus d'une courbe ; écart maximal : maxGap de la série, sinon du graphique
@@ -216,7 +276,24 @@
       return segs;
     }
 
+    // masque des séries (indices), ou les réaffiche si elles sont toutes masquées
+    toggleSeries(idx) {
+      const hide = !idx.every((i) => this.off.has(i));
+      idx.forEach((i) => (hide ? this.off.add(i) : this.off.delete(i)));
+      if (this.hover !== null) { this.hover = null; hideTip(); }
+      this.draw();
+    }
+
+    // dessin dans les unités affichées : séries converties le temps du dessin (sans les
+    // séries masquées)
     draw() {
+      const src = this.series;
+      if (this.off.size) this.series = src.filter((_s, i) => !this.off.has(i));
+      this.series = this._view();
+      try { this._draw(); } finally { this.series = src; }
+    }
+
+    _draw() {
       const g = this.geom();
       if (!g.w || !g.h) return;
       const dpr = window.devicePixelRatio || 1;
@@ -228,7 +305,7 @@
       ctx.clearRect(0, 0, g.w, g.h);
 
       const { t0, t1 } = this.window();
-      const left = this.yRange();
+      const left = this.yRange(undefined, this._oL);
       const { step } = left;
       let { lo, hi } = left;
       const pw = g.w - g.l - g.r, ph = g.h - g.t - g.b;
@@ -326,7 +403,7 @@
             if (p[1] === null || p[2] === null) continue;
             const x = X(p[0]) - bw / 2, yTop = Y(p[2]), yBot = Y(p[1]);
             const h = Math.max(1, yBot - yTop), r = Math.min(4, bw / 2, h / 2);
-            ctx.fillStyle = s.pointColor ? canvasColor(s.pointColor(p)) : col;
+            ctx.fillStyle = s.pointColor ? canvasColor(s.pointColor(p._src || p)) : col;
             ctx.beginPath();
             if (r >= 1 && ctx.roundRect) ctx.roundRect(x, yTop, bw, h, r); else ctx.rect(x, yTop, bw, h);
             ctx.fill();
@@ -341,8 +418,8 @@
               ctx.save();
               ctx.font = "10px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
               ctx.fillStyle = muted; ctx.textAlign = "center";
-              ctx.textBaseline = "bottom"; ctx.fillText(fmtNum(p[2], this.o.decimals), X(p[0]), yTop - 2);
-              ctx.textBaseline = "top"; ctx.fillText(fmtNum(p[1], this.o.decimals), X(p[0]), yBot + 2);
+              ctx.textBaseline = "bottom"; ctx.fillText(fmtNum(p[2], this._u ? this._u.L.d : this.o.decimals), X(p[0]), yTop - 2);
+              ctx.textBaseline = "top"; ctx.fillText(fmtNum(p[1], this._u ? this._u.L.d : this.o.decimals), X(p[0]), yBot + 2);
               ctx.restore();
             }
           }
@@ -359,7 +436,10 @@
         }
 
         // dégradé vertical des températures (couleur selon la valeur, axe Y)
-        const tg = s.tempScale && window.TempScale ? TempScale.gradient(ctx, Y, lo, hi) : null;
+        // (paliers en °C : échelle Y et bornes ramenées en °C si la série est convertie)
+        const toC = s._g === "temp" ? (v) => WXU.back("temp", v) : (v) => v;
+        const Yc = s._g === "temp" ? (v) => Y(WXU.conv("temp", v)) : Y;
+        const tg = s.tempScale && window.TempScale ? TempScale.gradient(ctx, Yc, toC(lo), toC(hi)) : null;
 
         if (s.type === "band") {
           ctx.fillStyle = tg ? tg.fill : rgba(col, s.alpha || 0.2);
@@ -400,7 +480,7 @@
 
         if (s.endDot !== false) {
           const [t, v] = pts[pts.length - 1];
-          if (isNum(v)) dot(ctx, X(t), Y(v), tg ? TempScale.lineColor(v) : col, surface);
+          if (isNum(v)) dot(ctx, X(t), Y(v), tg ? TempScale.lineColor(toC(v)) : col, surface);
         }
       }
       ctx.restore();
@@ -427,7 +507,8 @@
           for (const { s, p } of this._hits) {
             if (!isNum(p[1]) || s.ghost) continue;
             const ts = s.tempScale && window.TempScale;
-            const col = (v) => (ts ? TempScale.lineColor(v) : css(s.color));
+            const toC = s._g === "temp" ? (v) => WXU.back("temp", v) : (v) => v;
+            const col = (v) => (ts ? TempScale.lineColor(toC(v)) : css(s.color));
             const Ys = axisOf(s).Y;
             if (s.type === "line" || s.type === "dots") dot(ctx, X(p[0]), Ys(p[1]), col(p[1]), surface);
             else if (s.type === "band") { dot(ctx, X(p[0]), Ys(p[1]), col(p[1]), surface, 3); dot(ctx, X(p[0]), Ys(p[2]), col(p[2]), surface, 3); }
@@ -441,23 +522,23 @@
       if (!el) return;
       if (!this._hits || !this._hits.length) { el.hidden = true; return; }
       const { s, p } = this._hits[0];
-      const d = this.o.decimals, u = esc(this.o.unit || "");
       const tc = center(s, p);
       let head;
       if (this.o.tipHead) head = this.o.tipHead(tc, s, p);
       else if (s.type === "bar") head = `${fr(p[0], { hour: "2-digit", minute: "2-digit" })} – ${fr(MiniChart.barEnd(s, p), { hour: "2-digit", minute: "2-digit" })}`;
       else head = fr(p[0], { weekday: "short", hour: "2-digit", minute: "2-digit" });
       const rows = this._hits.map(({ s, p }) => {
-        // seconde échelle : unité et décimales propres (options y2), sinon celles du graphique
-        const y2 = s.axis === "right" ? (this.o.y2 || {}) : {};
-        const d = y2.decimals ?? this.o.decimals, u = esc(y2.unit ?? this.o.unit ?? "");
+        // unité et décimales affichées (WXU) ; seconde échelle : options y2
+        const U = (this._u || {})[s.axis === "right" ? "R" : "L"] || { d: this.o.decimals, u: this.o.unit || "" };
+        const d = U.d, u = esc(U.u);
+        const toC = s._g === "temp" ? (v) => WXU.back("temp", v) : (v) => v;
         const val = this.o.valueFormat ? `<b>${this.o.valueFormat(p[1])}</b>`
           : s.type === "range" && s.midTick && p[3] !== null && p[3] !== undefined
             ? `<b>${fmtNum(p[1], d)}</b> – <b>${fmtNum(p[2], d)}</b> ${u} · moy. <b>${fmtNum(p[3], d)}</b> ${u}`
           : s.type === "band" || s.type === "range" ? `<b>${fmtNum(p[1], d)}</b> – <b>${fmtNum(p[2], d)}</b> ${u}`
           : `<b>${fmtNum(p[1], d)}</b> ${u}`;
-        const sw = s.pointColor ? s.pointColor(p)
-          : s.tempScale && window.TempScale ? TempScale.stepColor(s.type === "band" ? (p[1] + p[2]) / 2 : p[1]) : css(s.color);
+        const sw = s.pointColor ? s.pointColor(p._src || p)
+          : s.tempScale && window.TempScale ? TempScale.stepColor(toC(s.type === "band" ? (p[1] + p[2]) / 2 : p[1])) : css(s.color);
         return `<div><i style="background:${esc(sw)}"></i>${esc(s.label)} ${val}</div>`;
       });
       el.innerHTML = `<div class="t">${head}</div>${rows.join("")}`;
@@ -469,6 +550,55 @@
       el.style.left = x + "px"; el.style.top = y + "px";
     }
   }
+
+  // ------------------------------------------------------------------
+  // Légendes cliquables : masquer / réafficher une courbe
+  // ------------------------------------------------------------------
+  const chartsOf = (ul) => (ul && ul._mc ? ul._mc : []);
+  function syncLegend(ul) {
+    const cs = chartsOf(ul);
+    ul.querySelectorAll(":scope > li[data-s]").forEach((li) => {
+      const c = cs[+(li.dataset.sc || 0)];
+      // un graphique d'une seule série : rien à masquer
+      if (!c || !c.series || c.series.length < 2) { li.classList.remove("lg-tg", "lg-off"); li.removeAttribute("role"); li.removeAttribute("tabindex"); return; }
+      const idx = li.dataset.s.split(",").map(Number);
+      const off = idx.every((i) => c.off.has(i));
+      const name = li.textContent.replace(/\s+/g, " ").trim();
+      li.classList.add("lg-tg");
+      li.classList.toggle("lg-off", off);
+      li.setAttribute("role", "button");
+      li.tabIndex = 0;
+      li.setAttribute("aria-pressed", String(!off));
+      li.title = `${off ? "Afficher" : "Masquer"} « ${name} » sur le graphique`;
+    });
+  }
+  // relie une légende (ul) à un ou plusieurs graphiques ; à rappeler après chaque
+  // reconstruction de la légende (état des éléments réappliqué)
+  MiniChart.linkLegend = (ul, charts) => {
+    if (!ul) return;
+    const cs = (Array.isArray(charts) ? charts : [charts]).filter(Boolean);
+    if (!cs.length) return;
+    ul._mc = cs;
+    const lis = [...ul.children].filter((x) => x.tagName === "LI");
+    if (!lis.some((x) => x.dataset.s !== undefined) && cs[0].series && lis.length === cs[0].series.length) {
+      lis.forEach((x, i) => (x.dataset.s = String(i)));
+    }
+    syncLegend(ul);
+  };
+  function onLegend(e) {
+    const li = e.target.closest && e.target.closest("li.lg-tg[data-s]");
+    if (!li) return;
+    if (e.type === "keydown") {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+    }
+    const ul = li.parentElement, c = chartsOf(ul)[+(li.dataset.sc || 0)];
+    if (!c) return;
+    c.toggleSeries(li.dataset.s.split(",").map(Number));
+    syncLegend(ul);
+  }
+  document.addEventListener("click", onLegend);
+  document.addEventListener("keydown", onLegend);
 
   function center(s, p) {
     return s.type === "bar" ? (p[0] + MiniChart.barEnd(s, p)) / 2 : p[0];
@@ -533,15 +663,18 @@
     const ch = (sh) => Math.round(((a >> sh) & 255) * (1 - f) + ((b >> sh) & 255) * f);
     return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
   }
+  // graduations et libellés des légendes dans l'unité choisie (WXU, nav.js) ; positions en °C
+  const tU = () => (window.WXU ? WXU.get("temp") : "°C");
+  const tLab = (v) => (window.WXU ? WXU.fmt("temp", v, 0) : String(v)).replace("-", "−");
   function legend() {
     // dégradé et graduations proportionnels aux valeurs (paliers non équidistants)
     const st = TEMP_STOPS[darkMode() ? "dark" : "light"];
     const v0 = st[0][0], v1 = st[st.length - 1][0], pos = (v) => ((v - v0) / (v1 - v0)) * 100;
     const grad = st.map(([v, c]) => `${c} ${pos(v).toFixed(1)}%`).join(", ");
     const ticks = [-10, 0, 10, 20, 30, 40].filter((v) => v >= v0 && v <= v1)
-      .map((v) => `<span style="left:${pos(v).toFixed(1)}%">${v}</span>`).join("");
+      .map((v) => `<span style="left:${pos(v).toFixed(1)}%">${tLab(v)}</span>`).join("");
     return `<span class="tscale"><span class="tscale-bar" style="background:linear-gradient(90deg, ${grad})"></span>` +
-      `<span class="tscale-lab">${ticks}</span></span> couleur : moyenne du jour (°C)`;
+      `<span class="tscale-lab">${ticks}</span></span> couleur : moyenne du jour (${tU()})`;
   }
   // ------------------------------------------------------------------
   // Paliers de 3 °C (courbes et chiffres de température) : une couleur fixe par tranche,
@@ -616,9 +749,10 @@
     const st = steps(), v0 = -12, v1 = 40, pos = (v) => ((Math.max(v0, Math.min(v1, v)) - v0) / (v1 - v0)) * 100;
     let prev = v0;
     const grad = st.map(([up, c]) => { const s = `${c} ${pos(prev).toFixed(1)}% ${pos(up).toFixed(1)}%`; prev = up; return s; }).join(", ");
-    const ticks = [-9, 0, 10, 19, 28, 40].map((v) => `<span style="left:${pos(v).toFixed(1)}%">${v}</span>`).join("");
+    const ticks = [-9, 0, 10, 19, 28, 40].map((v) => `<span style="left:${pos(v).toFixed(1)}%">${tLab(v)}</span>`).join("");
+    const w = (window.WXU ? WXU.delta("temp", 3) : 3).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
     return `<span class="tscale"><span class="tscale-bar" style="background:linear-gradient(90deg, ${grad})"></span>` +
-      `<span class="tscale-lab">${ticks}</span></span> couleur : tranches de 3 °C`;
+      `<span class="tscale-lab">${ticks}</span></span> couleur : tranches de ${w} ${tU()}`;
   }
   return { color, stepColor, textColor, lineColor, gradient, swatch, hiloSwatch, legend, stepLegend, darkMode };
   })();

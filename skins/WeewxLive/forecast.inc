@@ -8,11 +8,11 @@
       <div class="fc-hours" id="fc-hours" hidden>
         <div class="fh-head"><h3 id="fh-title">--</h3><button type="button" class="fh-close" id="fh-close" aria-label="Fermer le détail horaire">×</button></div>
         <div class="fh-charts">
-          <div><div class="fh-label">Température (°C)</div><div class="chart fh-chart" id="fh-temp"></div></div>
-          <div class="fh-rainbox" id="fh-rainbox"><div class="fh-label">Précipitations (mm par heure)</div><div class="chart fh-chart" id="fh-rain"></div><p class="fh-dry">Pas de précipitations prévues ce jour-là.</p></div>
+          <div><div class="fh-label">Température (<span data-ubase="°C">°C</span>)</div><div class="chart fh-chart" id="fh-temp"></div></div>
+          <div class="fh-rainbox" id="fh-rainbox"><div class="fh-label">Précipitations (<span data-ubase="mm">mm</span> par heure)</div><div class="chart fh-chart" id="fh-rain"></div><p class="fh-dry">Pas de précipitations prévues ce jour-là.</p></div>
         </div>
         <ol class="fh-strip" id="fh-strip" aria-label="Prévisions heure par heure"></ol>
-        <p class="fh-legend">Par heure : température · précipitations et probabilité · vent moyen et rafales (km/h) · humidité</p>
+        <p class="fh-legend">Par heure : température · précipitations et probabilité · vent moyen et rafales (<span data-ubase="km/h">km/h</span>) · humidité</p>
       </div>
       <p class="credit">Prévisions <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> (CC BY 4.0)</p>
     </article>

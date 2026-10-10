@@ -21,7 +21,15 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const num = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: d }) : "—");
-  const withUnit = (v, u, d) => `${num(v, d)}<span class="u"> ${esc(u || "")}</span>`;
+  // valeurs métriques affichées dans l'unité choisie (WXU, nav.js) ; couleurs et comptages
+  // de jours restent calculés sur les valeurs métriques
+  const withUnit = (v, u, d) => {
+    const g = WXU.groupOf(u);
+    return g ? `${num(WXU.conv(g, v), WXU.dec(g, d))}<span class="u"> ${esc(WXU.get(g))}</span>`
+      : `${num(v, d)}<span class="u"> ${esc(u || "")}</span>`;
+  };
+  // seuil (métrique) d'un en-tête de colonne, converti : « 0 °C » -> « 32 °F »
+  const thr = (g, v, d = 1) => `${num(WXU.conv(g, v), WXU.dec(g, d))} ${esc(WXU.get(g))}`;
   const SECT = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
   const sector = (deg) => SECT[Math.round(deg / 45) % 8];
   // méthode de calcul (skin.conf [[archives]] climato_method) : texte de la note des tableaux
@@ -143,17 +151,17 @@
       out.push(table("Température", [
         ["moy", tc("tavg")], ["moy min", tc("tminAvg")], ["min", tc("tmin", lo)],
         ["moy max", tc("tmaxAvg")], ["max", tc("tmax", hi)],
-        [`Jours sans dégel<br><small>(max ≤ ${num(TH.ice)} °C)</small>`, (r) => cnt(r.ice, r)],
-        [`Jours de gel<br><small>(min &lt; ${num(TH.frost)} °C)</small>`, (r) => cnt(r.frost, r)],
-        [`Jours<br><small>(max &gt; ${num(TH.heat)} °C)</small>`, (r) => cnt(r.heat, r)],
+        [`Jours sans dégel<br><small>(max ≤ ${thr("temp", TH.ice)})</small>`, (r) => cnt(r.ice, r)],
+        [`Jours de gel<br><small>(min &lt; ${thr("temp", TH.frost)})</small>`, (r) => cnt(r.frost, r)],
+        [`Jours<br><small>(max &gt; ${thr("temp", TH.heat)})</small>`, (r) => cnt(r.heat, r)],
       ], `Températures par mois, ${D.year}`));
     }
     if (has("rain")) {
       const top = ext("rain", Math.max);
       out.push(table("Pluie", [
         ["pluie totale", (r, tot) => val(r.rain, ur, 1, tot ? "" : rmFill(r.rain), !tot && r.rain === top && top > 0, r.prov)],
-        [`jours de pluie<br><small>(≥ ${num(TH.rain)} mm)</small>`, (r) => cnt(r.rainDays, r)],
-        [`jours ≥ ${num(TH.heavy)} mm`, (r) => cnt(r.heavyDays, r)],
+        [`jours de pluie<br><small>(≥ ${thr("rain", TH.rain)})</small>`, (r) => cnt(r.rainDays, r)],
+        [`jours ≥ ${thr("rain", TH.heavy)}`, (r) => cnt(r.heavyDays, r)],
       ], `Pluie par mois, ${D.year}`));
     }
     if (has("wind", "gust")) {

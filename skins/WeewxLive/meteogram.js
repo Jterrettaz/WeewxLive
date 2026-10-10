@@ -19,6 +19,12 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
+  // unités d'affichage (WXU, nav.js) : données métriques, conversion à l'affichage seulement
+  const ufmt = (g, v, d) => (isNum(v) ? WXU.fmt(g, v, d) : "—");
+  const uval = (g, v, d) => (isNum(v) ? `${WXU.fmt(g, v, d)} ${WXU.get(g)}` : "—");
+  const ZERO_T = () => `${WXU.fmt("temp", 0, 0)} ${WXU.get("temp")}`;   // « 0 °C » dans l'unité choisie
+  // décimales d'une graduation selon son pas
+  const stepDec = (step) => (step >= 1 ? 0 : step >= 0.1 ? 1 : 2);
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
   const dirName = (d) => (isNum(d) ? DIRS[Math.round(d / 22.5) % 16] : "");
@@ -31,6 +37,10 @@
     set(v) { try { localStorage.setItem("weewx-mg-model", v); } catch (e) { /* stockage indisponible */ } },
   };
   const panels = [];
+  // éléments masqués par le visiteur (clic sur la légende, jusqu'au rechargement de la
+  // page) : identifiant du panneau -> clés (pr, sh, cum, gu, ws…)
+  const OFF = {};
+  const shown = (p, k) => !(OFF[p.el.id] && OFF[p.el.id].has(k));
   let hover = null, raf = 0;                     // hover : { i, panel, y, cx, cy }
 
   // ------------------------------------------------------------------
@@ -181,18 +191,22 @@
     const raw = range / Math.max(1, target), pw = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / pw;
     return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * pw;
   }
-  // axe Y (valeurs) : renvoie Y(v)
+  // axe Y (valeurs métriques) : graduations rondes dans l'unité affichée (opts.g : grandeur
+  // WXU) ; renvoie Y(v) pour une valeur métrique
   function yAxis(ctx, p, lo, hi, opts = {}) {
+    const cv = (v) => (opts.g ? WXU.conv(opts.g, v) : v);
+    lo = cv(lo); hi = cv(hi);
     const step = opts.step || niceStep(hi - lo || 1, opts.ticks || 4);
-    lo = opts.floor !== undefined ? opts.floor : Math.floor(lo / step) * step;
+    lo = opts.floor !== undefined ? cv(opts.floor) : Math.floor(lo / step) * step;
     hi = Math.max(lo + step, Math.ceil(hi / step) * step);
-    const Y = (v) => TOP + (1 - (v - lo) / (hi - lo)) * p.ph;
+    const Yd = (v) => TOP + (1 - (v - lo) / (hi - lo)) * p.ph;
+    const Y = (v) => Yd(cv(v));
     ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillStyle = css("--text-3");
     ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
     for (let v = lo; v <= hi + step * 1e-6; v += step) {
-      const y = Math.round(Y(v)) + 0.5;
+      const y = Math.round(Yd(v)) + 0.5;
       if (!opts.noGrid) { ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + p.pw, y); ctx.stroke(); }
-      ctx.fillText(opts.format ? opts.format(v) : fmt(v, step < 1 ? 1 : 0), L - 6, y);
+      ctx.fillText(opts.format ? opts.format(v) : fmt(v, stepDec(step)), L - 6, y);
     }
     return { Y, lo, hi };
   }
@@ -204,7 +218,7 @@
     const t = S.temperature_2m;
     const vals = t.filter(isNum);
     if (!vals.length) return;
-    const { Y } = yAxis(ctx, p, Math.min(...vals) - 1, Math.max(...vals) + 1, { ticks: 4 });
+    const { Y } = yAxis(ctx, p, Math.min(...vals) - 1, Math.max(...vals) + 1, { ticks: 4, g: "temp" });
     ctx.lineWidth = 2.5; ctx.lineCap = "round";
     for (let i = 1; i < N; i++) {
       if (!isNum(t[i - 1]) || !isNum(t[i])) continue;
@@ -227,7 +241,7 @@
         ctx.fillStyle = window.TempScale ? TempScale.textColor(Math.round(t[i] * 10) / 10) : css("--text");
         ctx.textBaseline = up ? "bottom" : "top";
         const y = Y(t[i]) + (up ? -5 : 5);
-        ctx.fillText(fmt(t[i], 1), Math.min(Math.max(p.X(i), L + 14), L + p.pw - 14), Math.max(TOP + 12, Math.min(TOP + p.ph - 2, y)));
+        ctx.fillText(ufmt("temp", t[i], 1), Math.min(Math.max(p.X(i), L + 14), L + p.pw - 14), Math.max(TOP + 12, Math.min(TOP + p.ph - 2, y)));
       }
     }
   }
@@ -252,19 +266,20 @@
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(tmp, L, TOP, p.pw, p.ph);
   }
-  // axe des altitudes : sol (altitude du modèle) puis multiples ronds de « step » ; tirets
-  // discrets (pas de quadrillage sur les coupes colorées)
+  // axe des altitudes : sol (altitude du modèle) puis multiples ronds de « step » (m ; pas
+  // arrondi dans l'unité affichée) ; tirets discrets (pas de quadrillage sur les coupes colorées)
   function altAxis(ctx, p, top, step) {
     const z0 = elev();
     const Y = (z) => TOP + (1 - (z - z0) / (top - z0)) * p.ph;
     ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillStyle = css("--text-3");
     ctx.strokeStyle = css("--text-3"); ctx.lineWidth = 1;
-    const ticks = [z0];
-    for (let z = Math.ceil((z0 + step * 0.35) / step) * step; z <= top + 1; z += step) ticks.push(z);
-    for (const z of ticks) {
-      const y = Math.round(Y(z)) + 0.5;
+    const ds = niceStep(WXU.conv("alt", step), 1), d0 = WXU.conv("alt", z0), dtop = WXU.conv("alt", top);
+    const ticks = [d0];
+    for (let d = Math.ceil((d0 + ds * 0.35) / ds) * ds; d <= dtop + 1; d += ds) ticks.push(d);
+    for (const d of ticks) {
+      const y = Math.round(Y(WXU.back("alt", d))) + 0.5;
       ctx.beginPath(); ctx.moveTo(L - 4, y); ctx.lineTo(L, y); ctx.stroke();
-      ctx.fillText(Math.round(z).toLocaleString("fr-FR"), L - 6, y);
+      ctx.fillText(Math.round(d).toLocaleString("fr-FR"), L - 6, y);
     }
     return { Y };
   }
@@ -277,7 +292,7 @@
     const top = D.top.clouds || D.top.humidity || 12000;   // sommet du panneau (option top_clouds ; humidity : fichier antérieur à 1.68)
     CLD = CLD || grid(["cc"], top, 110);
     const cloud = cloudRGB();
-    raster(ctx, p, CLD.zs.length, (r, c) => {
+    if (shown(p, "cc")) raster(ctx, p, CLD.zs.length, (r, c) => {
       const cc = bilin(CLD.g.cc, r, c);
       if (!isNum(cc) || cc < 5) return null;
       return [cloud[0], cloud[1], cloud[2], Math.round(Math.min(1, cc / 100) * 0.9 * 255)];
@@ -285,6 +300,7 @@
     const { Y } = altAxis(ctx, p, top, top - elev() > 8000 ? 2000 : 1000);
     p.o.yOf = (y) => elev() + (1 - (y - TOP) / p.ph) * (top - elev());
     // isotherme 0 °C (altitude du gel) en tirets
+    if (!shown(p, "fz")) return;
     const fz = S.freezing_level_height;
     ctx.strokeStyle = css("--wind"); ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
     ctx.beginPath();
@@ -323,7 +339,7 @@
     const top = D.top.temperature;
     TMP = TMP || grid(["t", "u", "v"], top, 90);
     const rows = TMP.zs.length;
-    raster(ctx, p, rows, (r, c) => {
+    if (shown(p, "t")) raster(ctx, p, rows, (r, c) => {
       const t = bilin(TMP.g.t, r, c);
       if (!isNum(t)) return null;
       const col = ramp(T_STOPS, t);
@@ -336,6 +352,7 @@
     ctx.save();
     ctx.beginPath(); ctx.rect(L, TOP, p.pw, p.ph); ctx.clip();
     for (let lv = -40; lv <= 40; lv += 2) {
+      if (!shown(p, lv === 0 ? "iso" : "t")) continue;
       ctx.beginPath();
       contours(TMP.g.t, lv, (a, b) => { ctx.moveTo(gx(a[0]), gy(a[1])); ctx.lineTo(gx(b[0]), gy(b[1])); });
       ctx.strokeStyle = lv === 0 ? "#1d3fb8" : "rgba(20, 20, 20, .28)";
@@ -346,7 +363,7 @@
     const k = Math.max(1, Math.ceil(26 / (p.pw / (N - 1))));
     const step = top - elev() > 6000 ? 1000 : 500;
     ctx.strokeStyle = "rgba(15, 15, 15, .78)"; ctx.fillStyle = "rgba(15, 15, 15, .78)"; ctx.lineWidth = 1.2;
-    for (let i = 0; i < N; i += k) {
+    for (let i = 0; i < N && shown(p, "wind"); i += k) {
       for (let z = Math.ceil((elev() + 150) / step) * step; z < top - 100; z += step) {
         const r = ((z - TMP.zs[0]) / (TMP.zs[rows - 1] - TMP.zs[0])) * (rows - 1);
         const u = bilin(TMP.g.u, r, i), v = bilin(TMP.g.v, r, i);
@@ -388,16 +405,17 @@
   function drawRain(ctx, p) {
     const pr = S.precipitation, sh = S.showers;
     const mx = Math.max(1, ...pr.filter(isNum));
-    const { Y } = yAxis(ctx, p, 0, mx, { floor: 0, ticks: 3 });
-    bars(ctx, p, Y, pr, css("--rain"));
-    bars(ctx, p, Y, sh.map((v, i) => (isNum(v) && isNum(pr[i]) ? Math.min(v, pr[i]) : v)), css("--text-3"), 0.5);
-    // cumul : courbe, échelle de droite (mm)
-    const cu = CUM, cmax = Math.max(1, cu[cu.length - 1] || 0);
+    const { Y } = yAxis(ctx, p, 0, mx, { floor: 0, ticks: 3, g: "rain" });
+    if (shown(p, "pr")) bars(ctx, p, Y, pr, css("--rain"));
+    if (shown(p, "sh")) bars(ctx, p, Y, sh.map((v, i) => (isNum(v) && isNum(pr[i]) ? Math.min(v, pr[i]) : v)), css("--text-3"), 0.5);
+    // cumul : courbe, échelle de droite (graduations dans l'unité de pluie affichée)
+    const cu = CUM, cmax = WXU.conv("rain", Math.max(1, cu[cu.length - 1] || 0));
     const step = niceStep(cmax, 3), hi = Math.ceil(cmax / step) * step;
-    const Yc = (v) => TOP + (1 - v / hi) * p.ph;
+    const Yd = (v) => TOP + (1 - v / hi) * p.ph, Yc = (v) => Yd(WXU.conv("rain", v));
     const col = css("--press");
     ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillStyle = col;
-    for (let v = 0; v <= hi + step * 1e-6; v += step) ctx.fillText(fmt(v, step < 1 ? 1 : 0), L + p.pw + 6, Yc(v));
+    for (let v = 0; v <= hi + step * 1e-6; v += step) ctx.fillText(fmt(v, stepDec(step)), L + p.pw + 6, Yd(v));
+    if (!shown(p, "cum")) return;
     ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.lineJoin = "round";
     ctx.beginPath();
     cu.forEach((v, i) => (i ? ctx.lineTo(p.X(i), Yc(v)) : ctx.moveTo(p.X(i), Yc(v))));
@@ -406,32 +424,33 @@
   function drawSnow(ctx, p) {
     const sf = S.snowfall, sd = S.snow_depth.map((v) => (isNum(v) ? v * 100 : null));
     const mx = Math.max(1, ...sf.filter(isNum), ...sd.filter(isNum));
-    const { Y } = yAxis(ctx, p, 0, mx, { floor: 0, ticks: 3 });
+    const { Y } = yAxis(ctx, p, 0, mx, { floor: 0, ticks: 3, g: "snow" });
     ctx.globalAlpha = 0.6; ctx.fillStyle = css("--press");
     ctx.beginPath(); let on = false;
-    sd.forEach((v, i) => { if (!isNum(v)) return; on ? ctx.lineTo(p.X(i), Y(v)) : ctx.moveTo(p.X(i), Y(v)); on = true; });
+    if (shown(p, "sd")) sd.forEach((v, i) => { if (!isNum(v)) return; on ? ctx.lineTo(p.X(i), Y(v)) : ctx.moveTo(p.X(i), Y(v)); on = true; });
     if (on) { ctx.lineTo(p.X(N - 1), Y(0)); ctx.lineTo(p.X(0), Y(0)); ctx.closePath(); ctx.fill(); }
     ctx.globalAlpha = 1;
-    bars(ctx, p, Y, sf, css("--wind"));
+    if (shown(p, "sf")) bars(ctx, p, Y, sf, css("--wind"));
   }
   function drawWind(ctx, p) {
     const ws = S.wind_speed_10m, gu = S.wind_gusts_10m, wd = S.wind_direction_10m;
-    const mx = Math.max(10, ...gu.filter(isNum), ...ws.filter(isNum));
-    const { Y } = yAxis(ctx, p, 0, mx * 1.08, { floor: 0, ticks: 3 });
+    // échelle : rafales comprises seulement si elles sont affichées
+    const mx = Math.max(10, ...(shown(p, "gu") ? gu : []).filter(isNum), ...ws.filter(isNum));
+    const { Y } = yAxis(ctx, p, 0, mx * 1.08, { floor: 0, ticks: 3, g: "wind" });
     const line = (vals, col, w) => {
       ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.beginPath();
       let on = false;
       vals.forEach((v, i) => { if (!isNum(v)) { on = false; return; } on ? ctx.lineTo(p.X(i), Y(v)) : ctx.moveTo(p.X(i), Y(v)); on = true; });
       ctx.stroke();
     };
-    line(gu, css("--bad"), 2);
-    line(ws, css("--text"), 2);
+    if (shown(p, "gu")) line(gu, css("--bad"), 2);
+    if (shown(p, "ws")) line(ws, css("--text"), 2);
     // direction : flèche (vers où souffle le vent) sur la courbe du vent moyen, avec un
     // liseré couleur de fond pour rester lisible sur les courbes
     const k = Math.max(1, Math.ceil(28 / (p.pw / (N - 1))));
     const AR = { len: 19, head: 8 };
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    for (const halo of [true, false]) {
+    for (const halo of shown(p, "dir") ? [true, false] : []) {
       const col = css(halo ? "--surface" : "--wind");
       ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = halo ? 5 : 2.4;
       for (let i = 0; i < N; i += k) {
@@ -443,6 +462,7 @@
     }
     ctx.lineCap = "butt";
     // plus forte rafale de chaque jour
+    if (!shown(p, "gu")) return;
     ctx.font = "600 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillStyle = css("--bad");
     const days = {};
     gu.forEach((v, i) => {
@@ -450,7 +470,7 @@
       const key = WXT.ymd(T0 + i * 3600);
       if (days[key] === undefined || v > gu[days[key]]) days[key] = i;
     });
-    Object.values(days).forEach((i) => ctx.fillText(fmt(gu[i], 0), Math.min(Math.max(p.X(i), L + 12), L + p.pw - 12), Math.max(TOP + 12, Y(gu[i]) - 4)));
+    Object.values(days).forEach((i) => ctx.fillText(ufmt("wind", gu[i], 0), Math.min(Math.max(p.X(i), L + 12), L + p.pw - 12), Math.max(TOP + 12, Y(gu[i]) - 4)));
   }
 
   // ------------------------------------------------------------------
@@ -481,15 +501,15 @@
     if (!hover) { tip.hidden = true; return; }
     const i = hover.i, t = T0 + i * 3600, cum = CUM[i];
     const rows = [
-      ["Température", isNum(S.temperature_2m[i]) ? `${fmt(S.temperature_2m[i], 1)} °C` : "—", window.TempScale && isNum(S.temperature_2m[i]) ? TempScale.stepColor(S.temperature_2m[i]) : css("--temp")],
+      ["Température", uval("temp", S.temperature_2m[i], 1), window.TempScale && isNum(S.temperature_2m[i]) ? TempScale.stepColor(S.temperature_2m[i]) : css("--temp")],
       ["Humidité", isNum(S.relative_humidity_2m[i]) ? `${fmt(S.relative_humidity_2m[i], 0)} %` : "—", css("--hum")],
       ["Nébulosité", isNum(S.cloud_cover[i]) ? `${fmt(S.cloud_cover[i], 0)} %` : "—", css("--text-3")],
-      ["Précipitations", `${fmt(S.precipitation[i], 1)} mm${S.showers[i] > 0 ? ` (dont averses ${fmt(S.showers[i], 1)})` : ""}`, css("--rain")],
-      ["Cumul depuis le début", `${fmt(cum, 1)} mm`, css("--press")],
+      ["Précipitations", `${uval("rain", S.precipitation[i], 1)}${S.showers[i] > 0 ? ` (dont averses ${ufmt("rain", S.showers[i], 1)})` : ""}`, css("--rain")],
+      ["Cumul depuis le début", uval("rain", cum, 1), css("--press")],
     ];
-    if (S.snowfall[i] > 0 || S.snow_depth[i] > 0) rows.push(["Neige", `${fmt(S.snowfall[i], 1)} cm · au sol ${fmt((S.snow_depth[i] || 0) * 100, 0)} cm`, css("--wind")]);
-    rows.push(["Vent", `${fmt(S.wind_speed_10m[i], 0)} km/h ${dirName(S.wind_direction_10m[i])} · rafales ${fmt(S.wind_gusts_10m[i], 0)} km/h`, css("--bad")]);
-    if (isNum(S.freezing_level_height[i])) rows.push(["Isotherme 0 °C", `${Number(S.freezing_level_height[i]).toLocaleString("fr-FR")} m`, "#1d3fb8"]);
+    if (S.snowfall[i] > 0 || S.snow_depth[i] > 0) rows.push(["Neige", `${uval("snow", S.snowfall[i], 1)} · au sol ${uval("snow", (S.snow_depth[i] || 0) * 100, 0)}`, css("--wind")]);
+    rows.push(["Vent", `${uval("wind", S.wind_speed_10m[i], 0)} ${dirName(S.wind_direction_10m[i])} · rafales ${uval("wind", S.wind_gusts_10m[i], 0)}`, css("--bad")]);
+    if (isNum(S.freezing_level_height[i])) rows.push([`Isotherme ${ZERO_T()}`, uval("alt", S.freezing_level_height[i], 0), "#1d3fb8"]);
     // valeur sous le curseur dans les coupes en altitude
     const p = hover.panel;
     if (p && p.o.yOf && hover.y > TOP && hover.y < TOP + p.ph) {
@@ -497,8 +517,8 @@
       const tz = interp(pts, "t", z), cc = interp(pts, "cc", z), u = interp(pts, "u", z), v = interp(pts, "v", z);
       const sp = isNum(u) && isNum(v) ? Math.hypot(u, v) : null;
       const from = isNum(u) && isNum(v) ? (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360 : null;
-      rows.push([`À ${(Math.round(z / 10) * 10).toLocaleString("fr-FR")} m`, [isNum(tz) ? `${fmt(tz, 1)} °C` : "",
-        isNum(cc) ? `nuages ${fmt(cc, 0)} %` : "", isNum(sp) ? `vent ${fmt(sp, 0)} km/h ${dirName(from)}` : ""].filter(Boolean).join(" · "), css("--text")]);
+      rows.push([`À ${(Math.round(WXU.conv("alt", z) / 10) * 10).toLocaleString("fr-FR")} ${WXU.get("alt")}`, [isNum(tz) ? uval("temp", tz, 1) : "",
+        isNum(cc) ? `nuages ${fmt(cc, 0)} %` : "", isNum(sp) ? `vent ${uval("wind", sp, 0)} ${dirName(from)}` : ""].filter(Boolean).join(" · "), css("--text")]);
     }
     tip.innerHTML = `<div class="t">${WXT.fmt(t, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>` +
       rows.map(([k, v, c]) => `<div><i style="background:${esc(c)}"></i>${esc(k)} <b>${esc(v)}</b></div>`).join("");
@@ -517,34 +537,36 @@
     const total = CUM[N - 1] || 0;
     const snowy = S.snowfall.some((v) => v > 0) || S.snow_depth.some((v) => v > 0);
     const fetched = WXT.fmt(D.fetched, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-    $("mg-sub").textContent = `Open-Meteo · altitude du modèle ${isNum(D.elevation) ? Math.round(D.elevation) + " m" : "inconnue"} · données du ${fetched}`;
+    $("mg-sub").textContent = `Open-Meteo · altitude du modèle ${isNum(D.elevation) ? uval("alt", D.elevation, 0) : "inconnue"} · données du ${fetched}`;
     const sec = (id, title, legend, h, extra = "") => `
       <section class="mg-panel">
         <h3>${title}${extra}</h3>
         <div class="mg-c" id="${id}" style="height:${h}px"></div>
         ${legend ? `<ul class="legend">${legend}</ul>` : ""}
       </section>`;
-    const li = (c, t, cls = "") => `<li><i class="${cls}" style="background:${c}"></i>${t}</li>`;
+    const u = (g) => esc(WXU.get(g)), z0 = esc(ZERO_T());
+    // k : clé de l'élément du panneau (clic sur la légende : masquer / réafficher)
+    const li = (c, t, cls = "", k = "") => `<li${k ? ` data-k="${k}"` : ""}><i class="${cls}" style="background:${c}"></i>${t}</li>`;
     root.innerHTML = `
       ${D.stale ? `<p class="en-warn">Prévision précédente conservée (téléchargement en échec : ${esc(D.warning || "")}).</p>` : ""}
       <div class="mg-scroll"><div class="mg-inner">
         <div class="mg-icons" id="mg-icons" role="group" aria-label="Temps prévu"></div>
-        ${sec("mg-temp", "Température à 2 m (°C)", "", 170)}
-        ${sec("mg-cloud", "Couverture nuageuse selon l'altitude (m)",
-          li(`linear-gradient(90deg,rgba(${cloudRGB()},.15),rgba(${cloudRGB()},.9))`, "nuages : de 10 à 100 % (plus foncé = plus couvert)") +
-          li("var(--wind)", "isotherme 0 °C", "dash"), 200)}
-        ${sec("mg-rain", "Précipitations (mm par heure)", li("var(--rain)", "précipitations") + li("var(--text-3)", "dont averses") +
-          li("var(--press)", "cumul depuis le début (mm, échelle de droite)"), 140,
-          ` <span class="mg-tot">cumul sur la période : <b>${fmt(total, 1)} mm</b></span>`)}
-        ${snowy ? sec("mg-snow", "Neige (cm)", li("var(--wind)", "chute de neige (cm par heure)") + li("var(--press)", "épaisseur au sol"), 100)
+        ${sec("mg-temp", `Température à 2 m (${u("temp")})`, "", 170)}
+        ${sec("mg-cloud", `Couverture nuageuse selon l'altitude (${u("alt")})`,
+          li(`linear-gradient(90deg,rgba(${cloudRGB()},.15),rgba(${cloudRGB()},.9))`, "nuages : de 10 à 100 % (plus foncé = plus couvert)", "", "cc") +
+          li("var(--wind)", `isotherme ${z0}`, "dash", "fz"), 200)}
+        ${sec("mg-rain", `Précipitations (${u("rain")} par heure)`, li("var(--rain)", "précipitations", "", "pr") + li("var(--text-3)", "dont averses", "", "sh") +
+          li("var(--press)", `cumul depuis le début (${u("rain")}, échelle de droite)`, "", "cum"), 140,
+          ` <span class="mg-tot">cumul sur la période : <b>${esc(uval("rain", total, 1))}</b></span>`)}
+        ${snowy ? sec("mg-snow", `Neige (${u("snow")})`, li("var(--wind)", `chute de neige (${u("snow")} par heure)`, "", "sf") + li("var(--press)", "épaisseur au sol", "", "sd"), 100)
                 : `<section class="mg-panel"><h3>Neige</h3><p class="muted mg-none">Pas de neige prévue sur la période.</p></section>`}
-        ${sec("mg-up", "Température et vent en altitude (m)",
-          li("linear-gradient(90deg,#2f63c9,#a9d3f2,#e9f1f4,#f5cc63,#df5a2c)", "température (pivot 0 °C)") + li("#1d3fb8", "isotherme 0 °C") +
-          li("rgba(15,15,15,.78)", "vent (flèche vers où il souffle, longueur selon la force)"), 300)}
-        ${sec("mg-wind", "Vent à 10 m (km/h)", li("var(--text)", "vent moyen") + li("var(--bad)", "rafales") + li("var(--wind)", "direction"), 140)}
+        ${sec("mg-up", `Température et vent en altitude (${u("alt")})`,
+          li("linear-gradient(90deg,#2f63c9,#a9d3f2,#e9f1f4,#f5cc63,#df5a2c)", `température (pivot ${z0})`, "", "t") + li("#1d3fb8", `isotherme ${z0}`, "", "iso") +
+          li("rgba(15,15,15,.78)", "vent (flèche vers où il souffle, longueur selon la force)", "", "wind"), 300)}
+        ${sec("mg-wind", `Vent à 10 m (${u("wind")})`, li("var(--text)", "vent moyen", "", "ws") + li("var(--bad)", "rafales", "", "gu") + li("var(--wind)", "direction", "", "dir"), 140)}
       </div></div>
       <p class="en-foot">Prévision automatique d'un modèle numérique, sans expertise humaine. Les coupes en altitude sont interpolées
-        entre les niveaux de pression du modèle (${D.levels.length} niveaux, de ${D.levels[0] ? D.levels[0].p : "?"} à ${D.levels.length ? D.levels[D.levels.length - 1].p : "?"} hPa).</p>`;
+        entre les niveaux de pression du modèle (${D.levels.length} niveaux, de ${D.levels[0] ? ufmt("press", D.levels[0].p, 0) : "?"} à ${D.levels.length ? ufmt("press", D.levels[D.levels.length - 1].p, 0) : "?"} ${u("press")}).</p>`;
     panels.length = 0;
     const add = (id, draw) => { const el = $(id); if (el) panels.push(new Panel(el, { draw })); };
     add("mg-temp", drawTemp);
@@ -553,8 +575,34 @@
     add("mg-snow", drawSnow);
     add("mg-up", drawUpperTemp);
     add("mg-wind", drawWind);
+    root.querySelectorAll(".mg-panel .legend").forEach(syncLegend);
     renderAll();
   }
+
+  // légendes cliquables : masquer / réafficher un élément d'un panneau
+  const panelOf = (ul) => { const c = ul.closest(".mg-panel").querySelector(".mg-c"); return c ? c.id : ""; };
+  function syncLegend(ul) {
+    const off = OFF[panelOf(ul)] || new Set();
+    ul.querySelectorAll(":scope > li[data-k]").forEach((li) => {
+      const hidden = off.has(li.dataset.k);
+      li.classList.add("lg-tg"); li.classList.toggle("lg-off", hidden);
+      li.setAttribute("role", "button"); li.tabIndex = 0;
+      li.setAttribute("aria-pressed", String(!hidden));
+      li.title = `${hidden ? "Afficher" : "Masquer"} « ${li.textContent.trim()} » sur le graphique`;
+    });
+  }
+  function onLegend(e) {
+    const li = e.target.closest && e.target.closest(".mg-panel .legend li[data-k]");
+    if (!li) return;
+    if (e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+    const ul = li.parentElement, id = panelOf(ul), off = OFF[id] || (OFF[id] = new Set());
+    if (off.has(li.dataset.k)) off.delete(li.dataset.k); else off.add(li.dataset.k);
+    syncLegend(ul);
+    const pn = panels.find((x) => x.el.id === id);
+    if (pn) pn.render();
+  }
+  root.addEventListener("click", onLegend);
+  root.addEventListener("keydown", onLegend);
   function renderAll() { icons(); panels.forEach((p) => p.render()); }
 
   // liste déroulante des modèles (modèles en erreur : désactivés), reconstruite à chaque

@@ -9,7 +9,7 @@
         </div>
         <div class="astro-side">
           <div class="chart astro-chart" id="astro-chart" role="img" aria-label="Hauteur du soleil et de la lune"></div>
-          <ul class="legend"><li><i style="background:var(--sun)"></i>Hauteur du soleil</li><li><i style="background:var(--moon)"></i>Hauteur de la lune</li><li><i class="band" style="background:color-mix(in srgb, var(--sun) 18%, transparent)"></i>Jour</li><li class="lg-note">● position actuelle · trait gris : horizon</li></ul>
+          <ul class="legend" id="astro-legend"><li data-s="2,4"><i style="background:var(--sun)"></i>Hauteur du soleil</li><li data-s="3,5"><i style="background:var(--moon)"></i>Hauteur de la lune</li><li data-s="0"><i class="band" style="background:color-mix(in srgb, var(--sun) 18%, transparent)"></i>Jour</li><li class="lg-note">● position actuelle · trait gris : horizon</li></ul>
         </div>
       </div>
     </article>

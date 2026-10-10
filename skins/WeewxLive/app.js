@@ -2,7 +2,7 @@
  * (archive/day-AAAA-MM-JJ.html) : valeurs en temps réel (MQTT, weewx-mqtt) ou mises à jour
  * à chaque archive weewx (MQTT désactivé), historique de [LiveJSON] hours (data/history.json), panneaux
  * configurés dans skin.conf [[parameters]] (standard, génériques, groupés), panneaux
- * réduits / développés. Mode démo : ?demo. */
+ * réduits / développés (réduits par défaut sur le tableau de bord). Mode démo : ?demo. */
 (function () {
   "use strict";
 
@@ -132,6 +132,10 @@
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
 
   const DEC = { outTemp: 1, outHumidity: 0, barometer: 1, windSpeed: 0, windGust: 0, rain: 1, rainRate: 1 };
+  // unités d'affichage (WXU, nav.js) : les données restent métriques, converties ici à l'affichage
+  const UG = { outTemp: "temp", barometer: "press", windSpeed: "wind", windGust: "wind", rain: "rain", rainRate: "rainRate" };
+  const fmtU = (g, v, d) => (g && window.WXU ? WXU.fmt(g, v, d) : fmt(v, d));
+  const fmtK = (obs, v) => fmtU(UG[obs], v, DEC[obs]);
 
   // ------------------------------------------------------------------
   // État
@@ -237,7 +241,7 @@
          <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
       : p.aggregate === "max"
         ? `<div><dt>Max du jour</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
-        : `<div><dt>Cumul ${HOURS} h</dt><dd><b data-k="sum24">--</b><small>${escH(p.unit)}</small></dd></div>`;
+        : `<div><dt>Cumul ${HOURS} h</dt><dd><b data-k="sum24">--</b><small data-ubase="${escH(p.unit)}">${escH(p.unit)}</small></dd></div>`;
     const el = document.createElement("article");
     el.className = "card";
     el.dataset.param = p.id;
@@ -247,13 +251,14 @@
       <div class="card-main">
         <header><h2><a class="more" data-detail="${escH(p.id)}" href="detail.html?p=${encodeURIComponent(p.id)}">${escH(p.title)}</a></h2>
           <span class="hint">${escH(p.hint || (p.aggregate === "sum" ? "cumul du jour" : ""))}</span></header>
-        <div class="now"><span class="val" data-k="value">--</span><span class="unit">${escH(p.unit)}</span></div>
+        <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-ubase="${escH(p.unit)}">${escH(p.unit)}</span></div>
         <dl class="ext">${ext}</dl>
       </div>
       <div class="card-side">
         <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur ${HOURS} heures"></div>
         ${p.aggregate === "sum" ? `<ul class="legend"><li><i style="background:var(${p.color})"></i>Cumul horaire</li><li><i style="background:var(--text-2)"></i>Cumul ${HOURS} h (échelle de droite)</li></ul>` : ""}
       </div>`;
+    if (window.WXU) WXU.applyLabels(el);   // unités choisies par le visiteur
     return el;
   }
 
@@ -269,7 +274,7 @@
     const rows = p.members.map((m) => {
       const k = escH(m.id);
       return `<tr><th scope="row"><i class="sw" style="background:var(${m.color})"></i>${escH(m.title)}</th>
-        <td class="gnow"><b data-k="${k}:value">--</b><small>${escH(m.unit)}</small></td>
+        <td class="gnow"><b data-k="${k}:value">--</b><small data-ubase="${escH(m.unit)}">${escH(m.unit)}</small></td>
         ${mm ? `<td><b data-k="${k}:min">--</b><small data-k="${k}:minTime"></small></td>` : ""}
         <td><b data-k="${k}:max">--</b><small data-k="${k}:maxTime"></small></td></tr>`;
     }).join("");
@@ -285,6 +290,7 @@
         <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur ${HOURS} heures"></div>
         <ul class="legend">${p.members.map((m) => `<li><i style="background:var(${m.color})"></i>${escH(m.title)}</li>`).join("")}</ul>
       </div>`;
+    if (window.WXU) WXU.applyLabels(el);   // unités choisies par le visiteur
     return el;
   }
   const MEMBER_COLORS = ["--wind", "--temp", "--hum", "--sun", "--press"];
@@ -483,7 +489,7 @@
         out += `<path class="wedge" style="fill:var(${ROSE_CLASSES[ci].color})" d="M${x0} ${y0}L${x1} ${y1}A${ro.toFixed(1)} ${ro.toFixed(1)} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${ri.toFixed(1)} ${ri.toFixed(1)} 0 0 0 ${x0} ${y0}Z"/>`;
       });
       const pct = tot[sec] / n * 100;
-      out += `<path class="hit" d="M0 0L${pt(R, a0).join(" ")}A${R} ${R} 0 0 1 ${pt(R, a1).join(" ")}Z"><title>${DIRS[sec]} : ${fmt(pct, 0)} % du temps · vent moyen ${fmt(sums[sec] / tot[sec], 0)} km/h</title></path>`;
+      out += `<path class="hit" d="M0 0L${pt(R, a0).join(" ")}A${R} ${R} 0 0 1 ${pt(R, a1).join(" ")}Z"><title>${DIRS[sec]} : ${fmt(pct, 0)} % du temps · vent moyen ${fmtU("wind", sums[sec] / tot[sec], 0)} ${window.WXU ? WXU.get("wind") : "km/h"}</title></path>`;
     }
     const lab = [["N", 0], ["E", 90], ["S", 180], ["O", 270]];
     for (const [l, deg] of lab) {
@@ -535,9 +541,9 @@
     const d = S.day[obs] || {};
     const k = (n) => prefix ? prefix + n[0].toUpperCase() + n.slice(1) : n;
     if (!prefix) {
-      set(p, "min", fmt(d.min, DEC[obs])); set(p, "minTime", hhmm(d.minTime));
+      set(p, "min", fmtK(obs, d.min)); set(p, "minTime", hhmm(d.minTime));
     }
-    set(p, k("max"), fmt(d.max, DEC[obs])); set(p, k("maxTime"), hhmm(d.maxTime));
+    set(p, k("max"), fmtK(obs, d.max)); set(p, k("maxTime"), hhmm(d.maxTime));
   }
 
   function renderGeneric() {
@@ -546,7 +552,7 @@
   }
   function renderGenericInner() {
     for (const p of GENERIC) {
-      const d = p.decimals;
+      const d = p.decimals, g = window.WXU ? WXU.groupOf(p.unit) : null, fmt = (v, n) => fmtU(g, v, n);
       // mesure d'un panneau groupé : champs « <id>:value »… dans le panneau du groupe
       const c = p.cardId || p.id, k = (n) => (p.kPrefix || "") + n;
       if (p.aggregate === "sum") {
@@ -566,13 +572,13 @@
     renderGeneric();
     const c = S.cur;
     for (const o of ["outTemp", "outHumidity", "barometer"]) {
-      set(o, "value", fmt(c[o], DEC[o]));
+      set(o, "value", fmtK(o, c[o]));
       setExt(o, o);
     }
     tintTemps();
     // Vent
-    set("wind", "value", fmt(c.windSpeed, 0));
-    set("wind", "gust", fmt(c.windGust, 0));
+    set("wind", "value", fmtK("windSpeed", c.windSpeed));
+    set("wind", "gust", fmtK("windGust", c.windGust));
     set("wind", "dirTxt", dirName(c.windDir));
     set("wind", "dirDeg", c.windDir === null || c.windDir === undefined ? "" : Math.round(c.windDir) + "°");
     if (c.windDir !== null && c.windDir !== undefined) {
@@ -589,13 +595,13 @@
     setExt("wind", "windSpeed");
     setExt("wind", "windGust", "gust");
     // Pluie
-    set("rain", "value", fmt(S.dayRain, 1));
-    set("rain", "rate", fmt(c.rainRate, 1));
+    set("rain", "value", fmtK("rain", S.dayRain));
+    set("rain", "rate", fmtK("rainRate", c.rainRate));
     const rr = S.day.rainRate || {};
-    set("rain", "max", fmt(rr.max, 1)); set("rain", "maxTime", rr.max ? hhmm(rr.maxTime) : "");
+    set("rain", "max", fmtK("rainRate", rr.max)); set("rain", "maxTime", rr.max ? hhmm(rr.maxTime) : "");
     // même calcul que la courbe de cumul du graphique (dernière valeur)
     const cum = rainCumul(nowS()), s24 = cum.length ? cum[cum.length - 1][1] : 0;
-    set("rain", "sum24", fmt(s24, 1));
+    set("rain", "sum24", fmtK("rain", s24));
     // Variations de température sur 1 h et 24 h
     set("outTemp", "d1h", tempDelta("outTemp1h", 3600));
     set("outTemp", "d24h", tempDelta("outTemp24h", 86400));
@@ -654,7 +660,8 @@
     }
     const d = now - past;
     const arrow = d >= 0.1 ? "▲" : d <= -0.1 ? "▼" : "▶";
-    return `${arrow} ${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(Math.abs(d), 1)} °C${src}`;
+    const W = window.WXU, dv = W ? W.delta("temp", Math.abs(d)) : Math.abs(d);
+    return `${arrow} ${d > 0 ? "+" : d < 0 ? "−" : "±"}${fmt(dv, W ? W.dec("temp", 1) : 1)} ${W ? W.get("temp") : "°C"}${src}`;
   }
 
   function pressureTrend() {
@@ -666,7 +673,8 @@
     if (!best || Math.abs(best[0] - target) > 1800) return "--";
     const d = S.cur.barometer - best[1];
     const arrow = d > 0.5 ? "▲" : d < -0.5 ? "▼" : "▶";
-    return `${arrow} ${d > 0 ? "+" : ""}${fmt(d, 1)} hPa`;
+    const W = window.WXU, dv = W ? W.delta("press", d) : d;
+    return `${arrow} ${d > 0 ? "+" : ""}${fmt(dv, W ? W.dec("press", 1) : 1)} ${W ? W.get("press") : "hPa"}`;
   }
 
   // ------------------------------------------------------------------
@@ -1127,12 +1135,15 @@
   };
 
   // ------------------------------------------------------------------
-  // Panneaux réduits / développés (choix mémorisé dans le navigateur, par panneau)
+  // Panneaux réduits / développés (choix mémorisé dans le navigateur, par panneau).
+  // Tableau de bord : panneau sans choix mémorisé (nouveau visiteur, paramètre ajouté
+  // dans skin.conf) réduit ; pages « jour » : développé.
   // ------------------------------------------------------------------
   const LAYOUT_KEY = "weewx-live:compact";
   function loadLayout() {
     try { return JSON.parse(localStorage.getItem(LAYOUT_KEY)) || {}; } catch (e) { return {}; }
   }
+  const isCompact = (layout, id) => (DAY ? layout[id] === true : layout[id] !== false);
   function saveLayout(l) {
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(l)); } catch (e) { /* stockage indisponible */ }
   }
@@ -1155,7 +1166,7 @@
       const b = document.createElement("button");
       b.type = "button"; b.className = "size-btn";
       c.querySelector("header").appendChild(b);
-      applyCompact(c, !!layout[c.dataset.param]);
+      applyCompact(c, isCompact(layout, c.dataset.param));
       b.addEventListener("click", () => {
         const l = loadLayout();
         const compact = !c.classList.contains("compact");
@@ -1183,6 +1194,11 @@
     const cfg = await loadConfig();
     applyParams(cfg && cfg.parameters);
     setupLayout();
+    // légendes des graphiques à plusieurs courbes : clic = masquer / réafficher la courbe
+    for (const c of Object.values(charts)) {
+      const card = c && c.el.closest(".card");
+      if (card) MiniChart.linkLegend(card.querySelector("ul.legend"), c);
+    }
     if (DAY) {
       // page « jour » : la journée entière, de minuit à minuit
       ARCHIVE_MODE = true;
