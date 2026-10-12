@@ -446,11 +446,13 @@
     }
   }
 
-  // page d'une période : une section par paramètre, avec liens rapides
+  // page d'une période : une section par paramètre, avec liens rapides (titres : liens vers
+  // la page de détail, sauf sur les pages d'archives « mois » / « année » : texte simple)
   function buildPeriodSections(r) {
     const root = document.getElementById("sections");
     const ids = Object.keys(P).filter((k) => !PERIODS[r].only || PERIODS[r].only.includes(k));
     const link = (k) => {
+      if (EMBED) return esc(P[k].title);
       const h = window.WeewxNav ? WeewxNav.href(k) : "detail.html?p=" + encodeURIComponent(k);
       const anchor = { month: "30d", year: "365d" }[r] || r;
       return `<a href="${esc(h)}#p${anchor}">${esc(P[k].title)}</a>`;

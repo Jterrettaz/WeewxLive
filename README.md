@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.95.
+et n'a pas besoin d'être joignable depuis internet. Version 1.97.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
@@ -873,6 +873,10 @@ Pages statiques générées dans `archive/` (section `[[SummaryByDay]]`, `[[Summ
 | `archive/day-AAAA-MM-JJ.html` | `archive/day-%Y-%m-%d.html.tmpl` | tous les panneaux du tableau de bord pour ce jour : min. et max. avec l'heure, cumuls, graphique de 0 h à 24 h, rose des vents ; grandes valeurs : moyennes du jour (température, vent, humidité, pression, paramètres ajoutés comme le rayonnement), vent dominant du jour (direction la plus fréquente, hors calme), cumuls du jour ; ni écarts sur 1 h / 24 h, ni rafale ou intensité de pluie instantanées, ni tendance de pression |
 | `archive/month-AAAA-MM.html` | `archive/month-%Y-%m.html.tmpl` | une section par paramètre (statistiques puis graphique jour par jour), comme les pages de période |
 | `archive/year-AAAA.html` | `archive/year-%Y.html.tmpl` | idem, sur l'année |
+
+Sur ces pages, les titres des panneaux et des sections ne sont pas des liens vers les pages de
+détail (`detail.html`), qui montrent la période en cours et non la date archivée ; le menu
+commun reste disponible.
 
 En haut de chaque page : **« Historique de la station — choix de la date »** (calendrier) et
 boutons **Jour / Mois / Année** qui ouvrent la page du jour, du mois ou de l'année contenant

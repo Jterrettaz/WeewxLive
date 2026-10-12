@@ -3,6 +3,14 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 1.97
+
+- Pages d'archives (« jour », « mois », « année ») : titres des panneaux et des sections en
+  texte simple, sans lien vers `detail.html` (pages de la période en cours). Le tableau de
+  bord et les pages par période gardent leurs liens ; menu commun inchangé.
+- Pages d'archives déjà générées : inchangées tant qu'elles ne sont pas régénérées (supprimer
+  le dossier `archive/` de `HTML_ROOT` pour les refaire).
+
 ## 1.95
 
 - Nouvelle page **« Webcam »** (`webcam.html`, `webcam.js`, menu « Webcam ») : images et
@@ -265,3 +273,4 @@ version 1.49). Les numéros sautés correspondent à des versions annulées (voi
 - **1.60** (météogramme, lecture de l'ancien format) : annulée, retour à 1.59.
 - **1.75** et **1.76** (cumul de pluie MQTT, alias `rainDay`) : annulées, retour à 1.74.
 - **1.78** (widget de cartes meteoblue) : supprimée, retour à 1.77.
+- **1.96** (pluie de chaque relevé d'archive sur les graphiques 24 h, jour et 7 jours) : supprimée, retour à 1.95.

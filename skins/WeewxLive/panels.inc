@@ -2,6 +2,7 @@
 ## Variable $day_page (#set global avant l'#include) : vrai sur une page « jour »
 ## Panneaux : un par paramètre de skin.conf [[parameters]], dans l'ordre configuré.
 ## Paramètres standard : panneau spécialisé ; autres : panneau générique (min-max, max, sum).
+## Titre lien vers la page de détail sur le tableau de bord ; texte simple sur une page « jour ».
 ## $hrs : fenêtre des graphiques et cumuls glissants ([LiveJSON] hours ; 24 h sur une page « jour »)
 #set $hrs = 24 if $day_page else $livejson_hours
 #for $p in $livejson_params
@@ -9,7 +10,7 @@
     <!-- Température -->
     <article#if $p.admin# data-admin="1"#end if# class="card" data-param="outTemp" style="--c: var(--temp)">
       <div class="card-main">
-        <header><h2><a class="more" data-detail="outTemp" href="detail.html?p=outTemp">$p.title</a></h2><span class="hint">#if $day_page#moyenne du jour#else#extérieure#end if#</span></header>
+        <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="outTemp" href="detail.html?p=outTemp">$p.title</a>#end if#</h2><span class="hint">#if $day_page#moyenne du jour#else#extérieure#end if#</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-ubase="°C">°C</span></div>
 #if not $day_page
 #if $livejson_temp_deltas
@@ -30,7 +31,7 @@
     <!-- Vent -->
     <article#if $p.admin# data-admin="1"#end if# class="card" data-param="wind" style="--c: var(--wind)">
       <div class="card-main">
-        <header><h2><a class="more" data-detail="wind" href="detail.html?p=wind">$p.title</a></h2><span class="hint">#if $day_page#moyen du jour · direction dominante#else#moyen · rafales#end if#</span></header>
+        <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="wind" href="detail.html?p=wind">$p.title</a>#end if#</h2><span class="hint">#if $day_page#moyen du jour · direction dominante#else#moyen · rafales#end if#</span></header>
         <div class="now">
           <span class="val" data-k="value">--</span><span class="unit" data-ubase="km/h">km/h</span>
           <span class="side">
@@ -83,7 +84,7 @@
     <!-- Pluie -->
     <article#if $p.admin# data-admin="1"#end if# class="card" data-param="rain" style="--c: var(--rain)">
       <div class="card-main">
-        <header><h2><a class="more" data-detail="rain" href="detail.html?p=rain">$p.title</a></h2><span class="hint">cumul du jour</span></header>
+        <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="rain" href="detail.html?p=rain">$p.title</a>#end if#</h2><span class="hint">cumul du jour</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-ubase="mm">mm</span></div>
 #if not $day_page
         <p class="aux">Intensité <b data-k="rate">--</b> <span data-ubase="mm/h">mm/h</span></p>
@@ -102,7 +103,7 @@
     <!-- Humidité -->
     <article#if $p.admin# data-admin="1"#end if# class="card" data-param="outHumidity" style="--c: var(--hum)">
       <div class="card-main">
-        <header><h2><a class="more" data-detail="outHumidity" href="detail.html?p=outHumidity">$p.title</a></h2><span class="hint">#if $day_page#moyenne du jour#else#extérieure#end if#</span></header>
+        <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="outHumidity" href="detail.html?p=outHumidity">$p.title</a>#end if#</h2><span class="hint">#if $day_page#moyenne du jour#else#extérieure#end if#</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit">%</span></div>
         <dl class="ext">
           <div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
@@ -117,7 +118,7 @@
     <!-- Pression -->
     <article#if $p.admin# data-admin="1"#end if# class="card" data-param="barometer" style="--c: var(--press)">
       <div class="card-main">
-        <header><h2><a class="more" data-detail="barometer" href="detail.html?p=barometer">$p.title</a></h2><span class="hint">#if $day_page#niveau de la mer · moyenne du jour#else#niveau de la mer#end if#</span></header>
+        <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="barometer" href="detail.html?p=barometer">$p.title</a>#end if#</h2><span class="hint">#if $day_page#niveau de la mer · moyenne du jour#else#niveau de la mer#end if#</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-ubase="hPa">hPa</span></div>
 #if not $day_page
         <p class="aux">Tendance 3 h <b data-k="trend">--</b></p>
@@ -135,7 +136,7 @@
     <!-- $p.title (panneau groupé : $len($p.members) mesures, agrégat $p.aggregate) -->
     <article#if $p.admin# data-admin="1"#end if# class="card group-card" data-param="$p.id" data-generic="1" data-group="1" style="--c: var($p.members[0].color)">
       <div class="card-main">
-        <header><h2><a class="more" data-detail="$p.id" href="detail.html?p=$p.id_url">$p.title</a></h2><span class="hint">$p.hint</span></header>
+        <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="$p.id" href="detail.html?p=$p.id_url">$p.title</a>#end if#</h2><span class="hint">$p.hint</span></header>
         <table class="gtab">
           <thead><tr><th scope="col"><span class="sr">Mesure</span></th><th scope="col">#if $day_page#Moyenne#else#Actuel#end if#</th>#if $p.aggregate == "min-max"#<th scope="col">Min</th><th scope="col">Max</th>#else#<th scope="col">Max du jour</th>#end if#</tr></thead>
           <tbody>
@@ -161,7 +162,7 @@
     <!-- $p.title (paramètre ajouté : agrégat $p.aggregate) -->
     <article#if $p.admin# data-admin="1"#end if# class="card" data-param="$p.id" data-generic="1" style="--c: var($p.color)">
       <div class="card-main">
-        <header><h2><a class="more" data-detail="$p.id" href="detail.html?p=$p.id_url">$p.title</a></h2><span class="hint">#if $day_page and $p.aggregate != "sum"##if $p.hint#$p.hint · #end if#moyenne du jour#else#$p.hint#end if#</span></header>
+        <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="$p.id" href="detail.html?p=$p.id_url">$p.title</a>#end if#</h2><span class="hint">#if $day_page and $p.aggregate != "sum"##if $p.hint#$p.hint · #end if#moyenne du jour#else#$p.hint#end if#</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-ubase="$p.unit">$p.unit</span></div>
         <dl class="ext">
 #if $p.aggregate == "min-max"
