@@ -2,7 +2,7 @@
 ## paramètres pour une année : archive/year-AAAA.html. Option [LiveJSON] [[archives]] (year).
 #set global $a = $livejson_arch
 <!doctype html>
-<html lang="fr">
+<html lang="$livejson_lang">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,13 +25,14 @@
     <div id="sections"></div>
   </main>
 
-  <footer class="foot">Archive weewx — $a.label<span id="gen"></span><span id="mode"></span></footer>
+  <footer class="foot">$lt("Detail", "weewx archive — {label}", label=$a.label)<span id="gen"></span><span id="mode"></span></footer>
 
   <div id="tip" class="tip" hidden></div>
 
   <!-- configuration et données de la période, générées par weewx -->
   <script>window.WEEWX_CONFIG = $livejson_config_inline;</script>
   <script>window.WEEWX_PERIOD = { kind: "year", label: "$a.label", data: $livejson_span };</script>
+  <script src="../i18n.js"></script>
   <script src="../wxtime.js"></script>
   <script src="../nav.js"></script>
   <script src="../minichart.js"></script>

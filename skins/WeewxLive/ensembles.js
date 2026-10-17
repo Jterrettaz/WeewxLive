@@ -17,7 +17,9 @@
 
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
+  // textes de la langue choisie (i18n.js)
+  const te = WXL.ctx("Ensembles"), tc = WXL.ctx("Common");
+  const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString(WXL.locale, { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
   // jours « AAAA-MM-JJ » et heures : fuseau de la station (WXT, nav.js)
   const tOf = WXT.iso;
   // unités d'affichage (WXU, nav.js) : données métriques converties à l'affichage ;
@@ -61,16 +63,16 @@
       if (!r.ok) throw new Error("HTTP " + r.status);
       d = await r.json();
       if (d.error) throw new Error(d.error);
-      if (!Array.isArray(d.models)) throw new Error("aucun modèle");
+      if (!Array.isArray(d.models)) throw new Error(tc("no model"));
     } catch (e) {
       // relecture en échec : prévisions déjà affichées conservées
-      if (!D) root.innerHTML = `<p class="muted">Prévisions d'ensemble indisponibles (${esc(e.message)}).</p>`;
+      if (!D) root.innerHTML = `<p class="muted">${esc(te("Ensemble forecasts unavailable ({error}).", { error: e.message }))}</p>`;
       return;
     }
     if (D && d.generated && d.generated === D.generated) return;   // fichier inchangé
     D = d;
     // version de l'extension qui a produit les données (diagnostic)
-    if ($("gen") && D.version) $("gen").textContent = ` · calcul weewx-live ${D.version}`;
+    if ($("gen") && D.version) $("gen").textContent = " · " + tc("computed by weewx-live {version}", { version: D.version });
     MODELS = D.models.filter((m) => !m.error && m.daily && m.daily.dates && m.daily.dates.length);
     MODELS.forEach((m, i) => (m.color = PAL[i % PAL.length]));
     const saved = store.get("sel");
@@ -80,7 +82,7 @@
     const sh = store.get("h");
     H = hs.includes(sh) ? sh : hs.includes(D.horizon) ? D.horizon : hs[0];
     if (!MODELS.length) {
-      root.innerHTML = `<p class="muted">Aucun modèle disponible pour le moment.</p>${errors()}`;
+      root.innerHTML = `<p class="muted">${esc(te("No model available for now."))}</p>${errors()}`;
       return;
     }
     build();
@@ -93,8 +95,8 @@
   function errors() {
     const bad = D.models.filter((m) => m.error);
     const stale = D.models.filter((m) => m.stale);
-    return (bad.length ? `<p class="en-warn">Indisponible : ${bad.map((m) => `${esc(m.short)} (${esc(m.error)})`).join(", ")}.</p>` : "") +
-      (stale.length ? `<p class="en-warn">Données précédentes conservées (téléchargement en échec) : ${stale.map((m) => esc(m.short)).join(", ")}.</p>` : "");
+    return (bad.length ? `<p class="en-warn">${esc(te("Unavailable: {list}.", { list: bad.map((m) => `${m.short} (${m.error})`).join(", ") }))}</p>` : "") +
+      (stale.length ? `<p class="en-warn">${esc(te("Previous data kept (download failed): {list}.", { list: stale.map((m) => m.short).join(", ") }))}</p>` : "");
   }
 
   // ------------------------------------------------------------------
@@ -106,35 +108,35 @@
     const hs = horizons();
     root.innerHTML = `
       <div class="en-bar">
-        <div class="en-chips" role="group" aria-label="Modèles affichés">
+        <div class="en-chips" role="group" aria-label="${esc(te("Models shown"))}">
           ${MODELS.map((m) => `<button type="button" class="en-chip" data-id="${esc(m.id)}" style="--mc: var(${m.color})" title="${esc(m.label)}">
-            <i></i><b>${esc(m.short)}</b><span>${esc(m.members)} membres</span></button>`).join("")}
+            <i></i><b>${esc(m.short)}</b><span>${esc(te("{n} members", { n: m.members }))}</span></button>`).join("")}
         </div>
-        <div class="en-hz" role="group" aria-label="Horizon">
-          ${hs.map((h) => `<button type="button" data-h="${esc(h)}">${esc(h)} jours</button>`).join("")}
+        <div class="en-hz" role="group" aria-label="${esc(te("Horizon"))}">
+          ${hs.map((h) => `<button type="button" data-h="${esc(h)}">${esc(te("{n} days", { n: h }))}</button>`).join("")}
         </div>
       </div>
       <p class="en-sum" id="en-sum"></p>
       ${errors()}
       <div class="en-grid">
-        <article class="card en-card"><header><h2>Température — chaque membre</h2></header>
-          <div class="chart en-chart" id="en-temp" role="img" aria-label="Température : chaque membre des modèles"></div>
+        <article class="card en-card"><header><h2>${esc(te("Temperature — every member"))}</h2></header>
+          <div class="chart en-chart" id="en-temp" role="img" aria-label="${esc(te("Temperature: every member of the models"))}"></div>
           <ul class="legend" id="en-leg-temp"></ul></article>
-        <article class="card en-card"><header><h2>Pluie — total du jour et probabilité</h2></header>
-          <div class="chart en-chart en-chart-rain" id="en-rain" role="img" aria-label="Pluie par jour"></div>
-          <div class="chart en-chart-prob" id="en-prob" role="img" aria-label="Pourcentage des membres prévoyant de la pluie"></div>
+        <article class="card en-card"><header><h2>${esc(te("Rain — daily total and probability"))}</h2></header>
+          <div class="chart en-chart en-chart-rain" id="en-rain" role="img" aria-label="${esc(te("Rain per day"))}"></div>
+          <div class="chart en-chart-prob" id="en-prob" role="img" aria-label="${esc(te("Percentage of members forecasting rain"))}"></div>
           <ul class="legend" id="en-leg-rain"></ul></article>
-        <article class="card en-card"><header><h2>Vent moyen — chaque membre</h2></header>
-          <div class="chart en-chart" id="en-wind" role="img" aria-label="Vent : chaque membre des modèles"></div>
+        <article class="card en-card"><header><h2>${esc(te("Mean wind — every member"))}</h2></header>
+          <div class="chart en-chart" id="en-wind" role="img" aria-label="${esc(te("Wind: every member of the models"))}"></div>
           <ul class="legend" id="en-leg-wind"></ul></article>
-        <article class="card en-card"><header><h2>Pression — chaque membre</h2></header>
-          <div class="chart en-chart" id="en-press" role="img" aria-label="Pression : chaque membre des modèles"></div>
+        <article class="card en-card"><header><h2>${esc(te("Pressure — every member"))}</h2></header>
+          <div class="chart en-chart" id="en-press" role="img" aria-label="${esc(te("Pressure: every member of the models"))}"></div>
           <ul class="legend" id="en-leg-press"></ul></article>
       </div>
       <article class="card en-block" id="en-compare"></article>
       <article class="card en-block" id="en-days"></article>
-      <p class="en-foot">Source : API Ensemble d'Open-Meteo · ${MODELS.map((m) => esc(m.label)).join(" · ")}.
-        Il ne s'agit pas d'une prévision humaine ; au-delà du 7<sup>e</sup> jour, considérez-la comme une tendance et non comme une prévision détaillée.</p>`;
+      <p class="en-foot">${esc(te("Source: Open-Meteo Ensemble API · {models}.", { models: MODELS.map((m) => m.label).join(" · ") }))}
+        ${te("This is not a human forecast; beyond day 7, treat it as a trend rather than a detailed forecast.")}</p>`;
     root.querySelectorAll(".en-chip").forEach((b) => b.addEventListener("click", () => {
       const id = b.dataset.id;
       if (sel.has(id)) { if (sel.size > 1) sel.delete(id); } else sel.add(id);
@@ -244,18 +246,18 @@
   // ------------------------------------------------------------------
   // Graphiques
   // ------------------------------------------------------------------
-  const CONF = ["Bas", "Moyen", "Haut"];
+  const CONF = [te("Low"), te("Medium"), te("High")];
   const confCls = (c) => ["en-low", "en-mid", "en-high"][c];
 
   function lineChart(id, key, unit, dec, w, opts) {
     const h = hourly(key, w);
     const many = h.members.length > 120;
     const s = [
-      { type: "band", label: "10–90 %", color: "--text-2", alpha: 0.13, tipRank: 2,
+      { type: "band", label: te("10–90 %"), color: "--text-2", alpha: 0.13, tipRank: 2,
         data: h.grp.map(([t, st]) => [t, st && st.n >= 3 ? st.p10 : null, st && st.n >= 3 ? st.p90 : null]) },
       ...h.members.map(({ m, data }) => ({ type: "line", label: m.short, color: m.color, width: 1, alpha: many ? 0.22 : 0.32, endDot: false, noTip: true, data, _m: m })),
       ...h.perModel.map(({ m, data }) => ({ type: "line", ghost: true, label: m.short, color: m.color, tipRank: 3, data, _m: m })),
-      { type: "line", label: "Moyenne groupée", color: "--text", width: 2.5, endDot: false, tipRank: 1,
+      { type: "line", label: te("Ensemble mean"), color: "--text", width: 2.5, endDot: false, tipRank: 1,
         data: h.grp.map(([t, st]) => [t, st ? st.mean : null]) },
     ];
     const o = Object.assign({
@@ -270,7 +272,7 @@
       // légende = masquer / réafficher ce modèle
       const idx = (m) => s.map((x, i) => (x._m === m ? i : -1)).filter((i) => i >= 0).join(",");
       leg.innerHTML = selected().map((m) => `<li data-s="${idx(m)}"><i style="background:var(${m.color})"></i>${esc(m.short)}</li>`).join("") +
-        `<li data-s="${s.length - 1}"><i style="background:var(--text)"></i>Moyenne groupée</li><li data-s="0"><i class="band" style="background:var(--text-2);opacity:.35"></i>10–90 %</li>`;
+        `<li data-s="${s.length - 1}"><i style="background:var(--text)"></i>${esc(te("Ensemble mean"))}</li><li data-s="0"><i class="band" style="background:var(--text-2);opacity:.35"></i>${esc(te("10–90 %"))}</li>`;
       MiniChart.linkLegend(leg, charts[id]);
     }
   }
@@ -283,9 +285,9 @@
   function rainCharts(days, w) {
     const u = D.units.rain;
     const series = [
-      { type: "bar", label: "90e centile", color: "--grid", bucket: 86400, tipRank: 2,
+      { type: "bar", label: te("90th percentile"), color: "--grid", bucket: 86400, tipRank: 2,
         data: days.filter((r) => r.rain).map((r) => [tOf(r.iso), r.rain.p90]) },
-      { type: "bar", label: "Moyenne groupée", color: "--rain", bucket: 86400, tipRank: 1,
+      { type: "bar", label: te("Ensemble mean"), color: "--rain", bucket: 86400, tipRank: 1,
         data: days.filter((r) => r.rain).map((r) => [tOf(r.iso), r.rain.mean]) },
     ];
     selected().forEach((m) => series.push({
@@ -298,22 +300,22 @@
     draw("en-prob", { unit: "%", decimals: 0, range: [w.day0, w.end], xTicks: "day", yFixed: [0, 100, 50], maxGap: 86400 * 1.5, padLeft: 44,
       yFormat: (v) => `${v} %`,
       tipHead: (t) => WXT.fmt(t, { weekday: "short", day: "numeric", month: "short" }),
-      series: [{ type: "line", label: `Membres avec pluie (≥ ${uf("rain", D.threshold, 1)} ${ul("rain")})`, color: "--text", width: 2, endDot: false,
+      series: [{ type: "line", label: te("Members with rain (≥ {value})", { value: `${uf("rain", D.threshold, 1)} ${ul("rain")}` }), color: "--text", width: 2, endDot: false,
         data: days.filter((r) => isNum(r.prob)).map((r) => [tOf(r.iso) + 43200, Math.round(r.prob * 100)]) },
       { type: "dots", label: "", color: "--text", r: 3, alpha: 1, noTip: true,
         data: days.filter((r) => isNum(r.prob)).map((r) => [tOf(r.iso) + 43200, Math.round(r.prob * 100)]) }] });
     // légende commune aux deux graphiques ; clic : masquer / réafficher une série du
     // graphique de pluie (0, 1, puis un modèle par série) ; probabilité : non masquable
-    $("en-leg-rain").innerHTML = `<li data-s="0"><i style="background:var(--grid)"></i>90e centile</li><li data-s="1"><i style="background:var(--rain)"></i>Moyenne groupée</li>` +
+    $("en-leg-rain").innerHTML = `<li data-s="0"><i style="background:var(--grid)"></i>${esc(te("90th percentile"))}</li><li data-s="1"><i style="background:var(--rain)"></i>${esc(te("Ensemble mean"))}</li>` +
       selected().map((m, i) => `<li data-s="${i + 2}"><i class="dot" style="background:var(${m.color})"></i>${esc(m.short)}</li>`).join("") +
-      `<li><i style="background:var(--text)"></i>% des membres avec pluie (≥ ${uf("rain", D.threshold, 1)} ${ul("rain")})</li>`;
+      `<li><i style="background:var(--text)"></i>${esc(te("% of members with rain (≥ {value})", { value: `${uf("rain", D.threshold, 1)} ${ul("rain")}` }))}</li>`;
     MiniChart.linkLegend($("en-leg-rain"), charts["en-rain"]);
   }
 
   // ------------------------------------------------------------------
   // Tableaux : comparaison des modèles, jour après jour
   // ------------------------------------------------------------------
-  const nj = (n) => `${n} jour${n > 1 ? "s" : ""}`;
+  const nj = (n) => te(n > 1 ? "{n} days" : "{n} day", { n });
 
   // moyennes par modèle sur la période
   function compareModels(days) {
@@ -330,14 +332,14 @@
     const withT = cmp.filter((c) => isNum(c.tmax));
     const hot = withT.length > 1 ? withT.reduce((a, b) => (b.tmax > a.tmax ? b : a)) : null;
     const cold = withT.length > 1 ? withT.reduce((a, b) => (b.tmax < a.tmax ? b : a)) : null;
-    return `<header><h2>Comparaison des modèles · ${nj(days.length)}</h2></header>
+    return `<header><h2>${esc(te("Model comparison · {days}", { days: nj(days.length) }))}</h2></header>
       <div class="cm-scroll"><table class="en-table">
-        <thead><tr><th scope="col">Modèle</th><th scope="col">Membres</th><th scope="col">Moy. max</th><th scope="col">Moy. min</th>
-          <th scope="col">Pluie</th><th scope="col">Vent ${ul("wind")}</th><th scope="col">${ul("press")}</th><th scope="col">Jours</th></tr></thead>
+        <thead><tr><th scope="col">${esc(te("Model"))}</th><th scope="col">${esc(te("Members"))}</th><th scope="col">${esc(te("Mean max"))}</th><th scope="col">${esc(te("Mean min"))}</th>
+          <th scope="col">${esc(te("Rain"))}</th><th scope="col">${esc(te("Wind {unit}", { unit: ul("wind") }))}</th><th scope="col">${ul("press")}</th><th scope="col">${esc(te("Days"))}</th></tr></thead>
         <tbody>${cmp.map((c) => `<tr>
           <th scope="row"><span class="en-sq" style="background:var(${c.m.color})"></span><b>${esc(c.m.label)}</b><small>${esc(c.m.origin || "")}</small></th>
           <td>${esc(c.m.members)}</td>
-          <td>${tcol(c.tmax)}${c === hot ? '<small class="en-hot">le plus chaud</small>' : c === cold ? '<small class="en-cold">le plus frais</small>' : ""}</td>
+          <td>${tcol(c.tmax)}${c === hot ? `<small class="en-hot">${esc(te("warmest"))}</small>` : c === cold ? `<small class="en-cold">${esc(te("coolest"))}</small>` : ""}</td>
           <td>${tcol(c.tmin)}</td><td>${isNum(c.rain) ? `${uf("rain", c.rain, 1)} ${ul("rain")}` : "—"}</td>
           <td>${uf("wind", c.wind, 0)}</td><td>${uf("press", c.press, 0)}</td><td>${c.days}/${days.length}</td></tr>`).join("")}</tbody>
       </table></div>`;
@@ -346,24 +348,23 @@
 
   function dayTable(days) {
     const nS = selected().length;
-    return `<header><h2>Jour après jour · tous les modèles confondus</h2></header>
+    return `<header><h2>${esc(te("Day after day · all models combined"))}</h2></header>
       <div class="cm-scroll"><table class="en-table en-days">
-        <thead><tr><th scope="col">Jour</th><th scope="col">Max ${ul("temp")}</th><th scope="col">Min ${ul("temp")}</th><th scope="col">Conf. temp.</th>
-          <th scope="col">Risque de pluie</th><th scope="col">Pluie ${ul("rain")}</th><th scope="col">Conf. pluie</th><th scope="col">Vent ${ul("wind")}</th><th scope="col">${ul("press")}</th></tr></thead>
+        <thead><tr><th scope="col">${esc(te("Day"))}</th><th scope="col">${esc(te("Max {unit}", { unit: ul("temp") }))}</th><th scope="col">${esc(te("Min {unit}", { unit: ul("temp") }))}</th><th scope="col">${esc(te("Temp. conf."))}</th>
+          <th scope="col">${esc(te("Chance of rain"))}</th><th scope="col">${esc(te("Rain {unit}", { unit: ul("rain") }))}</th><th scope="col">${esc(te("Rain conf."))}</th><th scope="col">${esc(te("Wind {unit}", { unit: ul("wind") }))}</th><th scope="col">${ul("press")}</th></tr></thead>
         <tbody>${days.map((r) => `<tr>
-          <th scope="row">${dayLabel(r.iso)}${r.models < nS ? ` <small class="en-cov" title="modèles disponibles ce jour-là">${r.models}/${nS}</small>` : ""}</th>
-          <td>${r.tmax ? `${tcol(r.tmax.mean)}<small>${uf("temp", r.tmax.p10, 1)}–${uf("temp", r.tmax.p90, 1)}° · pic ${uf("temp", r.tmax.max, 1)}°</small>` : "—"}</td>
-          <td>${r.tmin ? `${tcol(r.tmin.mean)}<small>${uf("temp", r.tmin.p10, 1)}–${uf("temp", r.tmin.p90, 1)}° · min. ${uf("temp", r.tmin.min, 1)}°</small>` : "—"}</td>
+          <th scope="row">${dayLabel(r.iso)}${r.models < nS ? ` <small class="en-cov" title="${esc(te("models available that day"))}">${r.models}/${nS}</small>` : ""}</th>
+          <td>${r.tmax ? `${tcol(r.tmax.mean)}<small>${uf("temp", r.tmax.p10, 1)}–${uf("temp", r.tmax.p90, 1)}° · ${esc(te("peak {value}", { value: uf("temp", r.tmax.max, 1) + "°" }))}</small>` : "—"}</td>
+          <td>${r.tmin ? `${tcol(r.tmin.mean)}<small>${uf("temp", r.tmin.p10, 1)}–${uf("temp", r.tmin.p90, 1)}° · ${esc(te("min. {value}", { value: uf("temp", r.tmin.min, 1) + "°" }))}</small>` : "—"}</td>
           <td class="${isNum(r.confT) ? confCls(r.confT) : ""}">${isNum(r.confT) ? CONF[r.confT] : "—"}</td>
-          <td>${isNum(r.prob) ? `<span class="en-pbar"><i style="width:${Math.round(r.prob * 100)}%"></i></span><small>${Math.round(r.prob * 100)} % des membres</small>` : "—"}</td>
-          <td>${r.rain ? `<b>${uf("rain", r.rain.mean, 1)}</b><small>${uf("rain", r.rain.p10, 1)}–${uf("rain", r.rain.p90, 1)} · max ${uf("rain", r.rain.max, 1)} ${ul("rain")}</small>` : "—"}</td>
+          <td>${isNum(r.prob) ? `<span class="en-pbar"><i style="width:${Math.round(r.prob * 100)}%"></i></span><small>${esc(te("{pct} % of members", { pct: Math.round(r.prob * 100) }))}</small>` : "—"}</td>
+          <td>${r.rain ? `<b>${uf("rain", r.rain.mean, 1)}</b><small>${uf("rain", r.rain.p10, 1)}–${uf("rain", r.rain.p90, 1)} · ${esc(te("max {value}", { value: `${uf("rain", r.rain.max, 1)} ${ul("rain")}` }))}</small>` : "—"}</td>
           <td class="${isNum(r.confR) ? confCls(r.confR) : ""}">${isNum(r.confR) ? CONF[r.confR] : "—"}</td>
           <td>${r.wind ? `<b>${uf("wind", r.wind.mean, 0)}</b><small>p90 ${uf("wind", r.wind.p90, 0)}</small>` : "—"}</td>
           <td>${r.press ? uf("press", r.press.mean, 0) : "—"}</td></tr>`).join("")}</tbody>
       </table></div>
-      <p class="cm-note">Max / min : moyenne des membres, puis intervalle 10–90 % et extrême. Risque de pluie : part des membres prévoyant au moins
-        ${uf("rain", D.threshold, 1)} ${ul("rain")}. Confiance température : écart 10–90 % des maximales (haut ≤ ${ud("temp", 2.5, 1)} ${ul("temp")}, moyen ≤ ${ud("temp", 5, 0)} ${ul("temp")}) ; confiance pluie : accord des
-        membres sur la pluie (≥ 85 % haut, ≥ 70 % moyen) et dispersion des cumuls. Vent : maximum journalier du vent moyen.</p>`;
+      <p class="cm-note">${esc(te("Daily table note", { rain: `${uf("rain", D.threshold, 1)} ${ul("rain")}`,
+        high: `${ud("temp", 2.5, 1)} ${ul("temp")}`, medium: `${ud("temp", 5, 0)} ${ul("temp")}` }))}</p>`;
   }
 
   // ------------------------------------------------------------------
@@ -376,8 +377,8 @@
     const w = window_();
     const fetched = Math.max(...S.map((m) => m.fetched || 0));
     const maxDays = Math.max(...S.map((m) => m.daily.dates.length));
-    $("en-sum").textContent = `${sum(S.map((m) => m.members))} membres · ${S.map((m) => `${m.short} ${m.members}`).join(" · ")} · jusqu'à ${maxDays} jours` +
-      (fetched ? ` · données du ${WXT.fmt(fetched, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "");
+    $("en-sum").textContent = te("{n} members · {models} · up to {days} days", { n: sum(S.map((m) => m.members)), models: S.map((m) => `${m.short} ${m.members}`).join(" · "), days: maxDays }) +
+      (fetched ? " · " + tc("data from {when}", { when: WXT.fmt(fetched, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }) : "");
     const U = D.units;
     lineChart("en-temp", "temp", U.temp, 1, w);
     lineChart("en-wind", "wind", U.wind, 0, w, { floor: 0 });

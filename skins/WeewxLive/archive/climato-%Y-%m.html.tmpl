@@ -3,13 +3,13 @@
 ## humidité et pression : archive/climato-AAAA-MM.html. Option [LiveJSON] [[archives]] (climato).
 ## Le tableau est construit par climato.js à partir des données intégrées (WEEWX_CLIMATO).
 #set global $a = $livejson_arch
-#set $mnames = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+#set $mnames = $livejson_months
 <!doctype html>
-<html lang="fr">
+<html lang="$livejson_lang">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>$livejson_station — climatologie $a.label</title>
+  <title>$lt("Climato", "{station} — climatology {label}", station=$livejson_station, label=$a.label)</title>
   <link rel="stylesheet" href="../style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23eda100'/%3E%3C/svg%3E">
 </head>
@@ -17,47 +17,48 @@
 #include "archive/brand.inc"
 
   <main class="cm-page">
-    <h2 class="cm-title">Climatologie mensuelle pour $a.label</h2>
-    <p class="cm-sub">#if $livejson_climato_method == "omm"#Valeurs journalières selon les règles horaires de l'OMM (heures UTC)#else#Valeurs journalières de 0 h à 24 h#end if#</p>
+    <h2 class="cm-title">$lt("Climato", "Monthly climatology for {label}", label=$a.label)</h2>
+    <p class="cm-sub">#if $livejson_climato_method == "omm"#$lt("Climato", "Daily values according to WMO hourly rules (UTC)")#else#$lt("Climato", "Daily values from 0:00 to 24:00")#end if#</p>
 
     <!-- choix du mois (climato.js), mois précédent / suivant, autres pages du mois -->
     <form class="cm-bar" id="cm-bar" data-first="$a.first" data-today="$a.today" data-ym="$a.ym" data-day="${1 if $a.day else 0}" data-day-first="$a.dayFirst">
-      <label class="sr" for="cm-month">Mois</label>
+      <label class="sr" for="cm-month">$lt("Common", "Month")</label>
       <select id="cm-month">
 #for $i in range(12)
         <option value="#echo '%02d' % ($i + 1)#"#if $i + 1 == $a.m# selected#end if#>$mnames[$i]</option>
 #end for
       </select>
-      <label class="sr" for="cm-year">Année</label>
+      <label class="sr" for="cm-year">$lt("Common", "Year")</label>
       <select id="cm-year">
 #for $y in $a.years
         <option value="$y"#if $y == $a.y# selected#end if#>$y</option>
 #end for
       </select>
-      <button type="submit" class="cm-go">Afficher</button>
+      <button type="submit" class="cm-go">$lt("Climato", "Show")</button>
 #if $a.prevYm
-      <a class="cm-link" href="climato-${a.prevYm}.html" rel="prev">‹ Mois précédent</a>
+      <a class="cm-link" href="climato-${a.prevYm}.html" rel="prev">$lt("Archives", "‹ Previous month")</a>
 #end if
 #if $a.nextYm
-      <a class="cm-link" href="climato-${a.nextYm}.html" rel="next">Mois suivant ›</a>
+      <a class="cm-link" href="climato-${a.nextYm}.html" rel="next">$lt("Archives", "Next month ›")</a>
 #end if
 #if $a.month
-      <a class="cm-link" href="month-${a.ym}.html">Graphiques du mois</a>
+      <a class="cm-link" href="month-${a.ym}.html">$lt("Climato", "Charts for the month")</a>
 #end if
 #if $a.climato
-      <a class="cm-link" href="climato-${a.y}.html">Climatologie $a.y</a>
+      <a class="cm-link" href="climato-${a.y}.html">$lt("Climato", "Climatology {year}", year=$a.y)</a>
 #end if
       <span class="arch-msg" id="cm-msg" role="status" aria-live="polite"></span>
     </form>
 
-    <div class="cm-wrap" id="cm-wrap"><p class="muted">Chargement du tableau…</p></div>
+    <div class="cm-wrap" id="cm-wrap"><p class="muted">$lt("Climato", "Loading table…")</p></div>
   </main>
 
-  <footer class="foot">Archive weewx — climatologie $a.label</footer>
+  <footer class="foot">$lt("Climato", "weewx archive — climatology {label}", label=$a.label)</footer>
 
   <!-- configuration et données du mois, générées par weewx -->
   <script>window.WEEWX_CONFIG = $livejson_config_inline;</script>
   <script>window.WEEWX_CLIMATO = $livejson_climato;</script>
+  <script src="../i18n.js"></script>
   <script src="../wxtime.js"></script>
   <script src="../nav.js"></script>
   <script src="../minichart.js"></script>

@@ -3,6 +3,68 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.02
+
+- **Documentation en anglais** incluse dans l'extension : `README.eng.md` (traduction du
+  README) et `skins/WeewxLive/skin.en.conf` (copie de `skin.conf` aux commentaires traduits,
+  réglages identiques ; non lue par weewx, à renommer en `skin.conf` pour l'utiliser). Tenues
+  à jour à chaque version, comme le README et `skin.conf`.
+- `skin.conf` : commentaire de l'option `lang` complété (de, it).
+
+## 2.01
+
+- **Pages en allemand et en italien** : nouveaux fichiers `lang/de.conf` et `lang/it.conf`
+  (mêmes clés que `fr.conf` et `en.conf`), choisis par `lang = de` ou `lang = it` dans
+  `[StdReport] [[WeewxLive]]`. Nombres et dates `de-DE` / `it-IT`, directions du vent,
+  phases de la lune, titres des mesures, temps prévu, carte Blitzortung dans la langue.
+  Traductions proposées, à relire.
+
+## 2.00
+
+- **Unités des paramètres supplémentaires** réglables dans `skin.conf`, avec des noms
+  d'unités weewx : section `[LiveJSON] [[unit_groups]]` (une unité par groupe weewx, ex.
+  `group_distance = mile`) et option `units` d'un paramètre ou d'un panneau groupé
+  (prioritaire). Valeurs converties par weewx, libellé affiché déduit de l'unité ; `unit`
+  reste un libellé seul. Groupes réglables : distance, énergie, degrés-jours, durées,
+  variation de pression.
+- Paramètres standard et groupes convertis dans le navigateur (température, vitesse, pluie,
+  intensité, pression, altitude, longueur) : publication métrique inchangée, unités par
+  défaut toujours réglées par `[[units]]` ; `units` ou `[[unit_groups]]` sur ces groupes :
+  ignoré, message dans le journal.
+- Réglages invalides (groupe ou unité inconnus, unité étrangère au groupe) : ignorés,
+  message dans le journal de weewx.
+
+## 1.99
+
+- Pages d'archives « jour » : panneaux réduits / développés mémorisés **séparément du tableau
+  de bord**, avec un seul état pour toutes les pages « jour » (clé `weewx-live:compact-day`
+  du navigateur). Réduire un panneau sur une journée le réduit sur toutes les autres, sans
+  changer le tableau de bord, et inversement.
+- Les choix déjà mémorisés du tableau de bord sont conservés ; sur les pages « jour », tous les
+  panneaux repartent développés (valeur par défaut) jusqu'au premier choix.
+
+## 1.98
+
+- **Pages en plusieurs langues**, selon les directives weewx : textes dans le dossier `lang/`
+  du skin, un fichier par langue — `fr.conf` (français) et `en.conf` (anglais, traduction
+  proposée) ; langue choisie par l'option `lang` du rapport. L'installeur ajoute `lang = fr`
+  dans `weewx.conf` `[StdReport] [[WeewxLive]]` (prioritaire sur `[[Defaults]] lang = en` du
+  `weewx.conf` de weewx 5) ; `skin.conf` : `lang = fr`.
+- Tout est traduit : gabarits (`$lt`), scripts (`i18n.js`, généré : `window.WXL`), module
+  Python (titres des pages d'archives, noms des mois et des jours, phases de la lune, noms des
+  modèles et pays, messages d'erreur publiés). Nombres et dates selon la langue
+  (`intl_locale`), directions du vent et temps prévu traduits, carte Blitzortung dans la
+  langue choisie.
+- Pages `detail`, `extremes`, `ensembles`, `meteogram`, `units`, `admin` et `webcam` :
+  gabarits (`*.html.tmpl`, générés à chaque archive) au lieu de fichiers copiés.
+- Titres des paramètres : sans `title`, celui de la langue (`[Labels] [[Generic]]`) ;
+  `skin.conf` ne fixe plus les titres des 6 paramètres standard. Couches satellite EUMETSAT
+  sans libellé : libellé traduit.
+- Pages d'archives générées avant la 1.98 : `i18n.js` chargé par `nav.js` (textes dans la
+  langue choisie). Textes absents d'un fichier de langue : clé anglaise affichée, liste dans
+  `window.WXL_MISSING`.
+- En français, pages identiques à la 1.97.
+
 ## 1.97
 
 - Pages d'archives (« jour », « mois », « année ») : titres des panneaux et des sections en

@@ -63,7 +63,7 @@
     return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
   }
 
-  const fmtNum = (v, d) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
+  const fmtNum = (v, d) => (isNum(v) ? Number(v).toLocaleString(WXL.locale, { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   // dates et heures : fuseau de la station (WXT, nav.js)
   const fr = (t, o) => WXT.fmt(t, o);
 
@@ -74,7 +74,7 @@
     if (mode === "h6") {
       for (let t = Math.ceil(t0 / 3600) * 3600; t <= t1; t += 3600) {
         const h = WXT.parts(t).h;
-        if (h % 6 === 0) out.push({ t, label: String(h).padStart(2, "0") + " h", align: "center" });
+        if (h % 6 === 0) out.push({ t, label: WXL.hour(String(h).padStart(2, "0")), align: "center" });
       }
       return out;
     }
@@ -534,7 +534,7 @@
         const toC = s._g === "temp" ? (v) => WXU.back("temp", v) : (v) => v;
         const val = this.o.valueFormat ? `<b>${this.o.valueFormat(p[1])}</b>`
           : s.type === "range" && s.midTick && p[3] !== null && p[3] !== undefined
-            ? `<b>${fmtNum(p[1], d)}</b> – <b>${fmtNum(p[2], d)}</b> ${u} · moy. <b>${fmtNum(p[3], d)}</b> ${u}`
+            ? `<b>${fmtNum(p[1], d)}</b> – <b>${fmtNum(p[2], d)}</b> ${u} · ${esc(WXL.t("Charts", "avg."))} <b>${fmtNum(p[3], d)}</b> ${u}`
           : s.type === "band" || s.type === "range" ? `<b>${fmtNum(p[1], d)}</b> – <b>${fmtNum(p[2], d)}</b> ${u}`
           : `<b>${fmtNum(p[1], d)}</b> ${u}`;
         const sw = s.pointColor ? s.pointColor(p._src || p)
@@ -569,7 +569,7 @@
       li.setAttribute("role", "button");
       li.tabIndex = 0;
       li.setAttribute("aria-pressed", String(!off));
-      li.title = `${off ? "Afficher" : "Masquer"} « ${name} » sur le graphique`;
+      li.title = WXL.t("Common", off ? "Show “{name}” on the chart" : "Hide “{name}” on the chart", { name });
     });
   }
   // relie une légende (ul) à un ou plusieurs graphiques ; à rappeler après chaque
@@ -674,7 +674,7 @@
     const ticks = [-10, 0, 10, 20, 30, 40].filter((v) => v >= v0 && v <= v1)
       .map((v) => `<span style="left:${pos(v).toFixed(1)}%">${tLab(v)}</span>`).join("");
     return `<span class="tscale"><span class="tscale-bar" style="background:linear-gradient(90deg, ${grad})"></span>` +
-      `<span class="tscale-lab">${ticks}</span></span> couleur : moyenne du jour (${tU()})`;
+      `<span class="tscale-lab">${ticks}</span></span> ` + WXL.t("Charts", "colour: daily mean ({unit})", { unit: tU() });
   }
   // ------------------------------------------------------------------
   // Paliers de 3 °C (courbes et chiffres de température) : une couleur fixe par tranche,
@@ -750,9 +750,9 @@
     let prev = v0;
     const grad = st.map(([up, c]) => { const s = `${c} ${pos(prev).toFixed(1)}% ${pos(up).toFixed(1)}%`; prev = up; return s; }).join(", ");
     const ticks = [-9, 0, 10, 19, 28, 40].map((v) => `<span style="left:${pos(v).toFixed(1)}%">${tLab(v)}</span>`).join("");
-    const w = (window.WXU ? WXU.delta("temp", 3) : 3).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+    const w = (window.WXU ? WXU.delta("temp", 3) : 3).toLocaleString(WXL.locale, { maximumFractionDigits: 1 });
     return `<span class="tscale"><span class="tscale-bar" style="background:linear-gradient(90deg, ${grad})"></span>` +
-      `<span class="tscale-lab">${ticks}</span></span> couleur : tranches de ${w} ${tU()}`;
+      `<span class="tscale-lab">${ticks}</span></span> ` + WXL.t("Charts", "colour: steps of {step} {unit}", { step: w, unit: tU() });
   }
   return { color, stepColor, textColor, lineColor, gradient, swatch, hiloSwatch, legend, stepLegend, darkMode };
   })();

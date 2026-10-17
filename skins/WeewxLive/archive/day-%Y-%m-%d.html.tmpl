@@ -3,7 +3,7 @@
 #set global $day_page = True
 #set global $a = $livejson_arch
 <!doctype html>
-<html lang="fr">
+<html lang="$livejson_lang">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,25 +13,26 @@
 </head>
 <body class="day-page" data-base="../">
 #include "archive/header.inc"
-  <p class="day-note">Valeurs du jour : minimum et maximum (avec l'heure), graphiques de 0 h à 24 h ; grandes valeurs : moyennes du jour, vent dominant du jour (direction la plus fréquente), cumuls du jour<span id="day-last"></span>.</p>
+  <p class="day-note">$lt("Panels", "Today's values: minimum and maximum (with time), charts from 0:00 to 24:00; large values: daily means, prevailing wind of the day (most frequent direction), daily totals")<span id="day-last"></span>.</p>
 
   <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
 
-  <div class="grid-tools" role="group" aria-label="Affichage des panneaux">
-    <button type="button" data-all="compact">Tout réduire</button>
-    <button type="button" data-all="full">Tout développer</button>
+  <div class="grid-tools" role="group" aria-label="$lt("Panels", "Panel display")">
+    <button type="button" data-all="compact">$lt("Common", "Collapse all")</button>
+    <button type="button" data-all="full">$lt("Common", "Expand all")</button>
   </div>
   <main class="grid">
 #include "panels.inc"
   </main>
 
-  <footer class="foot"><span id="src">Archive weewx du $a.label</span><span id="gen"></span><span id="mode"></span></footer>
+  <footer class="foot"><span id="src">$lt("Archives", "weewx archive of {label}", label=$a.label)</span><span id="gen"></span><span id="mode"></span></footer>
 
   <div id="tip" class="tip" hidden></div>
 
   <!-- configuration et données de la journée, générées par weewx -->
   <script>window.WEEWX_CONFIG = $livejson_config_inline;</script>
   <script>window.WEEWX_DAY = $livejson_day;</script>
+  <script src="../i18n.js"></script>
   <script src="../wxtime.js"></script>
   <script src="../nav.js"></script>
   <script src="../minichart.js"></script>

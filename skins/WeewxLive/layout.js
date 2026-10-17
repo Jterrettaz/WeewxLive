@@ -80,19 +80,22 @@
   const btn = document.getElementById("dash-edit");
   const tools = document.getElementById("grid-tools");
   if (!btn || !tools) return;
+  // textes de la langue choisie (i18n.js) ; « (masqué) » des éléments masqués : style.css
+  const tl = WXL.ctx("Layout"), tc = WXL.ctx("Common");
+  document.documentElement.style.setProperty("--wx-hidden-label", JSON.stringify(" " + tl("(hidden)")));
   const reset = document.createElement("button");
-  reset.type = "button"; reset.hidden = true; reset.textContent = "Par défaut";
-  reset.title = "Revenir aux ordres définis par la station et réafficher tous les éléments";
+  reset.type = "button"; reset.hidden = true; reset.textContent = tl("Default");
+  reset.title = tl("Restore the station's default order and show all items");
   btn.after(reset);
   const live = document.createElement("span");
   live.className = "sr"; live.setAttribute("aria-live", "polite");
   tools.appendChild(live);
 
-  const moveButtons = (name, kind) => `<button type="button" data-${kind}="-1" aria-label="Monter « ${esc(name)} »">↑<span class="w"> Monter</span></button>
-    <button type="button" data-${kind}="1" aria-label="Descendre « ${esc(name)} »">↓<span class="w"> Descendre</span></button>`;
+  const moveButtons = (name, kind) => `<button type="button" data-${kind}="-1" aria-label="${esc(tl("Move up “{name}”", { name }))}">↑<span class="w"> ${esc(tl("Move up"))}</span></button>
+    <button type="button" data-${kind}="1" aria-label="${esc(tl("Move down “{name}”", { name }))}">↓<span class="w"> ${esc(tl("Move down"))}</span></button>`;
   // bouton Masquer / Afficher (kind : hb = cadre, hp = panneau)
   const hideButton = (name, kind, id, isHidden) => `<button type="button" class="dash-hide" data-${kind}="${esc(id)}"
-    aria-pressed="${isHidden}" aria-label="${isHidden ? "Afficher" : "Masquer"} « ${esc(name)} »">${isHidden ? "Afficher" : "Masquer"}</button>`;
+    aria-pressed="${isHidden}" aria-label="${esc(tc(isHidden ? "Show “{name}”" : "Hide “{name}”", { name }))}">${esc(tc(isHidden ? "Show" : "Hide"))}</button>`;
 
   function build(on) {
     BLOCKS.items().forEach((b) => {
@@ -107,7 +110,7 @@
       if (b.contains(grid) && shownPanels().length > 1) {
         const sub = document.createElement("ol");
         sub.className = "dash-sub";
-        sub.setAttribute("aria-label", "Ordre des panneaux de mesures");
+        sub.setAttribute("aria-label", tl("Order of the measurement panels"));
         sub.innerHTML = shownPanels().map((c) => `<li data-param="${esc(c.dataset.param)}"${hidden.p.has(c.dataset.param) ? ' class="is-hidden"' : ""}>
           <span class="dash-pname">${esc(panelName(c))}</span>${moveButtons(panelName(c), "pmove")}${hideButton(panelName(c), "hp", c.dataset.param, hidden.p.has(c.dataset.param))}</li>`).join("");
         bar.after(sub);
@@ -147,10 +150,10 @@
       saveHidden(); applyHidden();
       const name = isBlock ? h.closest(".dash-block").dataset.label : h.closest("li").querySelector(".dash-pname").textContent;
       h.setAttribute("aria-pressed", String(now));
-      h.textContent = now ? "Afficher" : "Masquer";
-      h.setAttribute("aria-label", `${now ? "Afficher" : "Masquer"} « ${name} »`);
+      h.textContent = tc(now ? "Show" : "Hide");
+      h.setAttribute("aria-label", tc(now ? "Show “{name}”" : "Hide “{name}”", { name }));
       if (!isBlock) h.closest("li").classList.toggle("is-hidden", now);
-      live.textContent = `« ${name} » ${now ? "masqué" : "affiché"}`;
+      live.textContent = tl(now ? "“{name}” hidden" : "“{name}” shown", { name });
       refresh();
       return;
     }
@@ -160,7 +163,7 @@
       const b = m.closest(".dash-block"), dir = +m.dataset.move;
       if (!swap(b, dir)) return;
       BLOCKS.save(); refresh();
-      live.textContent = `« ${b.dataset.label} » : position ${BLOCKS.ids().indexOf(b.dataset.block) + 1} sur ${BLOCKS.ids().length}`;
+      live.textContent = tl("“{name}”: position {pos} of {count}", { name: b.dataset.label, pos: BLOCKS.ids().indexOf(b.dataset.block) + 1, count: BLOCKS.ids().length });
       (m.disabled ? b.querySelector(`.dash-bar [data-move="${-dir}"]`) : m).focus();
       b.scrollIntoView({ block: "nearest" });
     } else {                                 // panneau de mesures
@@ -170,7 +173,7 @@
       swap(card, dir);
       PANELS.save(); refresh();
       const ids = shownPanels().map((c) => c.dataset.param);
-      live.textContent = `« ${panelName(card)} » : position ${ids.indexOf(card.dataset.param) + 1} sur ${ids.length}`;
+      live.textContent = tl("“{name}”: position {pos} of {count}", { name: panelName(card), pos: ids.indexOf(card.dataset.param) + 1, count: ids.length });
       (m.disabled ? li.querySelector(`[data-pmove="${-dir}"]`) : m).focus();
     }
   });
@@ -179,13 +182,13 @@
     BLOCKS.save(); PANELS.save();
     hidden.b.clear(); hidden.p.clear(); saveHidden(); applyHidden();
     build(true);
-    live.textContent = "Ordre par défaut rétabli, tous les éléments affichés";
+    live.textContent = tl("Default order restored, all items shown");
     reset.focus();
   });
   btn.addEventListener("click", () => {
     const on = btn.getAttribute("aria-pressed") !== "true";
     btn.setAttribute("aria-pressed", String(on));
-    btn.textContent = on ? "Terminer" : "Réorganiser";
+    btn.textContent = WXL.t("Dashboard", on ? "Done" : "Rearrange");
     reset.hidden = !on;
     document.body.classList.toggle("dash-editing", on);
     build(on);

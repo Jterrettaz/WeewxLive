@@ -2,7 +2,9 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.97.
+et n'a pas besoin d'être joignable depuis internet. Version 2.02.
+
+*English version: [README.eng.md](README.eng.md).*
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
@@ -15,7 +17,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.97.
     en tête, les panneaux réduits regroupés en dessous, en tuiles. Choix mémorisé par panneau dans le navigateur ; « Tout réduire » /
     « Tout développer ». Au premier affichage du tableau de bord, et pour tout paramètre
     ajouté ensuite dans `skin.conf`, les panneaux sont **réduits** (pages « jour » :
-    développés).
+    développés). Les pages « jour » ont leur propre mémoire, commune à toutes les journées et
+    distincte de celle du tableau de bord.
   - **Légendes cliquables** : sur les graphiques à plusieurs courbes (tableau de bord, pages
     de détail et d'archives, Soleil et Lune, Ensembles, Météogramme), un clic (ou Entrée) sur
     un élément de la légende masque la courbe correspondante, un second clic la réaffiche.
@@ -50,6 +53,9 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.97.
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
   groupée, pluie et probabilité par jour, comparaison des modèles, tableau jour après jour ;
   modèles et horizons configurables.
+- **Pages en français, anglais, allemand ou italien** (option `lang`, fichiers `lang/fr.conf`,
+  `en.conf`, `de.conf` et `it.conf` du skin, selon les directives weewx) ; une autre langue
+  s'ajoute avec un fichier de plus (voir [Langue des pages](#langue-des-pages-lang)).
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -87,9 +93,13 @@ aucun port à ouvrir sur votre box.
 | Fichier | Rôle |
 |---|---|
 | `install.py` | installeur pour `weectl extension install` |
+| `README.eng.md` | traduction anglaise de ce README |
 | `changelog.md` | journal des modifications, version par version |
 | `bin/user/livejson.py` | extension weewx (SearchList) : calcule tous les fichiers JSON et les valeurs du gabarit |
 | `skins/WeewxLive/skin.conf` | configuration du rapport : paramètres affichés, MQTT, prévisions, cartes, extrêmes |
+| `skins/WeewxLive/skin.en.conf` | copie de `skin.conf` aux commentaires traduits en anglais (référence, non lue par weewx) |
+| `skins/WeewxLive/lang/fr.conf`, `en.conf`, `de.conf`, `it.conf` | textes des pages en français, anglais, allemand et italien ([Langue des pages](#langue-des-pages-lang)) |
+| `skins/WeewxLive/i18n.js.tmpl` | textes de la langue choisie pour les scripts des pages (`i18n.js`) |
 | `skins/WeewxLive/panels.inc` | panneaux des paramètres, partagés par le tableau de bord et les pages d'archives « jour » |
 | `skins/WeewxLive/astro.inc`, `forecast.inc`, `maps.inc`, `climate.inc` | cadres « Soleil et Lune », « Prévisions », « Radar et satellite », « Ce jour et ce mois au fil des ans » du tableau de bord |
 | `skins/WeewxLive/layout.js` | ordre et masquage des cadres et des panneaux de mesures du tableau de bord (bouton « Réorganiser ») |
@@ -102,14 +112,14 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/extras.js` | prévisions, radar et satellite du tableau de bord |
 | `skins/WeewxLive/climate.js` | « Ce jour et ce mois au fil des ans » |
 | `skins/WeewxLive/astro.js` | « Soleil et Lune » (affichage des données de l'almanach weewx) |
-| `skins/WeewxLive/detail.html`, `detail.js` | pages de détail par paramètre |
-| `skins/WeewxLive/extremes.html`, `extremes.js` | page « Extrêmes » |
-| `skins/WeewxLive/ensembles.html`, `ensembles.js` | page « Prévisions - Ensembles » |
-| `skins/WeewxLive/meteogram.html`, `meteogram.js` | page « Météogramme » |
+| `skins/WeewxLive/detail.html.tmpl`, `detail.js` | pages de détail par paramètre |
+| `skins/WeewxLive/extremes.html.tmpl`, `extremes.js` | page « Extrêmes » |
+| `skins/WeewxLive/ensembles.html.tmpl`, `ensembles.js` | page « Prévisions - Ensembles » |
+| `skins/WeewxLive/meteogram.html.tmpl`, `meteogram.js` | page « Météogramme » |
 | `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
-| `skins/WeewxLive/units.html`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
-| `skins/WeewxLive/webcam.html`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
-| `skins/WeewxLive/admin.html`, `admin.js` | page « Réglages → Admin » (entrée et sortie du [mode admin](#mode-admin-paramètres-réservés)) |
+| `skins/WeewxLive/units.html.tmpl`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
+| `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
+| `skins/WeewxLive/admin.html.tmpl`, `admin.js` | page « Réglages → Admin » (entrée et sortie du [mode admin](#mode-admin-paramètres-réservés)) |
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
 | `skins/WeewxLive/nav.js` | heure de la station (fonctions de date), unités, mode admin, menu commun ; nom, sous-titre et logo des pages statiques |
 | `skins/WeewxLive/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
@@ -126,6 +136,8 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `index.html` | tableau de bord | à chaque archive |
 | `config.json` | configuration de la page | à chaque archive |
 | `wxtime.js` | fuseau horaire de la station ([Heure de la station](#heure-de-la-station)) | à chaque archive |
+| `i18n.js` | textes de la langue choisie ([Langue des pages](#langue-des-pages-lang)) | à chaque archive |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html`, `webcam.html` | pages traduites (gabarits) | à chaque archive |
 | `data/history.json` | séries 24 h, extrêmes et cumuls du jour | à chaque archive |
 | `data/p24h.json` | page de détail, 24 h | à chaque archive |
 | `data/p7d.json` | 7 jours | 30 min max. |
@@ -137,7 +149,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression, 5 modèles) | toutes les 30 min, téléchargement au plus une fois par heure et par modèle |
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
+| `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
 Les pages d'archives des périodes passées ne sont générées qu'une fois : après une mise à
 jour de weewx-live, elles gardent l'ancienne présentation (elles restent utilisables, à
@@ -155,9 +167,9 @@ le système d'unités de la base (US, METRIC, METRICWX) : °C, km/h, mm, mm/h, h
 
 ```bash
 # weewx 5
-weectl extension install weewx-live.zip
+weectl extension install https://github.com/Jterrettaz/WeewxLive/releases/download/latest/weewx-live.zip
 # weewx 4
-sudo wee_extension --install weewx-live.zip
+sudo wee_extension --install https://github.com/Jterrettaz/WeewxLive/releases/download/latest/weewx-live.zip
 ```
 
 L'installeur ajoute dans `weewx.conf` :
@@ -176,6 +188,12 @@ avec weewx 4, déplacez la section à la main.
 **Mise à jour** : la réinstallation remplace `skin.conf` et les fichiers du skin (dont
 `minichart.js`). Placez vos réglages dans `weewx.conf` (voir
 [Conserver ses réglages](#conserver-ses-réglages-lors-des-mises-à-jour-weewxconf)).
+
+**Mise à jour depuis une version antérieure à 1.98** : les pages `detail.html`,
+`extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html` et
+`webcam.html` sont désormais des gabarits (`*.html.tmpl`) ; les anciens fichiers `*.html` de
+`skins/WeewxLive/` ne servent plus et peuvent être supprimés. L'installeur ajoute
+`lang = fr` dans `[[WeewxLive]]` (voir [Langue des pages](#langue-des-pages-lang)).
 
 **Mise à jour depuis une version antérieure à 1.55** (fichiers du skin déplacés de
 `skins/WeewxLive/live/` vers `skins/WeewxLive/`) :
@@ -438,6 +456,47 @@ Pour retirer un élément pour tous les visiteurs : `enable = false` dans `[[for
 `[[radar]]`, `[[satellite]]`, `[[astro]]` ou dans le paramètre de `[[parameters]]` (le cadre
 « au fil des ans » n'a pas d'option de désactivation).
 
+### Langue des pages (`lang`)
+
+Les textes des pages sont dans le dossier `lang/` du skin, un fichier par langue, selon les
+directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (allemand) et
+`it.conf` (italien). La langue se choisit dans
+`weewx.conf`, section du rapport :
+
+```ini
+[StdReport]
+    [[WeewxLive]]
+        skin = WeewxLive
+        lang = fr          # fr, en, de ou it
+```
+
+- L'installeur ajoute `lang = fr` à cette section (aussi lors d'une mise à jour, si l'option
+  manque). Ce réglage l'emporte sur `[StdReport] [[Defaults]] lang` (`en` dans le
+  `weewx.conf` créé par weewx 5) et sur `lang = fr` de `skin.conf`.
+- Tout est traduit : menus, titres, panneaux, graphiques et infobulles, tableaux, messages,
+  noms des jours et des mois, directions du vent (O / W pour l'ouest), phases de la lune,
+  temps prévu, noms des modèles de prévision et messages d'erreur. Les nombres et les dates
+  suivent la langue (`intl_locale` : `fr-FR`, `en-GB`, `de-DE`, `it-IT`).
+- Titres des paramètres standard : sans option `title` dans `[[parameters]]`, ceux de la
+  langue (`[Labels] [[Generic]]` du fichier : « Température » / « Temperature »…). Un
+  `title` écrit dans `skin.conf` ou `weewx.conf` reste affiché tel quel, quelle que soit la
+  langue ; les paramètres ajoutés sans `title` prennent aussi le titre weewx de leur colonne
+  (ex. `soilTemp1` : « Température du sol 1 »).
+- Traductions allemande et italienne (2.01) : propositions à relire. Directions du vent
+  abrégées selon la langue (allemand : O = Ost, est ; italien : O = ovest, ouest).
+- **Ajouter une langue** : copier `en.conf` sous le nom `<code>.conf` (ex. `es.conf`,
+  `nl.conf`), traduire les valeurs (à droite du signe `=`, sans toucher aux clés ni aux
+  `{variables}`), régler `intl_locale` et `html_lang` dans `[[Locale]]`, puis `lang = es`.
+  Une langue sans fichier est remplacée par l'anglais par weewx. Un texte absent du fichier
+  s'affiche en anglais (clé) ; la console du navigateur en donne la liste :
+  `window.WXL_MISSING`.
+- Le fichier de langue est remplacé à chaque réinstallation (comme `skin.conf`) : gardez
+  une copie de vos modifications.
+- Changer de langue ne refait pas les pages d'archives des périodes passées : supprimez le
+  dossier `archive/` de `HTML_ROOT` pour les régénérer dans la nouvelle langue.
+  Les fichiers `data/` actualisés moins souvent (météogramme, ensembles : noms des modèles)
+  passent à la nouvelle langue à leur prochaine génération (`stale_age`, 30 min à 1 h).
+
 ### Unités affichées (`[[units]]`)
 
 Les données restent en unités métriques (°C, km/h, mm, mm/h, hPa, m, cm) ; la conversion se
@@ -465,6 +524,53 @@ efface ce choix. Les paramètres ajoutés (`[[parameters]]`) dont l'unité est �
 mm/h, hPa, m ou cm sont convertis de la même façon. Les seuils (jours de gel, jours de pluie…)
 et les couleurs des températures restent calculés sur les valeurs métriques.
 
+Les 6 paramètres standard sont toujours publiés dans ces unités métriques : leur unité par
+défaut se règle uniquement ici, par `[[units]]` (une option `units` sur un paramètre standard
+est ignorée et signalée dans le journal).
+
+### Unités des paramètres supplémentaires (`[[unit_groups]]`, `units`)
+
+Les paramètres ajoutés sont publiés dans une unité choisie d'après leur **groupe d'unités
+weewx** (rayonnement : W/m², distance : km, énergie : Wh, degrés-jours : °C·j, durées : h…).
+Deux réglages permettent d'en changer, avec des **noms d'unités weewx** ; les valeurs sont
+converties par weewx et le libellé affiché suit l'unité :
+
+```ini
+[LiveJSON]
+    # par groupe : tous les paramètres ajoutés de ce groupe
+    [[unit_groups]]
+        group_distance = mile          # km, meter, mile
+        group_energy = kilowatt_hour   # watt_hour, kilowatt_hour, mega_joule, watt_second
+        group_degree_day = degree_F_day
+        group_deltatime = minute       # durées en secondes : hour, minute, second, day
+    [[parameters]]
+        [[[windrun]]]
+            title = Parcours du vent
+            aggregate = sum
+            units = km                 # par paramètre : prioritaire sur [[unit_groups]]
+```
+
+| Groupe | Unité par défaut | Autres unités possibles |
+|---|---|---|
+| `group_distance` | `km` | `meter`, `mile` |
+| `group_energy` | `watt_hour` | `kilowatt_hour`, `mega_joule`, `watt_second` |
+| `group_degree_day` | `degree_C_day` | `degree_F_day` |
+| `group_interval` (durées en minutes) | `hour` | `minute`, `second`, `day` |
+| `group_deltatime` (durées en secondes) | `hour` | `minute`, `second`, `day` |
+| `group_pressurerate` | `mbar_per_hour` | `hPa_per_hour`, `inHg_per_hour`, `mmHg_per_hour`, `kPa_per_hour` |
+
+- Les groupes température, vitesse, pluie, intensité de pluie, pression, altitude et longueur
+  (cm) ne se règlent pas ici : ils restent métriques et suivent `[[units]]` (conversion dans
+  le navigateur, au choix du visiteur).
+- Rayonnement (W/m²), humidité du sol (cb), éclairement (lx), concentration (µg/m³),
+  tension (V) et ppm n'ont qu'une unité dans weewx.
+- Panneau groupé : `units` dans la section du groupe vaut pour toutes ses mesures ; une
+  mesure peut avoir la sienne.
+- L'option `unit` reste un simple **libellé** (sans conversion), prioritaire sur celui déduit
+  de `units` ; pensez à ajuster `decimals` (ex. distance en miles).
+- Groupe inconnu, groupe converti dans le navigateur, unité étrangère au groupe : réglage
+  ignoré, message dans le journal de weewx (`livejson:`).
+
 ## 5. Paramètres affichés (`[[parameters]]`)
 
 La liste des paramètres du tableau de bord, des pages de détail et du menu « Données » se
@@ -475,7 +581,7 @@ d'affichage**.
     [[parameters]]
         # order = outTemp, wind, …    # facultatif, voir plus bas
         [[[outTemp]]]
-            title = Température       # titre affiché
+            # title = Température     # titre affiché (par défaut : celui de la langue)
             column = outTemp          # colonne de la base weewx
             mqtt = outTemp            # nom MQTT (avant le suffixe d'unité : outTemp_C)
             aggregate = min-max       # min-max | max | sum
@@ -485,7 +591,7 @@ d'affichage**.
             column = UV
             mqtt = UV
             aggregate = max
-            decimals = 1              # facultatif ; aussi : unit, hint, color (ex. --sun)
+            decimals = 1              # facultatif ; aussi : units, unit, hint, color (ex. --sun)
             # admin = true            # facultatif : seulement en mode admin (voir plus bas)
 ```
 
@@ -497,7 +603,8 @@ d'affichage**.
 
 - Les 6 paramètres standard (`outTemp`, `wind`, `windDir`, `rain`, `outHumidity`,
   `barometer`) gardent leur panneau spécialisé tant que leur agrégat n'est pas
-  modifié ; leurs `title`, `column` et `mqtt` sont modifiables. Changer leur agrégat les
+  modifié ; leurs `title` (par défaut : titre de la [langue](#langue-des-pages-lang)), `column`
+  et `mqtt` sont modifiables. Changer leur agrégat les
   transforme en panneau générique.
 - Supprimer une sous-section (ou `enable = false`) retire le paramètre partout. Sans aucune
   sous-section, les 6 paramètres standard sont affichés.

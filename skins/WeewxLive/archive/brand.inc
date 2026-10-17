@@ -11,7 +11,7 @@
       </div>
     </div>
     <div class="status">
-      <span class="pill pill-arch"><span class="dot"></span><span class="txt">Archives</span></span>
+      <span class="pill pill-arch"><span class="dot"></span><span class="txt">$lt("Archives", "Archives")</span></span>
     </div>
   </header>
-  <nav id="menu" class="menu" aria-label="Pages"></nav>
+  <nav id="menu" class="menu" aria-label="$lt("Common", "Pages")"></nav>

@@ -13,7 +13,7 @@
   const pad = (n) => String(n).padStart(2, "0");
   const fmtDate = (iso) => {
     const [y, m, d] = iso.split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    return new Date(y, m - 1, d).toLocaleDateString(WXL.locale, { day: "numeric", month: "long", year: "numeric" });
   };
 
   function fileFor(kind, iso) {
@@ -24,22 +24,24 @@
   }
 
   function say(text) { msg.textContent = text; }
+  // textes de la langue choisie (i18n.js)
+  const ta = WXL.ctx("Archives");
 
   async function go(kind) {
     const iso = input.value;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return say("Choisissez une date.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return say(ta("Pick a date."));
     if (iso < first || iso > today) {
-      return say(`Pas de données à cette date (archives du ${fmtDate(first)} au ${fmtDate(today)}).`);
+      return say(ta("No data on that date (archives from {first} to {last}).", { first: fmtDate(first), last: fmtDate(today) }));
     }
     if (kind === "day" && iso < dayFirst) {
-      return say(`Pages « jour » disponibles à partir du ${fmtDate(dayFirst)} ; essayez « Mois » ou « Année ».`);
+      return say(ta("Day pages available from {date}; try “Month” or “Year”.", { date: fmtDate(dayFirst) }));
     }
     const url = fileFor(kind, iso);
     say("");
     try {
       // la page existe-t-elle sur le serveur ? (journée pas encore générée, etc.)
       const r = await fetch(url, { method: "HEAD", cache: "no-store" });
-      if (!r.ok) return say(`Page non disponible (${url}).`);
+      if (!r.ok) return say(WXL.t("Common", "Page not available ({url}).", { url }));
     } catch (e) { /* hors ligne ou HEAD refusé : on tente l'ouverture */ }
     location.href = url;
   }

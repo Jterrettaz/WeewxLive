@@ -4,17 +4,19 @@
 (function () {
   "use strict";
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  // libellés du temps prévu : [Texts] [[WeatherCodes]] du fichier de langue (clé : code WMO)
+  const w = (code) => WXL.t("WeatherCodes", String(code));
   const WMO = {
-    0: ["Ensoleillé", "sun"], 1: ["Plutôt ensoleillé", "suncloud"], 2: ["Éclaircies", "suncloud"], 3: ["Couvert", "cloud"],
-    45: ["Brouillard", "fog"], 48: ["Brouillard givrant", "fog"],
-    51: ["Bruine légère", "drizzle"], 53: ["Bruine", "drizzle"], 55: ["Bruine dense", "drizzle"],
-    56: ["Bruine verglaçante", "drizzle"], 57: ["Bruine verglaçante", "drizzle"],
-    61: ["Pluie faible", "rain"], 63: ["Pluie", "rain"], 65: ["Pluie forte", "rain"],
-    66: ["Pluie verglaçante", "rain"], 67: ["Pluie verglaçante", "rain"],
-    71: ["Neige faible", "snow"], 73: ["Neige", "snow"], 75: ["Neige forte", "snow"], 77: ["Grains de neige", "snow"],
-    80: ["Averses", "showers"], 81: ["Averses", "showers"], 82: ["Fortes averses", "showers"],
-    85: ["Averses de neige", "snow"], 86: ["Fortes averses de neige", "snow"],
-    95: ["Orage", "storm"], 96: ["Orage et grêle", "storm"], 99: ["Orage et grêle", "storm"],
+    0: [w(0), "sun"], 1: [w(1), "suncloud"], 2: [w(2), "suncloud"], 3: [w(3), "cloud"],
+    45: [w(45), "fog"], 48: [w(48), "fog"],
+    51: [w(51), "drizzle"], 53: [w(53), "drizzle"], 55: [w(55), "drizzle"],
+    56: [w(56), "drizzle"], 57: [w(57), "drizzle"],
+    61: [w(61), "rain"], 63: [w(63), "rain"], 65: [w(65), "rain"],
+    66: [w(66), "rain"], 67: [w(67), "rain"],
+    71: [w(71), "snow"], 73: [w(73), "snow"], 75: [w(75), "snow"], 77: [w(77), "snow"],
+    80: [w(80), "showers"], 81: [w(81), "showers"], 82: [w(82), "showers"],
+    85: [w(85), "snow"], 86: [w(86), "snow"],
+    95: [w(95), "storm"], 96: [w(96), "storm"], 99: [w(99), "storm"],
   };
 
   // Pictogrammes 48 × 48

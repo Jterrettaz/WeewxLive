@@ -122,11 +122,13 @@
   // ------------------------------------------------------------------
   // Formatage
   // ------------------------------------------------------------------
+  // textes de la langue choisie (i18n.js) : tp("clé") dans [[Panels]], tx("Contexte", "clé")
+  const tp = WXL.ctx("Panels"), tc = WXL.ctx("Common"), td = WXL.ctx("Dashboard"), tx = WXL.t;
   const fmt = (v, d) => v === null || v === undefined || isNaN(v) ? "--"
-    : Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const hhmm = (t) => t ? "à " + WXT.hm(t) : "";   // heure de la station (WXT, nav.js)
-  const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-  const dirName = (d) => d === null || d === undefined ? "—" : DIRS[Math.round(d / 22.5) % 16];
+    : Number(v).toLocaleString(WXL.locale, { minimumFractionDigits: d, maximumFractionDigits: d });
+  const hhmm = (t) => t ? WXL.fill(WXL.loc("time_at", "{time}"), { time: WXT.hm(t) }) : "";   // heure de la station (WXT, nav.js)
+  const DIRS = WXL.dirs.slice(0, 16);
+  const dirName = WXL.dir;
   const midnightOf = WXT.midnight;
   const round = (v) => Math.round(v * 100) / 100;
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
@@ -183,29 +185,29 @@
   }, opt));
 
   const charts = {
-    outTemp: lineChart("outTemp", "--temp", "Température", "°C", { minRange: 2 }),
-    outHumidity: lineChart("outHumidity", "--hum", "Humidité", "%", { ceil: 100, minRange: 10 }),
-    barometer: lineChart("barometer", "--press", "Pression", "hPa", { minRange: 4 }),
+    outTemp: lineChart("outTemp", "--temp", tx("Menu", "Temperature"), "°C", { minRange: 2 }),
+    outHumidity: lineChart("outHumidity", "--hum", tx("Menu", "Humidity"), "%", { ceil: 100, minRange: 10 }),
+    barometer: lineChart("barometer", "--press", tx("Menu", "Pressure"), "hPa", { minRange: 4 }),
     wind: mkChart("wind", {
       unit: "km/h", decimals: 0, floor: 0, minRange: 10,
       series: [
-        { label: "Moyen", color: "--wind", type: "line", fill: true, data: S.series.windSpeed },
-        { label: "Rafales", color: "--gust", type: "line", width: 1.5, endDot: false, data: S.series.windGust },
+        { label: tp("Mean"), color: "--wind", type: "line", fill: true, data: S.series.windSpeed },
+        { label: tp("Gusts"), color: "--gust", type: "line", width: 1.5, endDot: false, data: S.series.windGust },
       ],
     }),
     // Direction du vent sur la fenêtre (HOURS) : nuage de points, axe N / E / S / O
     windDir: mkChart("windDir", {
       unit: "°", decimals: 0, yFixed: [0, 360, 90], maxGap: 1e9,
-      yFormat: (v) => ["N", "E", "S", "O", "N"][Math.round(v / 90)] || "",
+      yFormat: (v) => [DIRS[0], DIRS[4], DIRS[8], DIRS[12], DIRS[0]][Math.round(v / 90)] || "",
       valueFormat: (v) => `${dirName(v)} ${Math.round(v)}°`,
-      series: [{ label: "Direction", color: "--wind", type: "dots", endDot: false, data: S.series.windDir }],
+      series: [{ label: tp("Direction"), color: "--wind", type: "dots", endDot: false, data: S.series.windDir }],
     }),
     // pluie horaire (échelle de gauche) et cumul glissant (échelle de droite)
     rain: mkChart("rain", {
       unit: "mm", decimals: 1, floor: 0, minRange: 1, y2: { floor: 0, minRange: 1 },
       series: [
-        { label: "Pluie horaire", color: "--rain", type: "bar", bucket: 3600, data: [] },
-        { label: `Cumul ${HOURS} h`, color: "--rainsum", type: "line", fill: false, axis: "right", maxGap: 1e9, data: [] },
+        { label: tp("Hourly rain"), color: "--rain", type: "bar", bucket: 3600, data: [] },
+        { label: tp("Total {hours} h", { hours: HOURS }), color: "--rainsum", type: "line", fill: false, axis: "right", maxGap: 1e9, data: [] },
       ],
     }),
   };
@@ -214,10 +216,10 @@
   // Paramètres configurables (config.json « parameters », skin.conf [[parameters]])
   // ------------------------------------------------------------------
   const DEFAULT_PARAMS = [
-    ["outTemp", "outTemp", "Température"], ["wind", "windSpeed", "Vent"], ["windDir", "windDir", "Direction du vent"],
-    ["rain", "rain", "Pluie"],
-    ["outHumidity", "outHumidity", "Humidité relative"], ["barometer", "barometer", "Pression"],
-  ].map(([pid, key, title]) => ({ id: pid, key, title, mqtt: key, builtin: true }));
+    ["outTemp", "outTemp", "Temperature"], ["wind", "windSpeed", "Wind"], ["windDir", "windDir", "Wind direction"],
+    ["rain", "rain", "Rain"],
+    ["outHumidity", "outHumidity", "Relative humidity"], ["barometer", "barometer", "Pressure"],
+  ].map(([pid, key, title]) => ({ id: pid, key, title: WXL.label(pid, title), mqtt: key, builtin: true }));
   const GENERIC_COLORS = ["--press", "--hum", "--sun", "--temp", "--wind"];
   // mesure en degrés Celsius (unité « °C ») : courbe colorée selon la température
   const isCelsius = (u) => /^\s*°\s*C\s*$/i.test(u || "");
@@ -237,11 +239,11 @@
 
   function genericCard(p) {
     const ext = p.aggregate === "min-max"
-      ? `<div><dt>Min</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
-         <div><dt>Max</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
+      ? `<div><dt>${escH(tc("Min"))}</dt><dd><b data-k="min">--</b><small data-k="minTime"></small></dd></div>
+         <div><dt>${escH(tc("Max"))}</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
       : p.aggregate === "max"
-        ? `<div><dt>Max du jour</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
-        : `<div><dt>Cumul ${HOURS} h</dt><dd><b data-k="sum24">--</b><small data-ubase="${escH(p.unit)}">${escH(p.unit)}</small></dd></div>`;
+        ? `<div><dt>${escH(tp("Today's max"))}</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>`
+        : `<div><dt>${escH(tp("Total {hours} h", { hours: HOURS }))}</dt><dd><b data-k="sum24">--</b><small data-ubase="${escH(p.unit)}">${escH(p.unit)}</small></dd></div>`;
     const el = document.createElement("article");
     el.className = "card";
     el.dataset.param = p.id;
@@ -250,13 +252,13 @@
     el.innerHTML = `
       <div class="card-main">
         <header><h2><a class="more" data-detail="${escH(p.id)}" href="detail.html?p=${encodeURIComponent(p.id)}">${escH(p.title)}</a></h2>
-          <span class="hint">${escH(p.hint || (p.aggregate === "sum" ? "cumul du jour" : ""))}</span></header>
+          <span class="hint">${escH(p.hint || (p.aggregate === "sum" ? tp("today's total") : ""))}</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-ubase="${escH(p.unit)}">${escH(p.unit)}</span></div>
         <dl class="ext">${ext}</dl>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur ${HOURS} heures"></div>
-        ${p.aggregate === "sum" ? `<ul class="legend"><li><i style="background:var(${p.color})"></i>Cumul horaire</li><li><i style="background:var(--text-2)"></i>Cumul ${HOURS} h (échelle de droite)</li></ul>` : ""}
+        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(tp("{title} over {hours} hours", { title: p.title, hours: HOURS }))}"></div>
+        ${p.aggregate === "sum" ? `<ul class="legend"><li><i style="background:var(${p.color})"></i>${escH(tp("Hourly total"))}</li><li><i style="background:var(--text-2)"></i>${escH(tp("Total {hours} h (right scale)", { hours: HOURS }))}</li></ul>` : ""}
       </div>`;
     if (window.WXU) WXU.applyLabels(el);   // unités choisies par le visiteur
     return el;
@@ -282,12 +284,12 @@
       <div class="card-main">
         <header><h2><a class="more" data-detail="${escH(p.id)}" href="detail.html?p=${encodeURIComponent(p.id)}">${escH(p.title)}</a></h2>
           <span class="hint">${escH(p.hint || "")}</span></header>
-        <table class="gtab"><thead><tr><th scope="col"><span class="sr">Mesure</span></th><th scope="col">Actuel</th>
-          ${mm ? '<th scope="col">Min</th><th scope="col">Max</th>' : '<th scope="col">Max du jour</th>'}</tr></thead>
+        <table class="gtab"><thead><tr><th scope="col"><span class="sr">${escH(tp("Measurement"))}</span></th><th scope="col">${escH(tp("Current"))}</th>
+          ${mm ? `<th scope="col">${escH(tc("Min"))}</th><th scope="col">${escH(tc("Max"))}</th>` : `<th scope="col">${escH(tp("Today's max"))}</th>`}</tr></thead>
           <tbody>${rows}</tbody></table>
       </div>
       <div class="card-side">
-        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(p.title)} sur ${HOURS} heures"></div>
+        <div class="chart" data-chart="${escH(p.key)}" role="img" aria-label="${escH(tp("{title} over {hours} hours", { title: p.title, hours: HOURS }))}"></div>
         <ul class="legend">${p.members.map((m) => `<li><i style="background:var(${m.color})"></i>${escH(m.title)}</li>`).join("")}</ul>
       </div>`;
     if (window.WXU) WXU.applyLabels(el);   // unités choisies par le visiteur
@@ -326,8 +328,8 @@
       const opts = { unit: p.unit, decimals: p.decimals, span: SPAN };
       charts["g:" + p.key] = p.aggregate === "sum"
         ? new MiniChart(el, Object.assign(opts, { floor: 0, minRange: 1, maxGap: 1e9, y2: { floor: 0, minRange: 1 }, series: [
-          { label: "Cumul horaire", color: p.color, type: "bar", bucket: 3600, data: [] },
-          { label: `Cumul ${HOURS} h`, color: "--text-2", type: "line", axis: "right", data: [] }] }))
+          { label: tp("Hourly total"), color: p.color, type: "bar", bucket: 3600, data: [] },
+          { label: tp("Total {hours} h", { hours: HOURS }), color: "--text-2", type: "line", axis: "right", data: [] }] }))
         : new MiniChart(el, Object.assign(opts, { minRange: 1, series: [
           { label: p.title, color: p.color, type: "line", fill: true, tempScale: isCelsius(p.unit), data: S.series[p.key] }] }));
     }
@@ -489,9 +491,9 @@
         out += `<path class="wedge" style="fill:var(${ROSE_CLASSES[ci].color})" d="M${x0} ${y0}L${x1} ${y1}A${ro.toFixed(1)} ${ro.toFixed(1)} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${ri.toFixed(1)} ${ri.toFixed(1)} 0 0 0 ${x0} ${y0}Z"/>`;
       });
       const pct = tot[sec] / n * 100;
-      out += `<path class="hit" d="M0 0L${pt(R, a0).join(" ")}A${R} ${R} 0 0 1 ${pt(R, a1).join(" ")}Z"><title>${DIRS[sec]} : ${fmt(pct, 0)} % du temps · vent moyen ${fmtU("wind", sums[sec] / tot[sec], 0)} ${window.WXU ? WXU.get("wind") : "km/h"}</title></path>`;
+      out += `<path class="hit" d="M0 0L${pt(R, a0).join(" ")}A${R} ${R} 0 0 1 ${pt(R, a1).join(" ")}Z"><title>${escH(tx("WindRose", "{dir}: {pct} % of the time · mean wind {speed} {unit}", { dir: DIRS[sec], pct: fmt(pct, 0), speed: fmtU("wind", sums[sec] / tot[sec], 0), unit: window.WXU ? WXU.get("wind") : "km/h" }))}</title></path>`;
     }
-    const lab = [["N", 0], ["E", 90], ["S", 180], ["O", 270]];
+    const lab = [[DIRS[0], 0], [DIRS[4], 90], [DIRS[8], 180], [DIRS[12], 270]];
     for (const [l, deg] of lab) {
       const [x, y] = pt(R + 11, deg * Math.PI / 180);
       out += `<text class="card-l" x="${x}" y="${y}">${l}</text>`;
@@ -499,8 +501,10 @@
     out += `<circle class="calm" r="${r0 - 1}"/>`;
     svg.innerHTML = out;
     svg.setAttribute("aria-label", n
-      ? `Rose des vents ${DAY ? "de la journée" : `sur ${HOURS} h`} : direction dominante ${dom >= 0 ? DIRS[dom] : "aucune"}, calme ${fmt(calm / n * 100, 0)} % du temps`
-      : "Rose des vents : pas encore de données");
+      ? tx("WindRose", DAY ? "Wind rose of the day: prevailing direction {dir}, calm {pct} % of the time"
+        : "Wind rose over {hours} h: prevailing direction {dir}, calm {pct} % of the time",
+      { hours: HOURS, dir: dom >= 0 ? DIRS[dom] : tx("WindRose", "none"), pct: fmt(calm / n * 100, 0) })
+      : tx("WindRose", "Wind rose: no data yet"));
     set("windDir", "dominant", dom >= 0 ? DIRS[dom] : "--");
     set("windDir", "calm", n ? `${fmt(calm / n * 100, 0)} %` : "--");
   }
@@ -621,14 +625,14 @@
     if (!row) return;
     const v = S.cur.outTemp, on = isNum(v) && v < 0 && isNum(S.lastAbove);
     if (row.hidden === on) row.hidden = !on;
-    if (on) set("outTemp", "frost", (S.frostPartial ? "plus de " : "") + duration(nowS() - S.lastAbove));
+    if (on) set("outTemp", "frost", S.frostPartial ? tp("more than {duration}", { duration: duration(nowS() - S.lastAbove) }) : duration(nowS() - S.lastAbove));
   }
   // durée lisible : « 42 min », « 3 h 05 min », « 2 j 4 h »
   function duration(s) {
     const m = Math.max(0, Math.floor(s / 60)), h = Math.floor(m / 60);
-    if (m < 60) return `${m} min`;
-    if (h < 24) return `${h} h ${String(m % 60).padStart(2, "0")} min`;
-    return `${Math.floor(h / 24)} j ${h % 24} h`;
+    if (m < 60) return WXL.fill(WXL.loc("duration_min", "{m} min"), { m });
+    if (h < 24) return WXL.fill(WXL.loc("duration_h_min", "{h} h {m} min"), { h, m: String(m % 60).padStart(2, "0") });
+    return WXL.fill(WXL.loc("duration_d_h", "{d} d {h} h"), { d: Math.floor(h / 24), h: h % 24 });
   }
 
   // Panneau Température : valeur actuelle, min. et max. colorés selon la température,
@@ -901,14 +905,13 @@
       hideBanner("hist");
       const gen = h.generated || h.stop;
       document.getElementById("gen").textContent =
-        " généré " + WXT.fmt(gen, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+        " " + tc("generated {when}", { when: WXT.fmt(gen, { weekday: "short", hour: "2-digit", minute: "2-digit" }) });
       if (Date.now() / 1000 - gen > HISTORY_STALE) {
-        showBanner("stale", "L'historique n'a pas été mis à jour depuis " +
-          WXT.fmt(gen, { dateStyle: "short", timeStyle: "short" }) +
-          " (génération ou envoi weewx interrompu ?).");
+        showBanner("stale", td("The history has not been updated since {when} (weewx generation or upload interrupted?).",
+          { when: WXT.fmt(gen, { dateStyle: "short", timeStyle: "short" }) }));
       } else hideBanner("stale");
     } catch (e) {
-      showBanner("hist", `Historique indisponible (${e.message}). Les graphiques se rempliront au fil des données MQTT.`);
+      showBanner("hist", td("History unavailable ({error}). Charts will fill in as MQTT data arrives.", { error: e.message }));
     }
   }
 
@@ -942,33 +945,33 @@
     if (DEMO) return null;
     const cfg = window.weewxConfig ? await window.weewxConfig.catch(() => null) : null;
     if (!cfg) {
-      setConn("off", "Config. introuvable");
-      showBanner("cfg", "Impossible de lire config.json. Le rapport WeewxLive a-t-il été généré et envoyé ?");
+      setConn("off", td("Config not found"));
+      showBanner("cfg", td("Cannot read config.json. Has the WeewxLive report been generated and uploaded?"));
     }
     return cfg;
   }
 
   async function startMqtt(cfg) {
-    if (DEMO) { setConn("on", "Démo"); return Demo.start(onPacket); }
+    if (DEMO) { setConn("on", td("Demo")); return Demo.start(onPacket); }
     if (!cfg) return;
     if (cfg.stationName) {
       document.getElementById("station-name").textContent = cfg.stationName;
-      document.title = cfg.stationName + " — en direct";
+      document.title = td("{station} — live", { station: cfg.stationName });
     }
     const m = cfg.mqtt;
     if (!m || m.enable === false || !m.url) {
       // pas de temps réel : mise à jour à chaque archive weewx
-      setArchiveMode((m && m.archivePoll) || 60, m && m.enable !== false ? "MQTT non configuré" : "MQTT désactivé");
+      setArchiveMode((m && m.archivePoll) || 60, m && m.enable !== false ? td("MQTT not configured") : td("MQTT disabled"));
       if (m && m.enable !== false && !m.url) {
-        showBanner("mqtt", "Aucun broker MQTT défini ([LiveJSON] [[mqtt]] url dans skin.conf) : mise à jour à chaque archive weewx.");
+        showBanner("mqtt", td("No MQTT broker defined ([LiveJSON] [[mqtt]] url in skin.conf): updated at each weewx archive."));
       }
       return;
     }
     await loadMqttLib();
     if (!window.mqtt) {
       // repli : mise à jour à chaque archive weewx
-      setArchiveMode(m.archivePoll || 60, "mqtt.js introuvable");
-      return showBanner("lib", "La bibliothèque mqtt.js n'a pas pu être chargée (voir README : vendor/mqtt.min.js) : mise à jour à chaque archive weewx.");
+      setArchiveMode(m.archivePoll || 60, td("mqtt.js not found"));
+      return showBanner("lib", td("The mqtt.js library could not be loaded (see README: vendor/mqtt.min.js): updated at each weewx archive."));
     }
     setPastKeys(m.temp1hKey, m.temp24hKey, m.tempDeltas !== false);
     const client = mqtt.connect(m.url, {
@@ -979,17 +982,17 @@
       connectTimeout: 10000,
       clean: true,
     });
-    setConn("wait", "Connexion…");
+    setConn("wait", td("Connecting…"));
     client.on("connect", () => {
-      setConn("on", "En direct");
+      setConn("on", td("Live"));
       hideBanner("mqtt");
       client.subscribe(m.topic, { qos: 0 });
     });
-    client.on("reconnect", () => setConn("wait", "Reconnexion…"));
-    client.on("offline", () => setConn("off", "Hors ligne"));
+    client.on("reconnect", () => setConn("wait", td("Reconnecting…")));
+    client.on("offline", () => setConn("off", td("Offline")));
     client.on("error", (e) => {
-      setConn("off", "Erreur MQTT");
-      showBanner("mqtt", `Erreur MQTT (${m.url}) : ${e.message}`);
+      setConn("off", td("MQTT error"));
+      showBanner("mqtt", td("MQTT error ({url}): {error}", { url: m.url, error: e.message }));
     });
     client.on("message", (topic, payload) => {
       const txt = payload.toString();
@@ -1024,8 +1027,8 @@
   // history.json toutes les « poll » secondes, affichée dès qu'une nouvelle archive arrive
   function setArchiveMode(poll, why) {
     ARCHIVE_MODE = true;
-    setConn("arch", "Archive weewx");
-    document.getElementById("src").textContent = `Mise à jour à chaque archive weewx (${why || "MQTT désactivé"})`;
+    setConn("arch", td("weewx archive"));
+    document.getElementById("src").textContent = td("Updated at each weewx archive ({why})", { why: why || td("MQTT disabled") });
     clearInterval(historyTimer);
     historyTimer = setInterval(loadHistory, Math.max(15, poll) * 1000);
     if (!S.lastArchive) loadHistory();   // déjà lu au démarrage sinon
@@ -1039,14 +1042,14 @@
     if (ARCHIVE_MODE && S.lastArchive) {
       // âge du dernier enregistrement d'archive
       const s = Math.round(Date.now() / 1000 - S.lastArchive);
-      age.textContent = s < 60 ? `archive il y a ${s} s` : `archive il y a ${Math.floor(s / 60)} min`;
-      if (s > HISTORY_STALE && !conn.classList.contains("pill-wait")) setConn("wait", "Pas de données");
-      else if (s <= HISTORY_STALE && !conn.classList.contains("pill-arch")) setConn("arch", "Archive weewx");
+      age.textContent = s < 60 ? td("archive {s} s ago", { s }) : td("archive {m} min ago", { m: Math.floor(s / 60) });
+      if (s > HISTORY_STALE && !conn.classList.contains("pill-wait")) setConn("wait", tc("No data"));
+      else if (s <= HISTORY_STALE && !conn.classList.contains("pill-arch")) setConn("arch", td("weewx archive"));
     } else if (S.lastPacket) {
       const s = Math.round((Date.now() - S.lastPacket) / 1000);
-      age.textContent = s < 60 ? `il y a ${s} s` : `il y a ${Math.floor(s / 60)} min`;
-      if (s > 120 && conn.classList.contains("pill-on")) setConn("wait", "Pas de données");
-      else if (s <= 120 && conn.classList.contains("pill-wait") && conn.textContent.includes("Pas de")) setConn("on", DEMO ? "Démo" : "En direct");
+      age.textContent = s < 60 ? td("{s} s ago", { s }) : td("{m} min ago", { m: Math.floor(s / 60) });
+      if (s > 120 && conn.classList.contains("pill-on")) setConn("wait", tc("No data"));
+      else if (s <= 120 && conn.classList.contains("pill-wait") && conn.textContent.includes(tc("No data"))) setConn("on", DEMO ? td("Demo") : td("Live"));
     }
     checkMidnight(now);
     renderFrost();
@@ -1136,10 +1139,11 @@
 
   // ------------------------------------------------------------------
   // Panneaux réduits / développés (choix mémorisé dans le navigateur, par panneau).
+  // Deux mémoires distinctes : tableau de bord, et pages « jour » (une seule pour toutes).
   // Tableau de bord : panneau sans choix mémorisé (nouveau visiteur, paramètre ajouté
   // dans skin.conf) réduit ; pages « jour » : développé.
   // ------------------------------------------------------------------
-  const LAYOUT_KEY = "weewx-live:compact";
+  const LAYOUT_KEY = DAY ? "weewx-live:compact-day" : "weewx-live:compact";
   function loadLayout() {
     try { return JSON.parse(localStorage.getItem(LAYOUT_KEY)) || {}; } catch (e) { return {}; }
   }
@@ -1156,7 +1160,7 @@
     const title = cardEl.querySelector("h2").textContent.trim();
     b.innerHTML = compact ? ICON_EXPAND : ICON_REDUCE;
     b.setAttribute("aria-expanded", String(!compact));
-    b.title = (compact ? "Développer le panneau " : "Réduire le panneau ") + title;
+    b.title = td(compact ? "Expand panel {title}" : "Collapse panel {title}", { title });
     b.setAttribute("aria-label", b.title);
   }
   function setupLayout() {
@@ -1185,7 +1189,7 @@
   // ------------------------------------------------------------------
   // Démarrage
   // ------------------------------------------------------------------
-  if (DEMO) document.getElementById("mode").textContent = " · mode démo (données simulées)";
+  if (DEMO) document.getElementById("mode").textContent = " · " + tc("demo mode (simulated data)");
   tick();
   setInterval(tick, 1000);
   setInterval(() => { trim(); refreshCharts(); render(); }, 30 * 1000);
@@ -1217,15 +1221,15 @@
       const last = S.tempTime || DAY.stop;
       const el = document.getElementById("day-last");
       // journée en cours (dernier enregistrement avant minuit) : heure des dernières données
-      if (el && last) el.textContent = last >= DAY.nextMidnight ? "" : ` ; journée en cours, données jusqu'à ${WXT.hm(last)}`;
+      if (el && last) el.textContent = last >= DAY.nextMidnight ? "" : tp("; day in progress, data up to {time}", { time: WXT.hm(last) });
       return;
     }
     render();
     await loadHistory();
     startMqtt(cfg).catch((e) => {
       // ex. adresse de broker invalide : repli sur les archives
-      showBanner("mqtt", `MQTT : ${e.message}`);
-      setArchiveMode((cfg && cfg.mqtt && cfg.mqtt.archivePoll) || 60, "MQTT indisponible");
+      showBanner("mqtt", td("MQTT: {error}", { error: e.message }));
+      setArchiveMode((cfg && cfg.mqtt && cfg.mqtt.archivePoll) || 60, td("MQTT unavailable"));
     });
   })();
 })();

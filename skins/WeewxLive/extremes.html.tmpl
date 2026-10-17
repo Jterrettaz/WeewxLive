@@ -1,9 +1,10 @@
+## weewx-live — page « extremes » (textes : fichier de langue, $lt)
 <!doctype html>
-<html lang="fr">
+<html lang="$livejson_lang">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Records de la station</title>
+  <title>$lt("Extremes", "Station records")</title>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23eda100'/%3E%3C/svg%3E">
 </head>
@@ -12,27 +13,28 @@
     <div class="brand">
       <img class="brand-logo" id="brand-logo" alt="" hidden>
       <div class="brand-text">
-        <h1 id="station-name">Station météo</h1>
+        <h1 id="station-name">$lt("Common", "Weather station")</h1>
         <p class="subtitle" id="subtitle">weewx</p>
       </div>
     </div>
   </header>
-  <nav id="menu" class="menu" aria-label="Pages"></nav>
+  <nav id="menu" class="menu" aria-label="$lt("Common", "Pages")"></nav>
 
   <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
 
   <main class="page" id="page">
     <section class="page-head">
       <div>
-        <h2 class="p-title"><span class="sw" style="background:var(--temp)"></span>Records de la station</h2>
+        <h2 class="p-title"><span class="sw" style="background:var(--temp)"></span>$lt("Extremes", "Station records")</h2>
         <p id="x-since" class="p-last"></p>
       </div>
     </section>
-    <div id="x-root"><p class="muted">Chargement…</p></div>
+    <div id="x-root"><p class="muted">$lt("Common", "Loading…")</p></div>
   </main>
 
-  <footer class="foot">Records calculés par weewx sur toute la base de données<span id="gen"></span></footer>
+  <footer class="foot">$lt("Extremes", "Records computed by weewx over the whole database")<span id="gen"></span></footer>
 
+  <script src="i18n.js"></script>
   <script src="wxtime.js"></script>
   <script src="nav.js"></script>
   <script src="minichart.js"></script>

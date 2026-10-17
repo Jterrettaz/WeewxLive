@@ -9,7 +9,9 @@
   // dates et heures : fuseau de la station (WXT, nav.js)
   const day = (t) => (t ? WXT.fmt(t, { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
   const hm = WXT.hm;
-  const month = (y, m) => new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  const month = (y, m) => new Date(y, m - 1, 1).toLocaleDateString(WXL.locale, { month: "long", year: "numeric" });
+  // textes de la langue choisie (i18n.js)
+  const tx = WXL.ctx("Extremes"), tc = WXL.ctx("Common");
   const $ = (id) => document.getElementById(id);
 
   // valeurs métriques affichées dans les unités choisies (WXU, nav.js)
@@ -23,69 +25,69 @@
   // durée « 13 j et 17 h » (arrondie à l'heure)
   const dur = (s) => {
     const H = Math.round(s / 3600), d = Math.floor(H / 24), h = H % 24;
-    return d ? `${d} j et ${h} h` : `${h} h`;
+    return d ? WXL.fill(WXL.loc("duration_d_and_h", "{d} d {h} h"), { d, h }) : WXL.fill(WXL.loc("duration_h", "{h} h"), { h });
   };
 
   function table(title, sub, heads, rows, wide) {
     const body = rows.length
       ? rows.map((r, i) => `<tr><td class="rk">${i + 1}</td>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")
-      : `<tr><td colspan="${heads.length + 1}" class="muted">Pas encore de données</td></tr>`;
+      : `<tr><td colspan="${heads.length + 1}" class="muted">${esc(tc("No data yet"))}</td></tr>`;
     return `<article class="card x-card${wide ? " wide2" : ""}">
       <header><h3>${esc(title)}</h3></header>${sub ? `<p class="x-sub">${esc(sub)}</p>` : ""}
       <div class="x-scroll"><table class="xtab">
-        <thead><tr><th scope="col"><span class="sr">Rang</span></th>${heads.map((h) => `<th scope="col">${h}</th>`).join("")}</tr></thead>
+        <thead><tr><th scope="col"><span class="sr">${esc(tx("Rank"))}</span></th>${heads.map((h) => `<th scope="col">${esc(tx(h))}</th>`).join("")}</tr></thead>
         <tbody>${body}</tbody></table></div></article>`;
   }
 
   function render(d) {
     const top = d.top || 10, r = d.records || {}, th = d.thresholds || {};
     if (d.since) {
-      $("x-since").textContent = "depuis " + WXT.fmt(d.since, { month: "long", year: "numeric" });
+      $("x-since").textContent = tc("since {date}", { date: WXT.fmt(d.since, { month: "long", year: "numeric" }) });
     }
-    const tile = (label, v, sub) => `<div class="tile"><div class="t-label">${esc(label)}</div>
+    const tile = (label, v, sub) => `<div class="tile"><div class="t-label">${esc(tx(label))}</div>
       <div class="t-val">${v}</div><div class="t-sub">${esc(sub || "")}</div></div>`;
-    const when = (x) => (x && x.t ? `le ${day(x.t)} à ${hm(x.t)}` : "");
+    const when = (x) => (x && x.t ? WXL.fill(WXL.loc("on_day_at_time", "{day} {time}"), { day: day(x.t), time: hm(x.t) }) : "");
     const rec = r.tmin || r.tmax ? `<div class="stats x-records">
-        ${tile("Température la plus basse", r.tmin ? temp(r.tmin.v) : "--", when(r.tmin))}
-        ${tile("Température la plus haute", r.tmax ? temp(r.tmax.v) : "--", when(r.tmax))}
-        ${tile("Pression la plus basse", r.pmin ? `<b>${WXU.fmt("press", r.pmin.v, 1)}</b><span>${U("press")}</span>` : "--", when(r.pmin))}
-        ${tile("Pression la plus haute", r.pmax ? `<b>${WXU.fmt("press", r.pmax.v, 1)}</b><span>${U("press")}</span>` : "--", when(r.pmax))}
-        ${tile("Rafale la plus forte", r.gust ? `<b>${WXU.fmt("wind", r.gust.v, 1)}</b><span>${U("wind")}</span>` : "--", when(r.gust))}
-        ${tile("Pluie la plus forte en un jour", r.rainDay ? `<b>${WXU.fmt("rain", r.rainDay.v, 1)}</b><span>${U("rain")}</span>` : "--", r.rainDay ? "le " + day(r.rainDay.t) : "")}
+        ${tile("Lowest temperature", r.tmin ? temp(r.tmin.v) : "--", when(r.tmin))}
+        ${tile("Highest temperature", r.tmax ? temp(r.tmax.v) : "--", when(r.tmax))}
+        ${tile("Lowest pressure", r.pmin ? `<b>${WXU.fmt("press", r.pmin.v, 1)}</b><span>${U("press")}</span>` : "--", when(r.pmin))}
+        ${tile("Highest pressure", r.pmax ? `<b>${WXU.fmt("press", r.pmax.v, 1)}</b><span>${U("press")}</span>` : "--", when(r.pmax))}
+        ${tile("Strongest gust", r.gust ? `<b>${WXU.fmt("wind", r.gust.v, 1)}</b><span>${U("wind")}</span>` : "--", when(r.gust))}
+        ${tile("Heaviest rain in one day", r.rainDay ? `<b>${WXU.fmt("rain", r.rainDay.v, 1)}</b><span>${U("rain")}</span>` : "--", r.rainDay ? WXL.fill(WXL.loc("on_day", "{day}"), { day: day(r.rainDay.t) }) : "")}
       </div>` : "";
 
     const T = (k) => d[k] || [];
     const days = [
-      table(`Les ${top} jours les plus froids`, "", ["Température moyenne", "Date"], T("coldDays").map((x) => [temp(x.v), day(x.t)])),
-      table(`Les ${top} jours les plus chauds`, "", ["Température moyenne", "Date"], T("hotDays").map((x) => [temp(x.v), day(x.t)])),
-      table(`Les ${top} jours les plus pluvieux`, "", ["Pluie du jour", "Date"], T("wetDays").map((x) => [mm(x.v), day(x.t)])),
-      table(`Les ${top} averses les plus fortes`, "Pluie en une heure (heure pleine)", ["Pluie en une heure", "Date"],
+      table(tx("The {top} coldest days", { top }), "", ["Mean temperature", "Date"], T("coldDays").map((x) => [temp(x.v), day(x.t)])),
+      table(tx("The {top} warmest days", { top }), "", ["Mean temperature", "Date"], T("hotDays").map((x) => [temp(x.v), day(x.t)])),
+      table(tx("The {top} wettest days", { top }), "", ["Day's rain", "Date"], T("wetDays").map((x) => [mm(x.v), day(x.t)])),
+      table(tx("The {top} heaviest showers", { top }), tx("Rain in one hour (clock hour)"), ["Rain in one hour", "Date"],
         T("showers").map((x) => [mm(x.v), `${day(x.t)}<small>${hm(x.t)} – ${hm(x.t + 3600)}</small>`])),
     ];
     const months = [
-      table(`Les ${top} mois les plus froids`, "", ["Température moyenne", "Mois"], T("coldMonths").map((x) => [temp(x.v), month(x.y, x.m)])),
-      table(`Les ${top} mois les plus chauds`, "", ["Température moyenne", "Mois"], T("hotMonths").map((x) => [temp(x.v), month(x.y, x.m)])),
-      table(`Les ${top} mois les plus pluvieux`, "", ["Pluie du mois", "Mois"], T("wetMonths").map((x) => [mm(x.v), month(x.y, x.m)])),
-      table(`Les ${top} mois les plus secs`, "", ["Pluie du mois", "Mois"], T("dryMonths").map((x) => [mm(x.v), month(x.y, x.m)])),
+      table(tx("The {top} coldest months", { top }), "", ["Mean temperature", "Month"], T("coldMonths").map((x) => [temp(x.v), month(x.y, x.m)])),
+      table(tx("The {top} warmest months", { top }), "", ["Mean temperature", "Month"], T("hotMonths").map((x) => [temp(x.v), month(x.y, x.m)])),
+      table(tx("The {top} wettest months", { top }), "", ["Month's rain", "Month"], T("wetMonths").map((x) => [mm(x.v), month(x.y, x.m)])),
+      table(tx("The {top} driest months", { top }), "", ["Month's rain", "Month"], T("dryMonths").map((x) => [mm(x.v), month(x.y, x.m)])),
     ];
     const periods = [
-      table(`Les ${top} plus longues périodes de gel`, `Température continuellement inférieure à ${WXU.fmt("temp", 0, 0)} ${U("temp")}`,
-        ["Durée du gel", "Début", "Fin", "Température moyenne", "Température minimum"],
+      table(tx("The {top} longest frost spells", { top }), tx("Temperature continuously below {value}", { value: `${WXU.fmt("temp", 0, 0)} ${U("temp")}` }),
+        ["Frost duration", "Start", "End", "Mean temperature", "Minimum temperature"],
         T("frost").map((x) => [`<b>${dur(x.dur)}</b>`, `${day(x.start)}<small>${hm(x.start)}</small>`, `${day(x.end)}<small>${hm(x.end)}</small>`, temp(x.avg), temp(x.min)]), true),
-      table(`Les ${top} plus longues périodes de sécheresse`, "Jours consécutifs sans pluie mesurée",
-        ["Durée (jours)", "Premier jour sec", "Dernier jour sec"],
+      table(tx("The {top} longest dry spells", { top }), tx("Consecutive days without measured rain"),
+        ["Duration (days)", "First dry day", "Last dry day"],
         T("dry").map((x) => [`<b>${esc(x.days)}</b>`, day(x.start), day(x.end)])),
-      table(`Les ${top} plus longues périodes de pluie`, `Jours consécutifs avec pluie journalière > ${WXU.fmt("rain", th.rainDay ?? 0.2, 1)} ${U("rain")}`,
-        ["Durée (jours)", "Premier jour pluvieux", "Dernier jour pluvieux", "Pluie totale de la période"],
+      table(tx("The {top} longest wet spells", { top }), tx("Consecutive days with daily rain > {value}", { value: `${WXU.fmt("rain", th.rainDay ?? 0.2, 1)} ${U("rain")}` }),
+        ["Duration (days)", "First wet day", "Last wet day", "Total rain of the spell"],
         T("wet").map((x) => [`<b>${esc(x.days)}</b>`, day(x.start), day(x.end), mm(x.total)]), true),
     ];
     $("x-root").innerHTML = `${rec}
-      <h3 class="x-h">Jours</h3><div class="x-grid">${days.join("")}</div>
-      <h3 class="x-h">Mois</h3><div class="x-grid">${months.join("")}</div>
-      <h3 class="x-h">Périodes</h3><div class="x-grid">${periods.join("")}</div>
-      <p class="x-note">Jours : température moyenne des jours mesurés à au moins ${Math.round((th.coverage ?? 0.75) * 100)} % (aujourd'hui exclu).
-        Mois : mois complets uniquement (mois en cours exclu). Averses : plus forte pluie sur une heure pleine, une seule par jour.</p>`;
-    $("gen").textContent = d.generated ? " · générés " + WXT.fmt(d.generated, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
+      <h3 class="x-h">${esc(tc("Days"))}</h3><div class="x-grid">${days.join("")}</div>
+      <h3 class="x-h">${esc(tc("Months"))}</h3><div class="x-grid">${months.join("")}</div>
+      <h3 class="x-h">${esc(tc("Periods"))}</h3><div class="x-grid">${periods.join("")}</div>
+      <p class="x-note">${esc(tx("Days: mean temperature of days measured at least {pct} % of the time (today excluded).", { pct: Math.round((th.coverage ?? 0.75) * 100) }))}
+        ${esc(tx("Months: complete months only (current month excluded). Showers: heaviest rain over one clock hour, one per day."))}</p>`;
+    $("gen").textContent = d.generated ? " · " + tc("generated (records) {when}", { when: WXT.fmt(d.generated, { weekday: "short", hour: "2-digit", minute: "2-digit" }) }) : "";
   }
 
   let last = null;   // dernières données (redessin au changement de thème)
@@ -99,7 +101,7 @@
       render(d);
     } catch (e) {
       // relecture en échec : records déjà affichés conservés
-      if (!last) $("x-root").innerHTML = `<p class="banner">Records indisponibles (data/extremes.json : ${esc(e.message)}).</p>`;
+      if (!last) $("x-root").innerHTML = `<p class="banner">${esc(tx("Records unavailable (data/extremes.json: {error}).", { error: e.message }))}</p>`;
     }
   }
 
@@ -107,7 +109,7 @@
     // nom, sous-titre et logo : nav.js ; ici le titre de l'onglet
     let cfg = null;
     try { cfg = await window.weewxConfig; } catch (e) { /* facultatif */ }
-    if (cfg && cfg.stationName) document.title = `Records — ${cfg.stationName}`;
+    if (cfg && cfg.stationName) document.title = tx("Records — {station}", { station: cfg.stationName });
     load();
   })();
   setInterval(load, REFRESH);

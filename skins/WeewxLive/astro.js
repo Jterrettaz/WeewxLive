@@ -17,14 +17,15 @@
   // ------------------------------------------------------------------
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const hm = (t) => (isNum(t) ? WXT.hm(t) : "—");   // heure de la station
-  const dur = (s) => { const m = Math.round(s / 60); return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min`; };
+  // textes de la langue choisie (i18n.js)
+  const ta = WXL.ctx("Astro");
+  const dur = (s) => { const m = Math.round(s / 60); return WXL.fill(WXL.loc("duration_h_min", "{h} h {m} min"), { h: Math.floor(m / 60), m: String(m % 60).padStart(2, "0") }); };
   const delta = (s) => {
     const a = Math.round(Math.abs(s)), m = Math.floor(a / 60), sec = a % 60;
     const sign = s > 0.5 ? "+" : s < -0.5 ? "−" : "±";
-    return `${sign}${m ? `${m} min ${String(sec).padStart(2, "0")} s` : `${sec} s`}`;
+    return sign + (m ? WXL.fill(WXL.loc("duration_min_s", "{m} min {s} s"), { m, s: String(sec).padStart(2, "0") }) : WXL.fill(WXL.loc("duration_s", "{s} s"), { s: sec }));
   };
-  const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-  const dirName = (az) => DIRS[Math.round(az / 22.5) % 16];
+  const dirName = WXL.dir;
   const deg = (v) => `${Math.round(v)}°`.replace("-", "−");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -69,17 +70,17 @@
     const sAlt = c && today ? at(c, "sun", now) : null, sAz = c && today ? at(c, "sunAz", now) : null;
     const mAlt = c && today ? at(c, "moon", now) : null, mAz = c && today ? at(c, "moonAz", now) : null;
     const polar = !isNum(s.rise) && !isNum(s.set)
-      ? (s.daylight >= 86000 ? "soleil levé toute la journée" : s.daylight === 0 ? "soleil couché toute la journée" : "") : "";
+      ? (s.daylight >= 86000 ? ta("sun up all day") : s.daylight === 0 ? ta("sun down all day") : "") : "";
     $("astro-sun").innerHTML = `
-      <div class="as-row"><span class="as-k">Lever</span><b>${hm(s.rise)}</b><span class="as-k">Coucher</span><b>${hm(s.set)}</b></div>
+      <div class="as-row"><span class="as-k">${esc(ta("Rise"))}</span><b>${hm(s.rise)}</b><span class="as-k">${esc(ta("Set"))}</span><b>${hm(s.set)}</b></div>
       ${polar ? `<p class="as-note">${polar}</p>` : ""}
-      ${isNum(s.daylight) ? `<div class="as-row"><span class="as-k">Durée du jour</span><b>${dur(s.daylight)}</b></div>` : ""}
-      ${isNum(s.diff) ? `<div class="as-row"><span class="as-k">Par rapport à hier</span><b class="${s.diff >= 0 ? "as-up" : "as-down"}">${delta(s.diff)}</b></div>` : ""}
-      <div class="as-row as-sub">${isNum(s.transit) ? `<span>Midi solaire ${hm(s.transit)}${isNum(s.transitAlt) ? ` (${deg(s.transitAlt)})` : ""}</span>` : ""}${isNum(sAlt) ? `<span>Actuellement ${deg(sAlt)}, ${dirName(sAz)}</span>` : ""}</div>`;
+      ${isNum(s.daylight) ? `<div class="as-row"><span class="as-k">${esc(ta("Day length"))}</span><b>${dur(s.daylight)}</b></div>` : ""}
+      ${isNum(s.diff) ? `<div class="as-row"><span class="as-k">${esc(ta("Compared to yesterday"))}</span><b class="${s.diff >= 0 ? "as-up" : "as-down"}">${delta(s.diff)}</b></div>` : ""}
+      <div class="as-row as-sub">${isNum(s.transit) ? `<span>${esc(ta("Solar noon {time}", { time: hm(s.transit) }))}${isNum(s.transitAlt) ? ` (${deg(s.transitAlt)})` : ""}</span>` : ""}${isNum(sAlt) ? `<span>${esc(ta("Currently {alt}, {dir}", { alt: deg(sAlt), dir: dirName(sAz) }))}</span>` : ""}</div>`;
     $("astro-moon").innerHTML = `
-      ${d.ephem ? `<div class="as-row"><span class="as-k">Lever</span><b>${hm(m.rise)}</b><span class="as-k">Coucher</span><b>${hm(m.set)}</b></div>` : ""}
-      ${isNum(m.index) ? `<div class="as-row as-phase">${moonIcon(m.index, m.fullness, d.latitude < 0)}<span><b>${esc(m.phase || "")}</b><br><span class="as-k">éclairée à ${Math.round(m.fullness)} %</span></span></div>` : ""}
-      ${isNum(mAlt) ? `<div class="as-row as-sub"><span>Actuellement ${deg(mAlt)}, ${dirName(mAz)}${mAlt < 0 ? " (sous l'horizon)" : ""}</span></div>` : ""}`;
+      ${d.ephem ? `<div class="as-row"><span class="as-k">${esc(ta("Rise"))}</span><b>${hm(m.rise)}</b><span class="as-k">${esc(ta("Set"))}</span><b>${hm(m.set)}</b></div>` : ""}
+      ${isNum(m.index) ? `<div class="as-row as-phase">${moonIcon(m.index, m.fullness, d.latitude < 0)}<span><b>${esc(m.phase || "")}</b><br><span class="as-k">${esc(ta("{pct} % illuminated", { pct: Math.round(m.fullness) }))}</span></span></div>` : ""}
+      ${isNum(mAlt) ? `<div class="as-row as-sub"><span>${esc(ta("Currently {alt}, {dir}", { alt: deg(mAlt), dir: dirName(mAz) }))}${mAlt < 0 ? " " + esc(ta("(below the horizon)")) : ""}</span></div>` : ""}`;
     return { sAlt, mAlt, today };
   }
 
@@ -94,14 +95,14 @@
     // fond du jour : soleil au-dessus de l'horizon (bord supérieur, réfraction comprise)
     const daylight = sun.map(([t, a]) => (a >= -0.833 ? [t, lo, hi] : [t, null, null]));
     const s = [
-      { type: "band", label: "Jour", color: "--sun", alpha: 0.09, data: daylight, noTip: true },
-      { type: "line", label: "Horizon", color: "--text-2", width: 1.5, endDot: false, data: sun.map(([t]) => [t, 0]), noTip: true },
-      { type: "line", label: "Soleil", color: "--sun", width: 2.25, endDot: false, data: sun },
-      { type: "line", label: "Lune", color: "--moon", width: 2, endDot: false, data: moon },
+      { type: "band", label: ta("Daylight"), color: "--sun", alpha: 0.09, data: daylight, noTip: true },
+      { type: "line", label: ta("Horizon"), color: "--text-2", width: 1.5, endDot: false, data: sun.map(([t]) => [t, 0]), noTip: true },
+      { type: "line", label: ta("Sun"), color: "--sun", width: 2.25, endDot: false, data: sun },
+      { type: "line", label: ta("Moon"), color: "--moon", width: 2, endDot: false, data: moon },
     ];
     if (cur.today && isNum(cur.sAlt)) {
-      s.push({ type: "dots", label: "Soleil maintenant", color: "--sun", alpha: 1, r: 7, data: [[now, cur.sAlt]] });
-      s.push({ type: "dots", label: "Lune maintenant", color: "--moon", alpha: 1, r: 6, data: [[now, cur.mAlt]] });
+      s.push({ type: "dots", label: ta("Sun now"), color: "--sun", alpha: 1, r: 7, data: [[now, cur.sAlt]] });
+      s.push({ type: "dots", label: ta("Moon now"), color: "--moon", alpha: 1, r: 6, data: [[now, cur.mAlt]] });
     }
     return { series: s, opts: { range: [c.t0, t1], yFixed: [lo, hi, step] } };
   }
@@ -128,8 +129,8 @@
     } else chart.setSeries(s, opts);
     chart.draw();
     MiniChart.linkLegend($("astro-legend"), chart);   // clic : masquer / réafficher une courbe
-    $("astro-chart").setAttribute("aria-label", "Hauteur du soleil et de la lune aujourd'hui" +
-      (isNum(cur.sAlt) ? ` ; soleil actuellement à ${deg(cur.sAlt)}, lune à ${deg(cur.mAlt)}` : ""));
+    $("astro-chart").setAttribute("aria-label", ta("Sun and moon altitude today") +
+      (isNum(cur.sAlt) ? ta("; sun currently at {sun}, moon at {moon}", { sun: deg(cur.sAlt), moon: deg(cur.mAlt) }) : ""));
   }
 
   async function load() {

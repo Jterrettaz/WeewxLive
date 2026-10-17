@@ -18,7 +18,10 @@
 
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
+  // textes de la langue choisie (i18n.js) ; « tg » : HTML échappé
+  const tg = WXL.ctx("Meteogram"), tc = WXL.ctx("Common");
+  const th = (k, v) => esc(tg(k, v));
+  const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString(WXL.locale, { minimumFractionDigits: d, maximumFractionDigits: d }) : "—");
   // unités d'affichage (WXU, nav.js) : données métriques, conversion à l'affichage seulement
   const ufmt = (g, v, d) => (isNum(v) ? WXU.fmt(g, v, d) : "—");
   const uval = (g, v, d) => (isNum(v) ? `${WXU.fmt(g, v, d)} ${WXU.get(g)}` : "—");
@@ -26,8 +29,7 @@
   // décimales d'une graduation selon son pas
   const stepDec = (step) => (step >= 1 ? 0 : step >= 0.1 ? 1 : 2);
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-  const dirName = (d) => (isNum(d) ? DIRS[Math.round(d / 22.5) % 16] : "");
+  const dirName = (d) => (isNum(d) ? WXL.dir(d) : "");
   const dark = () => (window.TempScale ? TempScale.darkMode() : matchMedia("(prefers-color-scheme: dark)").matches);
   const L = 50, R = 44, TOP = 8, BOT = 20;      // marges des graphiques (px ; à droite : axe du cumul de pluie)
 
@@ -178,7 +180,7 @@
       ctx.setLineDash(hh === 0 ? [] : [3, 3]);
       ctx.beginPath(); ctx.moveTo(x, TOP); ctx.lineTo(x, TOP + p.ph); ctx.stroke();
       ctx.setLineDash([]);
-      const label = hh === 0 ? WXT.fmt(t, { weekday: "short", day: "numeric" }) : `${String(hh).padStart(2, "0")} h`;
+      const label = hh === 0 ? WXT.fmt(t, { weekday: "short", day: "numeric" }) : WXL.hour(String(hh).padStart(2, "0"));
       ctx.fillStyle = hh === 0 ? text : muted;
       ctx.font = hh === 0 ? "600 11px system-ui, sans-serif" : "11px system-ui, sans-serif";
       const lw = ctx.measureText(label).width;
@@ -279,7 +281,7 @@
     for (const d of ticks) {
       const y = Math.round(Y(WXU.back("alt", d))) + 0.5;
       ctx.beginPath(); ctx.moveTo(L - 4, y); ctx.lineTo(L, y); ctx.stroke();
-      ctx.fillText(Math.round(d).toLocaleString("fr-FR"), L - 6, y);
+      ctx.fillText(Math.round(d).toLocaleString(WXL.locale), L - 6, y);
     }
     return { Y };
   }
@@ -501,15 +503,15 @@
     if (!hover) { tip.hidden = true; return; }
     const i = hover.i, t = T0 + i * 3600, cum = CUM[i];
     const rows = [
-      ["Température", uval("temp", S.temperature_2m[i], 1), window.TempScale && isNum(S.temperature_2m[i]) ? TempScale.stepColor(S.temperature_2m[i]) : css("--temp")],
-      ["Humidité", isNum(S.relative_humidity_2m[i]) ? `${fmt(S.relative_humidity_2m[i], 0)} %` : "—", css("--hum")],
-      ["Nébulosité", isNum(S.cloud_cover[i]) ? `${fmt(S.cloud_cover[i], 0)} %` : "—", css("--text-3")],
-      ["Précipitations", `${uval("rain", S.precipitation[i], 1)}${S.showers[i] > 0 ? ` (dont averses ${ufmt("rain", S.showers[i], 1)})` : ""}`, css("--rain")],
-      ["Cumul depuis le début", uval("rain", cum, 1), css("--press")],
+      [tg("Temperature"), uval("temp", S.temperature_2m[i], 1), window.TempScale && isNum(S.temperature_2m[i]) ? TempScale.stepColor(S.temperature_2m[i]) : css("--temp")],
+      [tg("Humidity"), isNum(S.relative_humidity_2m[i]) ? `${fmt(S.relative_humidity_2m[i], 0)} %` : "—", css("--hum")],
+      [tg("Cloud cover"), isNum(S.cloud_cover[i]) ? `${fmt(S.cloud_cover[i], 0)} %` : "—", css("--text-3")],
+      [tg("Precipitation"), uval("rain", S.precipitation[i], 1) + (S.showers[i] > 0 ? tg(" (of which showers {value})", { value: ufmt("rain", S.showers[i], 1) }) : ""), css("--rain")],
+      [tg("Total since the start"), uval("rain", cum, 1), css("--press")],
     ];
-    if (S.snowfall[i] > 0 || S.snow_depth[i] > 0) rows.push(["Neige", `${uval("snow", S.snowfall[i], 1)} · au sol ${uval("snow", (S.snow_depth[i] || 0) * 100, 0)}`, css("--wind")]);
-    rows.push(["Vent", `${uval("wind", S.wind_speed_10m[i], 0)} ${dirName(S.wind_direction_10m[i])} · rafales ${uval("wind", S.wind_gusts_10m[i], 0)}`, css("--bad")]);
-    if (isNum(S.freezing_level_height[i])) rows.push([`Isotherme ${ZERO_T()}`, uval("alt", S.freezing_level_height[i], 0), "#1d3fb8"]);
+    if (S.snowfall[i] > 0 || S.snow_depth[i] > 0) rows.push([tg("Snow"), tg("{fall} · on the ground {depth}", { fall: uval("snow", S.snowfall[i], 1), depth: uval("snow", (S.snow_depth[i] || 0) * 100, 0) }), css("--wind")]);
+    rows.push([tg("Wind"), tg("{speed} {dir} · gusts {gust}", { speed: uval("wind", S.wind_speed_10m[i], 0), dir: dirName(S.wind_direction_10m[i]), gust: uval("wind", S.wind_gusts_10m[i], 0) }), css("--bad")]);
+    if (isNum(S.freezing_level_height[i])) rows.push([tg("Freezing level {temp}", { temp: ZERO_T() }), uval("alt", S.freezing_level_height[i], 0), "#1d3fb8"]);
     // valeur sous le curseur dans les coupes en altitude
     const p = hover.panel;
     if (p && p.o.yOf && hover.y > TOP && hover.y < TOP + p.ph) {
@@ -517,8 +519,8 @@
       const tz = interp(pts, "t", z), cc = interp(pts, "cc", z), u = interp(pts, "u", z), v = interp(pts, "v", z);
       const sp = isNum(u) && isNum(v) ? Math.hypot(u, v) : null;
       const from = isNum(u) && isNum(v) ? (Math.atan2(-u, -v) * 180 / Math.PI + 360) % 360 : null;
-      rows.push([`À ${(Math.round(WXU.conv("alt", z) / 10) * 10).toLocaleString("fr-FR")} ${WXU.get("alt")}`, [isNum(tz) ? uval("temp", tz, 1) : "",
-        isNum(cc) ? `nuages ${fmt(cc, 0)} %` : "", isNum(sp) ? `vent ${uval("wind", sp, 0)} ${dirName(from)}` : ""].filter(Boolean).join(" · "), css("--text")]);
+      rows.push([tg("At {alt}", { alt: `${(Math.round(WXU.conv("alt", z) / 10) * 10).toLocaleString(WXL.locale)} ${WXU.get("alt")}` }), [isNum(tz) ? uval("temp", tz, 1) : "",
+        isNum(cc) ? tg("clouds {pct} %", { pct: fmt(cc, 0) }) : "", isNum(sp) ? tg("wind {speed} {dir}", { speed: uval("wind", sp, 0), dir: dirName(from) }) : ""].filter(Boolean).join(" · "), css("--text")]);
     }
     tip.innerHTML = `<div class="t">${WXT.fmt(t, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>` +
       rows.map(([k, v, c]) => `<div><i style="background:${esc(c)}"></i>${esc(k)} <b>${esc(v)}</b></div>`).join("");
@@ -537,7 +539,7 @@
     const total = CUM[N - 1] || 0;
     const snowy = S.snowfall.some((v) => v > 0) || S.snow_depth.some((v) => v > 0);
     const fetched = WXT.fmt(D.fetched, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-    $("mg-sub").textContent = `Open-Meteo · altitude du modèle ${isNum(D.elevation) ? uval("alt", D.elevation, 0) : "inconnue"} · données du ${fetched}`;
+    $("mg-sub").textContent = tg("Open-Meteo · model elevation {alt} · data from {when}", { alt: isNum(D.elevation) ? uval("alt", D.elevation, 0) : tg("unknown"), when: fetched });
     const sec = (id, title, legend, h, extra = "") => `
       <section class="mg-panel">
         <h3>${title}${extra}</h3>
@@ -548,25 +550,25 @@
     // k : clé de l'élément du panneau (clic sur la légende : masquer / réafficher)
     const li = (c, t, cls = "", k = "") => `<li${k ? ` data-k="${k}"` : ""}><i class="${cls}" style="background:${c}"></i>${t}</li>`;
     root.innerHTML = `
-      ${D.stale ? `<p class="en-warn">Prévision précédente conservée (téléchargement en échec : ${esc(D.warning || "")}).</p>` : ""}
+      ${D.stale ? `<p class="en-warn">${th("Previous forecast kept (download failed: {error}).", { error: D.warning || "" })}</p>` : ""}
       <div class="mg-scroll"><div class="mg-inner">
-        <div class="mg-icons" id="mg-icons" role="group" aria-label="Temps prévu"></div>
-        ${sec("mg-temp", `Température à 2 m (${u("temp")})`, "", 170)}
-        ${sec("mg-cloud", `Couverture nuageuse selon l'altitude (${u("alt")})`,
-          li(`linear-gradient(90deg,rgba(${cloudRGB()},.15),rgba(${cloudRGB()},.9))`, "nuages : de 10 à 100 % (plus foncé = plus couvert)", "", "cc") +
-          li("var(--wind)", `isotherme ${z0}`, "dash", "fz"), 200)}
-        ${sec("mg-rain", `Précipitations (${u("rain")} par heure)`, li("var(--rain)", "précipitations", "", "pr") + li("var(--text-3)", "dont averses", "", "sh") +
-          li("var(--press)", `cumul depuis le début (${u("rain")}, échelle de droite)`, "", "cum"), 140,
-          ` <span class="mg-tot">cumul sur la période : <b>${esc(uval("rain", total, 1))}</b></span>`)}
-        ${snowy ? sec("mg-snow", `Neige (${u("snow")})`, li("var(--wind)", `chute de neige (${u("snow")} par heure)`, "", "sf") + li("var(--press)", "épaisseur au sol", "", "sd"), 100)
-                : `<section class="mg-panel"><h3>Neige</h3><p class="muted mg-none">Pas de neige prévue sur la période.</p></section>`}
-        ${sec("mg-up", `Température et vent en altitude (${u("alt")})`,
-          li("linear-gradient(90deg,#2f63c9,#a9d3f2,#e9f1f4,#f5cc63,#df5a2c)", `température (pivot ${z0})`, "", "t") + li("#1d3fb8", `isotherme ${z0}`, "", "iso") +
-          li("rgba(15,15,15,.78)", "vent (flèche vers où il souffle, longueur selon la force)", "", "wind"), 300)}
-        ${sec("mg-wind", `Vent à 10 m (${u("wind")})`, li("var(--text)", "vent moyen", "", "ws") + li("var(--bad)", "rafales", "", "gu") + li("var(--wind)", "direction", "", "dir"), 140)}
+        <div class="mg-icons" id="mg-icons" role="group" aria-label="${th("Forecast weather")}"></div>
+        ${sec("mg-temp", th("Temperature at 2 m ({unit})", { unit: WXU.get("temp") }), "", 170)}
+        ${sec("mg-cloud", th("Cloud cover by altitude ({unit})", { unit: WXU.get("alt") }),
+          li(`linear-gradient(90deg,rgba(${cloudRGB()},.15),rgba(${cloudRGB()},.9))`, th("clouds: 10 to 100 % (darker = more overcast)"), "", "cc") +
+          li("var(--wind)", th("freezing level {temp}", { temp: ZERO_T() }), "dash", "fz"), 200)}
+        ${sec("mg-rain", th("Precipitation ({unit} per hour)", { unit: WXU.get("rain") }), li("var(--rain)", th("precipitation"), "", "pr") + li("var(--text-3)", th("of which showers"), "", "sh") +
+          li("var(--press)", th("total since the start ({unit}, right scale)", { unit: WXU.get("rain") }), "", "cum"), 140,
+          ` <span class="mg-tot">${th("total over the period: {value}", { value: "\u0000" }).replace("\u0000", `<b>${esc(uval("rain", total, 1))}</b>`)}</span>`)}
+        ${snowy ? sec("mg-snow", th("Snow ({unit})", { unit: WXU.get("snow") }), li("var(--wind)", th("snowfall ({unit} per hour)", { unit: WXU.get("snow") }), "", "sf") + li("var(--press)", th("snow depth"), "", "sd"), 100)
+                : `<section class="mg-panel"><h3>${th("Snow")}</h3><p class="muted mg-none">${th("No snow expected over the period.")}</p></section>`}
+        ${sec("mg-up", th("Temperature and wind aloft ({unit})", { unit: WXU.get("alt") }),
+          li("linear-gradient(90deg,#2f63c9,#a9d3f2,#e9f1f4,#f5cc63,#df5a2c)", th("temperature (pivot {temp})", { temp: ZERO_T() }), "", "t") + li("#1d3fb8", th("freezing level {temp}", { temp: ZERO_T() }), "", "iso") +
+          li("rgba(15,15,15,.78)", th("wind (arrow points where it blows to, length by strength)"), "", "wind"), 300)}
+        ${sec("mg-wind", th("Wind at 10 m ({unit})", { unit: WXU.get("wind") }), li("var(--text)", th("mean wind"), "", "ws") + li("var(--bad)", th("gusts"), "", "gu") + li("var(--wind)", th("direction"), "", "dir"), 140)}
       </div></div>
-      <p class="en-foot">Prévision automatique d'un modèle numérique, sans expertise humaine. Les coupes en altitude sont interpolées
-        entre les niveaux de pression du modèle (${D.levels.length} niveaux, de ${D.levels[0] ? ufmt("press", D.levels[0].p, 0) : "?"} à ${D.levels.length ? ufmt("press", D.levels[D.levels.length - 1].p, 0) : "?"} ${u("press")}).</p>`;
+      <p class="en-foot">${th("Automatic forecast from a numerical model, without human expertise. Upper-air cross-sections are interpolated between the model pressure levels ({n} levels, from {from} to {to} {unit}).",
+        { n: D.levels.length, from: D.levels[0] ? ufmt("press", D.levels[0].p, 0) : "?", to: D.levels.length ? ufmt("press", D.levels[D.levels.length - 1].p, 0) : "?", unit: WXU.get("press") })}</p>`;
     panels.length = 0;
     const add = (id, draw) => { const el = $(id); if (el) panels.push(new Panel(el, { draw })); };
     add("mg-temp", drawTemp);
@@ -588,7 +590,7 @@
       li.classList.add("lg-tg"); li.classList.toggle("lg-off", hidden);
       li.setAttribute("role", "button"); li.tabIndex = 0;
       li.setAttribute("aria-pressed", String(!hidden));
-      li.title = `${hidden ? "Afficher" : "Masquer"} « ${li.textContent.trim()} » sur le graphique`;
+      li.title = tc(hidden ? "Show “{name}” on the chart" : "Hide “{name}” on the chart", { name: li.textContent.trim() });
     });
   }
   function onLegend(e) {
@@ -610,8 +612,8 @@
   function modelBar() {
     const bar = $("mg-bar");
     if (!bar) return;
-    bar.innerHTML = `<label for="mg-model">Modèle</label>
-      <select id="mg-model">${ALL.models.map((m) => `<option value="${esc(m.id)}"${m.error ? " disabled" : ""}>${esc(m.label)}${m.error ? " (indisponible)" : ""}</option>`).join("")}</select>`;
+    bar.innerHTML = `<label for="mg-model">${esc(tc("Model"))}</label>
+      <select id="mg-model">${ALL.models.map((m) => `<option value="${esc(m.id)}"${m.error ? " disabled" : ""}>${esc(m.label)}${m.error ? " " + esc(tc("(unavailable)")) : ""}</option>`).join("")}</select>`;
     $("mg-model").addEventListener("change", (e) => { store.set(e.target.value); show(e.target.value); });
   }
   // affiche un modèle (identifiant) ; à défaut : modèle par défaut, puis premier disponible
@@ -622,8 +624,8 @@
     const selEl = $("mg-model");
     if (selEl && D) selEl.value = D.id;
     if (!D) {
-      const errs = ALL.models.map((m) => `${esc(m.label)} : ${esc(m.error || "prévision vide")}`).join(" ; ");
-      root.innerHTML = `<p class="muted">Météogramme indisponible (${errs}).</p>`;
+      const errs = ALL.models.map((m) => `${m.label} : ${m.error || tg("empty forecast")}`).join(" ; ");
+      root.innerHTML = `<p class="muted">${th("Meteogram unavailable ({error}).", { error: errs })}</p>`;
       return;
     }
     D.top = ALL.top;
@@ -638,14 +640,14 @@
       if (!r.ok) throw new Error("HTTP " + r.status);
       const all = await r.json();
       if (all.error) throw new Error(all.error);
-      if (!Array.isArray(all.models) || !all.models.length) throw new Error("aucun modèle");
+      if (!Array.isArray(all.models) || !all.models.length) throw new Error(tc("no model"));
       if (ALL && all.generated && all.generated === ALL.generated) return;   // fichier inchangé
       ALL = all;
     } catch (e) {
-      if (!ALL) root.innerHTML = `<p class="muted">Météogramme indisponible (${esc(e.message)}).</p>`;
+      if (!ALL) root.innerHTML = `<p class="muted">${th("Meteogram unavailable ({error}).", { error: e.message })}</p>`;
       return;
     }
-    if ($("gen") && ALL.version) $("gen").textContent = ` · calcul weewx-live ${ALL.version}`;
+    if ($("gen") && ALL.version) $("gen").textContent = " · " + tc("computed by weewx-live {version}", { version: ALL.version });
     modelBar();
     // modèle : celui déjà affiché, sinon ?model= dans l'adresse, sinon le dernier choisi
     show((D && D.id) || new URLSearchParams(location.search).get("model") || store.get());

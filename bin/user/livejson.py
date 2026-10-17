@@ -25,6 +25,13 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
   $livejson_tz             fuseau horaire de la station, chaîne JSON (wxtime.js.tmpl)
   $livejson_units          unités d'affichage par défaut, objet JSON (wxtime.js.tmpl)
   $livejson_admin          empreinte du mot de passe admin, chaîne JSON ou null (wxtime.js.tmpl)
+  $livejson_i18n           script des textes de la langue choisie (i18n.js.tmpl)
+  $livejson_lang, $livejson_months, $lt("Contexte", "clé", nom=valeur) : langue de la page,
+                           noms des mois et textes échappés pour le HTML (gabarits)
+
+Textes : fichier skins/WeewxLive/lang/<langue>.conf, choisi par l'option « lang » du rapport
+(skin.conf : lang = fr ; à changer dans weewx.conf [StdReport] [[WeewxLive]]) et fusionné par
+weewx dans la configuration du skin ([Texts], [Labels] [[Generic]], [Almanac]).
 
 Le générateur LiveCheetahGenerator applique l'option [[archives]] (types de pages
 d'archives produits, nombre de pages « jour »).
@@ -63,7 +70,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, getFileName, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.97"
+VERSION = "2.02"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -131,27 +138,31 @@ DAY_AGGREGATES = (
 # Paramètres affichés (skin.conf : [LiveJSON] [[parameters]])
 # ----------------------------------------------------------------------
 # Paramètres « standard » : panneaux spécialisés (vent + rafales, pluie + cumul, etc.).
-# id : (titre, colonne SQLite, clé MQTT, agrégat par défaut, clé interne des données)
+# id : (titre de secours, colonne SQLite, clé MQTT, agrégat par défaut, clé interne des données) ;
+# titre affiché : option « title », sinon [Labels] [[Generic]] du fichier de langue
 BUILTIN_PARAMS = {
-    "outTemp": ("Température", "outTemp", "outTemp", "min-max", "outTemp"),
-    "wind": ("Vent", "windSpeed", "windSpeed", "min-max", "windSpeed"),
-    "windDir": ("Direction du vent", "windDir", "windDir", "direction", "windDir"),
-    "rain": ("Pluie", "rain", "rain", "sum", "rain"),
-    "outHumidity": ("Humidité relative", "outHumidity", "outHumidity", "min-max", "outHumidity"),
-    "barometer": ("Pression", "barometer", "barometer", "min-max", "barometer"),
+    "outTemp": ("Temperature", "outTemp", "outTemp", "min-max", "outTemp"),
+    "wind": ("Wind", "windSpeed", "windSpeed", "min-max", "windSpeed"),
+    "windDir": ("Wind direction", "windDir", "windDir", "direction", "windDir"),
+    "rain": ("Rain", "rain", "rain", "sum", "rain"),
+    "outHumidity": ("Relative humidity", "outHumidity", "outHumidity", "min-max", "outHumidity"),
+    "barometer": ("Pressure", "barometer", "barometer", "min-max", "barometer"),
 }
 AGGREGATES = ("min-max", "max", "sum")
 GROUP_AGGREGATES = ("min-max", "max")       # agrégats possibles d'un panneau groupé
 # couleurs des courbes d'un panneau groupé (palette catégorielle, dans cet ordre)
 GROUP_PALETTE = ("--wind", "--temp", "--hum", "--sun", "--press")
 
-WEEKDAYS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
-MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
-          "octobre", "novembre", "décembre")
+# noms de secours (anglais) si le fichier de langue n'en fournit pas ([Texts] [[Locale]], [Almanac])
+WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September",
+          "October", "November", "December")
 
 # Phases de la lune (index weewx 0 à 7)
-MOON_PHASES = ("Nouvelle lune", "Premier croissant", "Premier quartier", "Gibbeuse croissante",
-               "Pleine lune", "Gibbeuse décroissante", "Dernier quartier", "Dernier croissant")
+MOON_PHASES = ("New moon", "Waxing crescent", "First quarter", "Waxing gibbous",
+               "Full moon", "Waning gibbous", "Last quarter", "Waning crescent")
+DIRECTIONS = ("N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW",
+              "NW", "NNW", "N/A")
 
 # groupe d'unités weewx -> (unité cible, libellé affiché)
 GROUP_TARGET = {
@@ -176,7 +187,7 @@ GROUP_TARGET = {
     "group_deltatime": ("hour", "h"),     # durées en secondes (ex. sunshineDur, rainDur)
     "group_pressurerate": ("mbar_per_hour", "hPa/h"),
     "group_length": ("cm", "cm"),
-    "group_degree_day": ("degree_C_day", "°C·j"),
+    "group_degree_day": ("degree_C_day", "°C·d"),     # libellé traduit ([[Units]])
     "group_energy": ("watt_hour", "Wh"),
 }
 
@@ -259,12 +270,90 @@ def _color(c, default):
     return c or default
 
 
-def _unit_info(column):
+# groupes convertis dans le navigateur (unités d'affichage : [[units]] et choix du visiteur) :
+# publiés toujours dans l'unité de GROUP_TARGET (métrique), [[unit_groups]] / units refusés
+BROWSER_GROUPS = ("group_temperature", "group_speed", "group_speed2", "group_rain", "group_rainrate",
+                  "group_pressure", "group_altitude", "group_length")
+
+# unité weewx -> libellé affiché (unités publiables par [[unit_groups]] ou l'option units)
+UNIT_SYMBOLS = {
+    "watt_per_meter_squared": "W/m²", "kilowatt_per_meter_squared": "kW/m²", "percent": "%",
+    "km": "km", "mile": "mi", "meter": "m", "foot": "ft", "cm": "cm", "mm": "mm", "inch": "in",
+    "lux": "lx", "microgram_per_meter_cubed": "µg/m³", "centibar": "cb", "kPa": "kPa",
+    "volt": "V", "amp": "A", "watt": "W", "kilowatt": "kW", "watt_hour": "Wh",
+    "kilowatt_hour": "kWh", "mega_joule": "MJ", "watt_second": "Ws", "joule": "J",
+    "ppm": "ppm", "hour": "h", "minute": "min", "second": "s", "day": "d",
+    "mbar_per_hour": "hPa/h", "hPa_per_hour": "hPa/h", "inHg_per_hour": "inHg/h",
+    "mmHg_per_hour": "mmHg/h", "kPa_per_hour": "kPa/h",
+    "degree_C_day": "°C·d", "degree_F_day": "°F·d", "degree_compass": "°", "uv_index": "",
+    "liter": "l", "gallon": "gal", "cubic_foot": "ft³", "count": "",
+}
+
+
+def _unit_label(unit, L=None):
+    """Libellé d'une unité weewx (°C·d, °F·d, d : traduits par [[Units]])."""
+    label = UNIT_SYMBOLS.get(unit, unit)
+    if L is not None and label in ("°C·d", "°F·d", "d"):
+        label = L("Units", label)
+    return label
+
+
+def _unit_groups(opts):
+    """[[unit_groups]] : unité de publication par groupe weewx ({groupe: unité}), options
+    invalides ignorées (groupe inconnu, groupe converti dans le navigateur, unité étrangère
+    au groupe)."""
+    sec = opts.get("unit_groups", {}) or {}
+    out = {}
+    for g, u in sec.items():
+        g, u = str(g).strip(), str(u).strip()
+        if _check_unit(g, u, "[[unit_groups]] %s" % g):
+            out[g] = u
+    return out
+
+
+def _check_unit(group, unit, where):
+    """Vrai si « unit » est une unité de publication possible pour « group » (sinon : erreur
+    dans le journal de weewx)."""
+    if group in BROWSER_GROUPS:
+        log.error("livejson: %s = %s : groupe converti dans le navigateur, unité réglée par "
+                  "[[units]] (ignoré)", where, unit)
+        return False
+    base = GROUP_TARGET.get(group)
+    if base is None:
+        log.error("livejson: %s = %s : groupe d'unités inconnu (%s)", where, unit,
+                  ", ".join(sorted(g for g in GROUP_TARGET if g not in BROWSER_GROUPS)))
+        return False
+    if unit == base[0]:
+        return True
+    try:
+        weewx.units.convert(weewx.units.ValueTuple(1.0, base[0], group), unit)
+        return True
+    except Exception:
+        log.error("livejson: %s = %s : unité inconnue ou étrangère au groupe %s", where, unit, group)
+        return False
+
+
+def _unit_info(column, L=None, groups=None, units=None, where=""):
     """(unité cible, libellé, décimales par défaut) d'une colonne, d'après son groupe d'unités
-    weewx ; unité cible None si le groupe est inconnu (valeurs publiées sans conversion)."""
+    weewx ; unité cible None si le groupe est inconnu (valeurs publiées sans conversion).
+    groups : [[unit_groups]] ({groupe: unité}) ; units : option « units » du paramètre
+    (unité weewx, prioritaire)."""
     group = weewx.units.obs_group_dict.get(column)
     target, label = GROUP_TARGET.get(group, (None, ""))
+    if L is not None and label == "°C·d":
+        label = L("Units", label)
     decimals = 0 if group in ("group_percent", "group_radiation", "group_direction") else 1
+    chosen = None
+    if units:
+        if group is None:
+            log.error("livejson: %s units = %s : groupe d'unités de la colonne %s inconnu de weewx "
+                      "(ignoré)", where, units, column)
+        elif _check_unit(group, units, "%s units" % where):
+            chosen = units
+    if chosen is None and groups and group in groups:
+        chosen = groups[group]
+    if chosen and chosen != target:
+        target, label = chosen, _unit_label(chosen, L)
     return target, label, decimals
 
 
@@ -285,12 +374,13 @@ def _archive_options(opts):
     }
 
 
-def _parse_params(opts):
+def _parse_params(opts, L):
     """Liste ordonnée des paramètres à afficher, d'après [[parameters]] (sinon : les 6 standard).
 
     Une sous-section contenant elle-même des sous-sections décrit un panneau groupé
     (plusieurs mesures dans un même panneau, ex. particules PM1 / PM2.5 / PM10) :
-    l'entrée renvoyée a type = "group" et la liste de ses mesures dans « members »."""
+    l'entrée renvoyée a type = "group" et la liste de ses mesures dans « members ».
+    L : textes de la langue (_Lang) : titres par défaut, sous-titre « cumul du jour »."""
     section = opts.get("parameters")
     ids = list(section.sections) if section is not None and section.sections else list(BUILTIN_PARAMS)
     ids = _apply_order(ids, section.get("order") if section is not None else None)
@@ -298,18 +388,19 @@ def _parse_params(opts):
     palette = ("--press", "--hum", "--sun", "--temp", "--wind")   # couleurs des paramètres ajoutés
     n_generic = 0
     seen = set()
+    groups = _unit_groups(opts)          # [[unit_groups]] : unités de publication par groupe
     for pid in ids:
         sec = section[pid] if section is not None and pid in section else None
         conf = {k: sec[k] for k in sec.scalars} if sec is not None else {}
         if not to_bool(conf.get("enable", True)):
             continue
         if sec is not None and sec.sections:
-            grp = _parse_group(pid, sec, conf, seen)
+            grp = _parse_group(pid, sec, conf, seen, L, groups)
             if grp:
                 out.append(grp)
             continue
         b = BUILTIN_PARAMS.get(pid)
-        title = conf.get("title", b[0] if b else pid)
+        title = conf.get("title") or L.label(pid, b[0] if b else pid)
         column = conf.get("column", b[1] if b else pid)
         mqtt = conf.get("mqtt", b[2] if b else column)
         agg = str(conf.get("aggregate", b[3] if b else "min-max")).lower().replace("_", "-")
@@ -326,14 +417,18 @@ def _parse_params(opts):
         color = _color(conf.get("color"), "" if builtin else palette[n_generic % len(palette)])
         if not builtin:
             n_generic += 1
-        target, label, decimals = _unit_info(column)
+        target, label, decimals = _unit_info(column, L, groups, None if builtin else conf.get("units"),
+                                             "[[parameters]] %s" % pid)
+        if builtin and conf.get("units"):
+            log.error("livejson: [[parameters]] %s units : paramètre standard, unités réglées par "
+                      "[[units]] (ignoré)", pid)
         out.append({
             "id": pid, "key": key, "type": "single", "title": title, "column": column, "mqtt": mqtt,
             "aggregate": agg, "builtin": builtin, "target": target,
             "unit": conf.get("unit", label if target else ""),
             "decimals": _int(conf.get("decimals"), decimals, 0, 4),
             "color": color,
-            "hint": conf.get("hint", "cumul du jour" if agg == "sum" and not builtin else ""),
+            "hint": conf.get("hint", L("Panels", "today's total") if agg == "sum" and not builtin else ""),
             # admin = true : affiché seulement en mode admin ([[admin]] password)
             "admin": to_bool(conf.get("admin", False)),
         })
@@ -379,7 +474,7 @@ def _apply_order(ids, order):
     return first + [pid for pid in ids if pid not in first]
 
 
-def _parse_group(gid, sec, conf, seen):
+def _parse_group(gid, sec, conf, seen, L, groups=None):
     """Panneau groupé : [[[gid]]] (titre, agrégat, unité…) + une sous-section par mesure."""
     if gid in seen:
         log.error("livejson: identifiant %s défini deux fois, groupe ignoré", gid)
@@ -399,10 +494,11 @@ def _parse_group(gid, sec, conf, seen):
             continue
         seen.add(mid)
         column = m.get("column", mid)
-        target, label, decimals = _unit_info(column)
+        target, label, decimals = _unit_info(column, L, groups, m.get("units", conf.get("units")),
+                                             "[[parameters]] %s %s" % (gid, mid))
         members.append({
             "id": mid, "key": mid, "type": "member", "group": gid,
-            "title": m.get("title", mid), "column": column, "mqtt": m.get("mqtt", column),
+            "title": m.get("title") or L.label(mid, mid), "column": column, "mqtt": m.get("mqtt", column),
             "aggregate": agg, "builtin": False, "target": target,
             "unit": m.get("unit", conf.get("unit", label if target else "")),
             "decimals": _int(m.get("decimals", conf.get("decimals")), decimals, 0, 4),
@@ -450,8 +546,13 @@ def _to_float(v, default=None):
         return default
 
 
-def _layers(spec):
-    """'nom|libellé, nom2|libellé2' (chaîne ou liste configobj) -> [{name, label}]"""
+# libellés des couches EUMETSAT connues ([Texts] [[Maps]]), si [[satellite]] layers n'en donne pas
+LAYER_LABELS = {"mtg_fd:ir105_hrfi": "Infrared", "mtg_fd:rgb_truecolour": "True colour"}
+
+
+def _layers(spec, L=None):
+    """'nom|libellé, nom2|libellé2' (chaîne ou liste configobj) -> [{name, label}] ; sans
+    libellé : libellé traduit d'une couche connue (LAYER_LABELS), sinon le nom."""
     if isinstance(spec, str):
         spec = spec.split(",")
     out = []
@@ -460,7 +561,10 @@ def _layers(spec):
         if not item:
             continue
         name, _, label = item.partition("|")
-        out.append({"name": name.strip(), "label": (label or name).strip()})
+        name = name.strip()
+        if not label.strip() and name in LAYER_LABELS:
+            label = L("Maps", LAYER_LABELS[name]) if L is not None else LAYER_LABELS[name]
+        out.append({"name": name, "label": (label or name).strip()})
     return out
 
 
@@ -582,26 +686,26 @@ ENSEMBLE_MODELS = {
     "ecmwf_ifs025": ("ECMWF", "ECMWF ENS", "Reading", 15),
     "ecmwf_ifs025_ensemble": ("ECMWF", "ECMWF ENS", "Reading", 15),
     "ecmwf_ifs_europe_ensemble": ("ECMWF-EU", "ECMWF ENS Europe", "Reading", 15),
-    "ecmwf_aifs025": ("AIFS", "ECMWF AIFS ENS (IA)", "Reading", 15),
-    "ecmwf_aifs025_ensemble": ("AIFS", "ECMWF AIFS ENS (IA)", "Reading", 15),
-    "ecmwf_aifs_europe_ensemble": ("AIFS-EU", "ECMWF AIFS ENS Europe (IA)", "Reading", 15),
-    "gfs_seamless": ("GFS", "NOAA GEFS", "États-Unis", 35),
-    "ncep_gefs_seamless": ("GFS", "NOAA GEFS", "États-Unis", 35),
-    "ncep_gefs025": ("GFS", "NOAA GEFS 0,25°", "États-Unis", 16),
-    "ncep_gefs05": ("GFS", "NOAA GEFS 0,5°", "États-Unis", 35),
-    "ncep_aigefs025": ("AIGEFS", "NOAA AIGEFS (IA)", "États-Unis", 16),
-    "icon_seamless_eps": ("ICON", "DWD ICON EPS", "Allemagne", 7.5),
-    "icon_global_eps": ("ICON", "DWD ICON EPS Global", "Allemagne", 7.5),
-    "icon_eu_eps": ("ICON-EU", "DWD ICON EPS Europe", "Allemagne", 5),
-    "icon_d2_eps": ("ICON-D2", "DWD ICON EPS D2", "Allemagne", 2),
+    "ecmwf_aifs025": ("AIFS", "ECMWF AIFS ENS (AI)", "Reading", 15),
+    "ecmwf_aifs025_ensemble": ("AIFS", "ECMWF AIFS ENS (AI)", "Reading", 15),
+    "ecmwf_aifs_europe_ensemble": ("AIFS-EU", "ECMWF AIFS ENS Europe (AI)", "Reading", 15),
+    "gfs_seamless": ("GFS", "NOAA GEFS", "United States", 35),
+    "ncep_gefs_seamless": ("GFS", "NOAA GEFS", "United States", 35),
+    "ncep_gefs025": ("GFS", "NOAA GEFS 0,25°", "United States", 16),
+    "ncep_gefs05": ("GFS", "NOAA GEFS 0,5°", "United States", 35),
+    "ncep_aigefs025": ("AIGEFS", "NOAA AIGEFS (AI)", "United States", 16),
+    "icon_seamless_eps": ("ICON", "DWD ICON EPS", "Germany", 7.5),
+    "icon_global_eps": ("ICON", "DWD ICON EPS Global", "Germany", 7.5),
+    "icon_eu_eps": ("ICON-EU", "DWD ICON EPS Europe", "Germany", 5),
+    "icon_d2_eps": ("ICON-D2", "DWD ICON EPS D2", "Germany", 2),
     "gem_global": ("GEM", "ECCC GEPS", "Canada", 16),
     "gem_global_ensemble": ("GEM", "ECCC GEPS", "Canada", 16),
-    "google_weathernext2_ensemble": ("GWE", "Google WeatherNext 2 (IA)", "États-Unis", 15),
-    "ukmo_global_ensemble_20km": ("UKMO", "Met Office MOGREPS-G", "Royaume-Uni", 8),
-    "ukmo_uk_ensemble_2km": ("UKMO-UK", "Met Office MOGREPS-UK", "Royaume-Uni", 5),
-    "bom_access_global_ensemble": ("ACCESS", "BOM ACCESS-GE", "Australie", 10),
-    "meteoswiss_icon_ch1": ("CH1", "MeteoSuisse ICON-CH1", "Suisse", 1.5),
-    "meteoswiss_icon_ch2": ("CH2", "MeteoSuisse ICON-CH2", "Suisse", 5),
+    "google_weathernext2_ensemble": ("GWE", "Google WeatherNext 2 (AI)", "United States", 15),
+    "ukmo_global_ensemble_20km": ("UKMO", "Met Office MOGREPS-G", "United Kingdom", 8),
+    "ukmo_uk_ensemble_2km": ("UKMO-UK", "Met Office MOGREPS-UK", "United Kingdom", 5),
+    "bom_access_global_ensemble": ("ACCESS", "BOM ACCESS-GE", "Australia", 10),
+    "meteoswiss_icon_ch1": ("CH1", "MeteoSuisse ICON-CH1", "Switzerland", 1.5),
+    "meteoswiss_icon_ch2": ("CH2", "MeteoSuisse ICON-CH2", "Switzerland", 5),
 }
 # anciens identifiants (versions 1.49 à 1.52, erronés) -> identifiants Open-Meteo
 ENSEMBLE_ALIASES = {
@@ -637,17 +741,18 @@ METEOGRAM_LEVELS = (1000, 975, 950, 925, 900, 850, 800, 700, 600, 500, 400, 300,
 METEOGRAM_LVARS = (("z", "geopotential_height", 0), ("t", "temperature", 1), ("cc", "cloud_cover", 0),
                    ("ws", "wind_speed", 0), ("wd", "wind_direction", 0))
 METEOGRAM_MODELS = {
-    "icon_seamless": "DWD ICON (ICON-D2, puis ICON-EU, puis global)",
+    "icon_seamless": "DWD ICON (ICON-D2, then ICON-EU, then global)",
     "icon_d2": "DWD ICON-D2", "icon_eu": "DWD ICON-EU", "icon_global": "DWD ICON global",
-    "best_match": "Meilleur modèle (Open-Meteo best match)",
-    "meteofrance_seamless": "Météo-France (AROME, puis ARPEGE)",
+    "best_match": "Best model (Open-Meteo best match)",
+    "meteofrance_seamless": "Météo-France (AROME, then ARPEGE)",
     "meteofrance_arome_france": "Météo-France AROME", "meteofrance_arpege_europe": "Météo-France ARPEGE",
     "ecmwf_ifs025": "ECMWF IFS", "gfs_seamless": "NOAA GFS", "gem_seamless": "ECCC GEM",
     "meteoswiss_icon_ch1": "MeteoSuisse ICON-CH1", "meteoswiss_icon_ch2": "MeteoSuisse ICON-CH2",
-    "ukmo_seamless": "Met Office UKMO (UK 2 km, puis global 10 km)",
+    "ukmo_seamless": "Met Office UKMO (UK 2 km, then global 10 km)",
 }
 # modèles proposés par défaut (liste déroulante de la page ; le premier est affiché) ;
-# METEOGRAM_MODELS sert aussi aux libellés des modèles des prévisions du tableau de bord
+# METEOGRAM_MODELS sert aussi aux libellés des modèles des prévisions du tableau de bord ;
+# libellés anglais de secours, traduits par [Texts] [[Models]] (clé : identifiant du modèle)
 METEOGRAM_DEFAULT_MODELS = "icon_seamless, meteofrance_seamless, ecmwf_ifs025, gfs_seamless, ukmo_seamless"
 METEOGRAM_MAX_MODELS = 5
 _MG_CACHE = {}       # clé de requête -> (horodatage, réponse)
@@ -722,6 +827,112 @@ def _as_list(v):
     return [x.strip() for x in str(v).split(",") if x.strip()]
 
 
+_VAR_RE = re.compile(r"\{(\w+)\}")
+
+
+def _section_dict(sec):
+    """Section configobj -> dictionnaire simple (sous-sections comprises)."""
+    out = {}
+    for k, v in sec.items():
+        out[str(k)] = _section_dict(v) if isinstance(v, dict) else (list(v) if isinstance(v, (list, tuple)) else str(v))
+    return out
+
+
+class _Lang(object):
+    """Textes de la langue choisie : fichier lang/<code>.conf du skin, fusionné par weewx dans
+    la configuration du skin (option « lang »). L("Contexte", "clé", nom=valeur) : texte de
+    [Texts] [[Contexte]], {nom} remplacé ; clé (anglais) si le texte manque."""
+
+    def __init__(self, skin_dict):
+        self.texts = skin_dict.get("Texts", {}) or {}
+        self.generic = (skin_dict.get("Labels", {}) or {}).get("Generic", {}) or {}
+        loc = self.texts.get("Locale", {}) or {}
+        self.lang = str(loc.get("html_lang", "") or skin_dict.get("lang", "") or "en").split("_")[0]
+        self.locale = str(loc.get("intl_locale", "") or self.lang)
+        self.weekdays = _as_list(loc.get("weekdays"))
+        self.weekdays = self.weekdays if len(self.weekdays) == 7 else list(WEEKDAYS)
+        self.months = _as_list(loc.get("months"))
+        self.months = self.months if len(self.months) == 12 else list(MONTHS)
+        moon = _as_list((skin_dict.get("Almanac", {}) or {}).get("moon_phases"))
+        self.moon = moon if len(moon) == 8 else list(MOON_PHASES)
+        dirs = _as_list(((skin_dict.get("Units", {}) or {}).get("Ordinates", {}) or {}).get("directions"))
+        self.dirs = dirs if len(dirs) == 17 else list(DIRECTIONS)
+
+    @staticmethod
+    def fill(text, kw):
+        if not kw:
+            return text
+        return _VAR_RE.sub(lambda m: str(kw[m.group(1)]) if m.group(1) in kw else m.group(0), text)
+
+    def __call__(self, ctx, key, default=None, **kw):
+        sec = self.texts.get(ctx)
+        v = sec.get(key) if isinstance(sec, dict) else None
+        if not isinstance(v, str):
+            if default is None:
+                log.debug("livejson: texte absent du fichier de langue : [[%s]] %s", ctx, key)
+            v = key if default is None else default
+        return self.fill(v, kw)
+
+    def html(self, ctx, key, **kw):
+        """Texte échappé pour le HTML (gabarits : $lt("Contexte", "clé", nom=valeur)) ; les
+        valeurs {nom} sont insérées telles quelles (HTML permis, à échapper par l'appelant)."""
+        return self.fill(html.escape(self(ctx, key), quote=True), {k: str(v) for k, v in kw.items()})
+
+    def label(self, obs, default):
+        """Titre d'une mesure : [Labels] [[Generic]], sinon « default »."""
+        v = self.generic.get(obs)
+        return v if isinstance(v, str) and v.strip() else default
+
+    def date_long(self, d):
+        return self("Locale", "date_long", "{weekday} {day} {month} {year}", weekday=self.weekdays[d.weekday()],
+                    day=d.day, month=self.months[d.month - 1], year=d.year)
+
+    def month_year(self, d):
+        return self("Locale", "month_year", "{month} {year}", month=self.months[d.month - 1], year=d.year)
+
+    def script(self):
+        """Contenu de i18n.js : window.WXL (textes, langue, noms des mois, directions…)."""
+        data = {"lang": self.lang, "locale": self.locale, "texts": _section_dict(self.texts),
+                "months": self.months, "weekdays": self.weekdays, "dirs": self.dirs, "moon": self.moon,
+                "labels": {str(k): str(v) for k, v in self.generic.items() if isinstance(v, str)}}
+        return I18N_JS.replace("__DATA__", json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+
+
+# script publié dans i18n.js (chargé avant les autres scripts de chaque page)
+I18N_JS = """window.WXL = (function (D) {
+  "use strict";
+  const T = D.texts || {}, L = T.Locale || {};
+  // {nom} remplacé par v.nom (valeurs absentes : laissé tel quel)
+  const fill = (s, v) => (v ? String(s).replace(/\\{(\\w+)\\}/g, (m, k) => (v[k] === undefined || v[k] === null ? m : v[k])) : String(s));
+  // texte du contexte « ctx » (clé anglaise si absent ; textes manquants : window.WXL_MISSING)
+  const miss = (window.WXL_MISSING = window.WXL_MISSING || new Set());
+  const t = (ctx, key, v) => {
+    const c = T[ctx], ok = c && typeof c[key] === "string";
+    if (!ok) miss.add(ctx + " | " + key);
+    return fill(ok ? c[key] : key, v);
+  };
+  const loc = (k, d) => (typeof L[k] === "string" ? L[k] : d);
+  return {
+    lang: D.lang, locale: D.locale, t, fill,
+    // fonction de traduction d'un contexte : const t = WXL.ctx("Panels"); t("Gust")
+    ctx: (c) => (key, v) => t(c, key, v),
+    months: D.months, weekdays: D.weekdays, dirs: D.dirs, moon: D.moon,
+    // titre d'une mesure ([Labels] [[Generic]]), sinon « d »
+    label: (obs, d) => (D.labels && D.labels[obs]) || d,
+    // nom d'une direction (degrés) : 16 secteurs ; « — » si absente
+    dir: (deg) => (deg === null || deg === undefined || isNaN(deg) ? "—" : D.dirs[Math.round(deg / 22.5) % 16]),
+    // « de juin » / « d'août » (français) ; « June » (anglais)
+    ofMonth: (m) => fill(/^[aeiouyhàâéèêîôû]/i.test(m) ? loc("of_month_vowel", "{month}") : loc("of_month", "{month}"), { month: m }),
+    // « 1er octobre » / « 12 octobre »
+    dayMonth: (d, m) => fill(+d === 1 ? loc("day_month_first", "{day} {month}") : loc("day_month", "{day} {month}"), { day: d, month: m }),
+    // graduation horaire « 06 h »
+    hour: (h) => fill(loc("hour_suffix", "{h} h"), { h }),
+    loc,
+  };
+})(__DATA__);
+"""
+
+
 class _Lazy(object):
     """Calcul différé : Cheetah n'appelle __str__ que si le gabarit utilise la variable."""
 
@@ -767,6 +978,8 @@ class LiveJSON(SearchList):
     def __init__(self, generator):
         SearchList.__init__(self, generator)
         opts = generator.skin_dict.get("LiveJSON", {})
+        # textes de la langue choisie (lang/<code>.conf, option « lang » du rapport)
+        self.L = _Lang(generator.skin_dict)
         self.hours = _int(opts.get("hours"), 24, 1, 72)
         # rechargement complet du tableau de bord (s ; 0 = jamais)
         self.page_refresh = _int(opts.get("page_refresh"), 300, 0, 86400)
@@ -807,7 +1020,7 @@ class LiveJSON(SearchList):
 
     def _setup_params(self, opts):
         """Prépare colonnes, unités et agrégats à calculer selon [[parameters]]."""
-        self.params = _parse_params(opts)
+        self.params = _parse_params(opts, self.L)
         # mesures individuelles (les panneaux groupés sont remplacés par leurs mesures)
         self.measures = [m for p in self.params for m in (p["members"] if p["type"] == "group" else (p,))]
         # tables propres à l'instance (les constantes du module ne sont jamais modifiées)
@@ -915,6 +1128,12 @@ class LiveJSON(SearchList):
             "livejson_config_inline": _Lazy(lambda: self._dump(self.config()).replace("</", "<\\/")),
             # $livejson_period.p7d, etc.
             "livejson_period": {"p" + name: period(name) for name in PERIODS},
+            # langue : script i18n.js, attribut lang des pages, noms des mois, textes échappés
+            # pour le HTML ($lt("Contexte", "clé", nom=valeur)), libellés de mesures
+            "livejson_i18n": _Lazy(self.L.script),
+            "livejson_lang": html.escape(self.L.lang),
+            "livejson_months": [html.escape(m) for m in self.L.months],
+            "lt": self.L.html,
         }]
 
     def _dump(self, obj):
@@ -940,9 +1159,9 @@ class LiveJSON(SearchList):
         if self.station_name:
             return self.station_name
         try:
-            return self.generator.stn_info.location or "Station météo"
+            return self.generator.stn_info.location or self.L("Common", "Weather station")
         except AttributeError:
-            return "Station météo"
+            return self.L("Common", "Weather station")
 
     def hardware_label(self):
         """Sous-titre des pages : modèle de station (weewx.conf [Station]) · weewx."""
@@ -1006,7 +1225,7 @@ class LiveJSON(SearchList):
                 "enable": to_bool(f.get("enable", True)),
                 # modèle par défaut et modèles de la liste déroulante (identifiant, nom)
                 "model": fc_default,
-                "models": [{"id": m, "label": METEOGRAM_MODELS.get(m, m)} for m in fc_models],
+                "models": [{"id": m, "label": self._model_label(m)} for m in fc_models],
                 "days": self._fc_days(),
                 # durée de validité du cache (secondes), côté weewx et côté navigateur
                 "cache": self._forecast_ttl(),
@@ -1032,7 +1251,7 @@ class LiveJSON(SearchList):
                 "product": sat.get("windy_product", "satellite"),
                 "windyUrl": sat.get("windy_url", ""),
                 "url": sat.get("url", "https://view.eumetsat.int/geoserver/wms"),
-                "layers": _layers(sat.get("layers", "mtg_fd:ir105_hrfi|Infrarouge, mtg_fd:rgb_truecolour|Couleurs vraies")),
+                "layers": _layers(sat.get("layers", "mtg_fd:ir105_hrfi, mtg_fd:rgb_truecolour"), self.L),
                 "zoom": _int(sat.get("zoom"), 5, 1, 12),
                 "frames": _int(sat.get("frames"), 12, 2, 36),
                 "step": _int(sat.get("step_minutes"), 10, 5, 60),
@@ -1057,6 +1276,11 @@ class LiveJSON(SearchList):
                 "temp24hKey": self.mqtt.get("temp_24h_key", "OutTemp-24h_C"),
             },
         }
+
+    def _model_label(self, m):
+        """Nom d'un modèle Open-Meteo : [Texts] [[Models]] (clé : identifiant), sinon le nom
+        de METEOGRAM_MODELS, sinon l'identifiant."""
+        return self.L("Models", m, METEOGRAM_MODELS.get(m, m))
 
     def _basemap(self):
         """Fond des cartes RainViewer / EUMETSAT : fournisseur et clé (CARTO)."""
@@ -1118,7 +1342,7 @@ class LiveJSON(SearchList):
         if cached is not None and now - cached[0] < ttl:
             return cached[1], cached[0], None
         if now - _FORECAST_FAIL.get(url, 0) < min(ttl, FORECAST_RETRY):
-            err = "nouvel essai après un échec récent"
+            err = self.L("Errors", "retrying after a recent failure")
         else:
             data, err, _reason, maxdays = _om_fetch(url, timeout)
             if data is not None:
@@ -1144,10 +1368,10 @@ class LiveJSON(SearchList):
         Open-Meteo chacun de leur côté."""
         f = self.forecast
         if not to_bool(f.get("enable", True)):
-            return {"error": "prévisions désactivées"}
+            return {"error": self.L("Errors", "forecasts disabled")}
         lat, lon = self._coords()
         if lat is None or lon is None:
-            return {"error": "coordonnées de la station inconnues"}
+            return {"error": self.L("Errors", "station coordinates unknown")}
         models, default = self._fc_models()
         ttl = self._forecast_ttl()
         days = self._fc_days()
@@ -1159,9 +1383,9 @@ class LiveJSON(SearchList):
         out = []
         for m in models:
             data, fetched, err = self._fc_fetch(m, lat, lon, days, ttl, timeout)
-            item = {"id": m, "label": METEOGRAM_MODELS.get(m, m)}
+            item = {"id": m, "label": self._model_label(m)}
             if data is None:
-                item["error"] = err or "prévisions indisponibles"
+                item["error"] = err or self.L("Errors", "forecasts unavailable")
             else:
                 item.update(fetched=int(fetched), expires=int(fetched + ttl), daily=data.get("daily"),
                             hourly=data.get("hourly"), utc_offset_seconds=data.get("utc_offset_seconds"))
@@ -1234,7 +1458,7 @@ class LiveJSON(SearchList):
         if cached and cached[0] == key and now - cached[1] < o["cache"]:
             return cached[2], cached[1], None
         if now - _ENS_FAIL.get(model, 0) < min(o["cache"], FORECAST_RETRY):
-            err = "nouvel essai après un échec récent"
+            err = self.L("Errors", "retrying after a recent failure")
         else:
             data, err, reason, maxdays = _om_fetch(ENSEMBLE_URL + "?" + key, o["timeout"])
             if data is not None:
@@ -1280,11 +1504,11 @@ class LiveJSON(SearchList):
         hourly = data.get("hourly") or {}
         times = hourly.get("time") or []
         if not times:
-            return {"error": "réponse vide"}
+            return {"error": self.L("Errors", "empty response")}
         now = time.time()
         i0 = next((i for i, t in enumerate(times) if t >= now - now % 3600), None)
         if i0 is None:
-            return {"error": "prévision périmée"}
+            return {"error": self.L("Errors", "outdated forecast")}
         st = o["step"]
         mem = {k: self._ens_members(hourly, var, model) for k, var, _d in ENSEMBLE_VARS}
         dec = {k: d for k, _v, d in ENSEMBLE_VARS}
@@ -1387,10 +1611,10 @@ class LiveJSON(SearchList):
         vent ; le navigateur dessine les coupes en altitude et propose le choix du modèle."""
         g = self.meteogram
         if not to_bool(g.get("enable", True)):
-            return {"error": "météogramme désactivé"}
+            return {"error": self.L("Errors", "meteogram disabled")}
         lat, lon = self._coords(g)
         if lat is None or lon is None:
-            return {"error": "coordonnées de la station inconnues"}
+            return {"error": self.L("Errors", "station coordinates unknown")}
         models, default = self._mg_models()
         days = _int(g.get("days"), 4, 1, 16)
         ttl = _int(g.get("cache"), 3600, 600, 86400)
@@ -1398,7 +1622,7 @@ class LiveJSON(SearchList):
         # entrées du cache des modèles retirés de la configuration : supprimées
         for key in [k for k in _MG_CACHE if dict(urllib.parse.parse_qsl(k)).get("models") not in models]:
             _MG_CACHE.pop(key, None)
-        out = [dict(self._mg_model(m, lat, lon, days, ttl, timeout), id=m, label=METEOGRAM_MODELS.get(m, m))
+        out = [dict(self._mg_model(m, lat, lon, days, ttl, timeout), id=m, label=self._model_label(m))
                for m in models]
         return {
             "version": VERSION, "generated": int(time.time()), "source": "open-meteo",
@@ -1422,7 +1646,7 @@ class LiveJSON(SearchList):
         err = None
         if cached is None or now - cached[0] >= ttl:
             if now - _MG_FAIL.get(key, 0) < min(ttl, FORECAST_RETRY):
-                err = "nouvel essai après un échec récent"
+                err = self.L("Errors", "retrying after a recent failure")
             else:
                 data, err, _reason, maxdays = _om_fetch(OPEN_METEO_URL + "?" + key, timeout)
                 if data is not None:
@@ -1438,14 +1662,14 @@ class LiveJSON(SearchList):
                     _MG_FAIL[key] = now
                     log.error("livejson: échec du téléchargement du météogramme (%s) : %s", model, err)
         if cached is None:
-            return {"error": err or "prévision indisponible"}
+            return {"error": err or self.L("Errors", "forecast unavailable")}
         fetched, data = cached
         h = data.get("hourly") or {}
         times = h.get("time") or []
         i0 = next((i for i, t in enumerate(times) if t >= now - now % 3600), len(times))
         n = len(times) - i0
         if n <= 0:
-            return {"error": "prévision vide ou périmée"}
+            return {"error": self.L("Errors", "empty or outdated forecast")}
 
         def col(name, dec):
             a = (h.get(name) or [])[i0:]
@@ -1476,25 +1700,27 @@ class LiveJSON(SearchList):
         t1 = time.time()
         o = self._ens_options()
         if not o["enable"]:
-            return {"error": "prévisions d'ensemble désactivées"}
+            return {"error": self.L("Errors", "ensemble forecasts disabled")}
         lat, lon = self._coords(self.ensembles)
         if lat is None or lon is None:
-            return {"error": "coordonnées de la station inconnues"}
+            return {"error": self.L("Errors", "station coordinates unknown")}
         if not o["models"]:
-            return {"error": "aucun modèle configuré"}
+            return {"error": self.L("Errors", "no model configured")}
         models = []
         for m in o["models"]:
             short, label, origin, _d = ENSEMBLE_MODELS.get(m, (m.upper()[:8], m, "", o["days"]))
-            info = {"id": m, "short": short, "label": label, "origin": origin}
+            # pays d'origine et suffixe « (AI) » des modèles d'IA traduits ([[Models]])
+            label = label.replace("(AI)", self.L("Models", "(AI)"))
+            info = {"id": m, "short": short, "label": label, "origin": self.L("Models", origin) if origin else ""}
             data, fetched, err = self._ens_fetch(m, lat, lon, o["days"], o)
             if data is None:
-                models.append(dict(info, error=err or "indisponible"))
+                models.append(dict(info, error=err or self.L("Common", "unavailable")))
                 continue
             try:
                 r = self._ens_process(data, m, o)
             except Exception as ex:
                 log.error("livejson: ensemble %s : données inattendues : %s", m, ex)
-                r = {"error": "données inattendues"}
+                r = {"error": self.L("Errors", "unexpected data")}
             r.update(info, fetched=int(fetched))
             if err and "error" not in r:
                 r["stale"] = True
@@ -1665,21 +1891,21 @@ class LiveJSON(SearchList):
                 "years": list(range(first.year, today.year + 1))}
         if length <= 90000:                                  # journée
             prev_d, next_d = d - datetime.timedelta(days=1), d + datetime.timedelta(days=1)
-            info.update(kind="day", label="%s %d %s %d" % (WEEKDAYS[d.weekday()], d.day, MONTHS[d.month - 1], d.year),
+            info.update(kind="day", label=self.L.date_long(d),
                         prev=fname("day", prev_d) if prev_d >= day_first else "",
                         next=fname("day", next_d) if next_d <= today else "")
         elif length <= 32 * 86400:                           # mois
             pm = datetime.date(d.year - (d.month == 1), (d.month - 2) % 12 + 1, 1)
             nm = datetime.date(d.year + (d.month == 12), d.month % 12 + 1, 1)
             has_p, has_n = pm >= first.replace(day=1), nm <= today
-            info.update(kind="month", label="%s %d" % (MONTHS[d.month - 1], d.year),
+            info.update(kind="month", label=self.L.month_year(d),
                         prev=fname("month", pm) if has_p else "",
                         next=fname("month", nm) if has_n else "",
                         # tableau climatologique : mois précédent / suivant (AAAA-MM)
                         prevYm="%04d-%02d" % (pm.year, pm.month) if has_p else "",
                         nextYm="%04d-%02d" % (nm.year, nm.month) if has_n else "")
         else:                                                # année
-            info.update(kind="year", label="Année %d" % d.year,
+            info.update(kind="year", label=self.L("Locale", "year", "Year {year}", year=d.year),
                         prevY=d.year - 1 if d.year > first.year else "",
                         nextY=d.year + 1 if d.year < today.year else "",
                         prev=fname("year", datetime.date(d.year - 1, 1, 1)) if d.year > first.year else "",
@@ -2218,7 +2444,7 @@ class LiveJSON(SearchList):
                         rec[k] = conv(rec[k])
                 days.setdefault(d, {})[obs] = rec
         if not days:
-            return {"error": "pas de résumés journaliers"}
+            return {"error": self.L("Errors", "no daily summaries")}
 
         def g(rec, obs, k):
             return (rec.get(obs) or {}).get(k)
@@ -2298,10 +2524,10 @@ class LiveJSON(SearchList):
     def astro_data(self, stop, db_lookup):
         t1 = time.time()
         if not to_bool(self.astro.get("enable", True)):
-            return {"error": "désactivé"}
+            return {"error": self.L("Errors", "disabled")}
         lat, lon = self._coords()
         if lat is None or lon is None:
-            return {"error": "coordonnées de la station inconnues"}
+            return {"error": self.L("Errors", "station coordinates unknown")}
         stn = self.generator.stn_info
         try:
             alt_m = weewx.units.convert(stn.altitude_vt, "meter")[0]
@@ -2322,7 +2548,7 @@ class LiveJSON(SearchList):
         day = archiveDaySpan(stop)                    # jour de la station (minuit à minuit)
         noon = day.start + (day.stop - day.start) // 2
         alm = weewx.almanac.Almanac(noon, lat, lon, altitude=alt_m, temperature=temp_c,
-                                    pressure=press, moon_phases=MOON_PHASES)
+                                    pressure=press, moon_phases=self.L.moon)
         prev = alm(almanac_time=noon - 86400)
 
         def raw(vh):
@@ -2369,11 +2595,11 @@ class LiveJSON(SearchList):
                 out["moon"] = {"rise": None, "set": None, "transit": None}
             # phase de la lune à l'heure du rapport
             now_alm = alm(almanac_time=stop)
-            out["moon"].update({"index": int(now_alm.moon_index), "phase": MOON_PHASES[int(now_alm.moon_index) % 8],
+            out["moon"].update({"index": int(now_alm.moon_index), "phase": self.L.moon[int(now_alm.moon_index) % 8],
                                 "fullness": _round(now_alm.moon_fullness, 0)})
         except Exception as e:
             log.error("livejson: almanach indisponible : %s", e)
-            return {"error": "almanach indisponible (%s)" % e}
+            return {"error": self.L("Errors", "almanac unavailable ({error})", error=e)}
         log.debug("livejson: almanach généré en %.2f s", time.time() - t1)
         return out
 

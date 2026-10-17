@@ -3,7 +3,7 @@
  * (window.WX_TZ, défini par wxtime.js généré par weewx : celui du système weewx ou
  * [LiveJSON] timezone), quel que soit celui du visiteur. nav.js est chargé avant les autres
  * scripts de chaque page. Les instants sont en secondes Unix (UTC).
- *   WXT.fmt(t, options)    texte, comme toLocaleString("fr-FR", options), heure de la station
+ *   WXT.fmt(t, options)    texte, comme toLocaleString(langue des pages, options), heure de la station
  *   WXT.hm(t)              « 14:05 »
  *   WXT.parts(t)           { y, m (1-12), d, h, mi, s, wd (0 = dimanche) } heure de la station
  *   WXT.mk(y, m, d, h, mi) instant d'une date et heure de la station (débordements admis :
@@ -14,13 +14,24 @@
  *   WXT.iso(s)             instant d'une date « AAAA-MM-JJ[THH:MM] » (heure de la station)
  *   WXT.now()              instant présent */
 
+// Textes de la langue choisie (window.WXL, i18n.js généré par weewx) : les pages d'archives
+// générées avant la version 1.98 ne chargent pas i18n.js ; il est alors ajouté ici, avant
+// les scripts suivants de la page.
+if (!window.WXL && document.readyState === "loading") {
+  const src = (document.currentScript && document.currentScript.src) || "";
+  document.write('<script src="' + src.replace(/nav\.js(\?.*)?$/, "") + 'i18n.js"><\/script>');
+}
+
 (function () {
   "use strict";
+
+  // langue des dates et des nombres (Intl) : celle des pages (i18n.js)
+  const LOC = () => (window.WXL && WXL.locale) || "fr-FR";
 
   // fuseau : wxtime.js (généré), sinon configuration intégrée à la page, sinon navigateur
   // (pages d'archives générées avant la version 1.68, qui ne chargent pas wxtime.js)
   let TZ = window.WX_TZ || (window.WEEWX_CONFIG && window.WEEWX_CONFIG.timezone) || undefined;
-  try { if (TZ) new Intl.DateTimeFormat("fr-FR", { timeZone: TZ }); }
+  try { if (TZ) new Intl.DateTimeFormat("en-US", { timeZone: TZ }); }
   catch (e) { TZ = undefined; }                 // nom inconnu du navigateur
 
   // formats (création coûteuse) mis en cache par jeu d'options
@@ -28,7 +39,7 @@
   const dtf = (o) => {
     const k = JSON.stringify(o || {});
     let f = formats.get(k);
-    if (!f) { f = new Intl.DateTimeFormat("fr-FR", Object.assign({}, o, { timeZone: TZ })); formats.set(k, f); }
+    if (!f) { f = new Intl.DateTimeFormat(LOC(), Object.assign({}, o, { timeZone: TZ })); formats.set(k, f); }
     return f;
   };
   const fmt = (t, o) => dtf(o).format(new Date(t * 1000));
@@ -96,15 +107,18 @@
  *   WXU.GROUPS, WXU.set(g, u), WXU.reset(), WXU.siteDefault(g), WXU.userChoice(g) */
 (function () {
   "use strict";
+  const LOC = () => (window.WXL && WXL.locale) || "fr-FR";
+  // nom d'une grandeur dans la langue des pages ([Texts] [[Units]])
+  const tu = (k) => (window.WXL ? WXL.t("Units", k) : k);
   // unités possibles par grandeur : [facteur, décalage, décimales en plus] (valeur = métrique × a + b)
   const GROUPS = {
-    temp: { label: "Température", base: "°C", units: { "°C": [1, 0, 0], "°F": [1.8, 32, 0] } },
-    wind: { label: "Vitesse du vent", base: "km/h", units: { "km/h": [1, 0, 0], "m/s": [1 / 3.6, 0, 1], "mph": [1 / 1.609344, 0, 0], "kn": [1 / 1.852, 0, 0] } },
-    rain: { label: "Pluie", base: "mm", units: { "mm": [1, 0, 0], "in": [1 / 25.4, 0, 1] } },
-    rainRate: { label: "Intensité de pluie", base: "mm/h", units: { "mm/h": [1, 0, 0], "in/h": [1 / 25.4, 0, 1] } },
-    press: { label: "Pression", base: "hPa", units: { "hPa": [1, 0, 0], "inHg": [0.029529983071445, 0, 1], "mmHg": [0.750061682704, 0, 0], "kPa": [0.1, 0, 1] } },
-    alt: { label: "Altitude", base: "m", units: { "m": [1, 0, 0], "ft": [3.280839895, 0, 0] } },
-    snow: { label: "Neige", base: "cm", units: { "cm": [1, 0, 0], "in": [1 / 2.54, 0, 1] } },
+    temp: { label: tu("Temperature"), base: "°C", units: { "°C": [1, 0, 0], "°F": [1.8, 32, 0] } },
+    wind: { label: tu("Wind speed"), base: "km/h", units: { "km/h": [1, 0, 0], "m/s": [1 / 3.6, 0, 1], "mph": [1 / 1.609344, 0, 0], "kn": [1 / 1.852, 0, 0] } },
+    rain: { label: tu("Rain"), base: "mm", units: { "mm": [1, 0, 0], "in": [1 / 25.4, 0, 1] } },
+    rainRate: { label: tu("Rain rate"), base: "mm/h", units: { "mm/h": [1, 0, 0], "in/h": [1 / 25.4, 0, 1] } },
+    press: { label: tu("Pressure"), base: "hPa", units: { "hPa": [1, 0, 0], "inHg": [0.029529983071445, 0, 1], "mmHg": [0.750061682704, 0, 0], "kPa": [0.1, 0, 1] } },
+    alt: { label: tu("Altitude"), base: "m", units: { "m": [1, 0, 0], "ft": [3.280839895, 0, 0] } },
+    snow: { label: tu("Snow"), base: "cm", units: { "cm": [1, 0, 0], "in": [1 / 2.54, 0, 1] } },
   };
   const BY_BASE = {};
   // unité métrique sans espaces ni majuscules (« ° C », « HPA ») -> grandeur
@@ -124,7 +138,7 @@
   const delta = (g, v) => (isNum(v) && GROUPS[g] ? v * coef(g)[0] : v);
   const dec = (g, d) => (GROUPS[g] ? Math.max(0, (d || 0) + coef(g)[2]) : d);
   const fmt = (g, v, d = 1) => (isNum(v)
-    ? Number(conv(g, v)).toLocaleString("fr-FR", { minimumFractionDigits: dec(g, d), maximumFractionDigits: dec(g, d) }) : "--");
+    ? Number(conv(g, v)).toLocaleString(LOC(), { minimumFractionDigits: dec(g, d), maximumFractionDigits: dec(g, d) }) : "--");
   const groupOf = (u) => (u && BY_BASE[norm(u)]) || null;
   // [data-ubase="km/h"] : texte = unité retenue ; [data-uval="30|km/h"] (ou "30|km/h|1") :
   // texte = valeur convertie (décimales de l'unité métrique, ici 0 ou 1)
@@ -259,41 +273,46 @@
 (function () {
   "use strict";
 
-  const HOME = { id: "home", label: "Tableau de bord" };
+  // textes du menu ([Texts] [[Menu]]), lus à l'affichage (i18n.js peut être chargé après nav.js)
+  const tm = (k) => (window.WXL ? WXL.t("Menu", k) : k);
+  // entrée de menu : libellé traduit au moment de l'affichage (fonction ou clé de [[Menu]])
+  const entry = (id, key, more) => Object.defineProperty(Object.assign({ id }, more), "label",
+    { enumerable: true, get: typeof key === "function" ? key : () => tm(key) });
+  const HOME = entry("home", "Dashboard");
   // menu par défaut (avant lecture de la configuration)
   let DATA = [
-    { id: "outTemp", label: "Température" },
-    { id: "wind", label: "Vent" },
-    { id: "rain", label: "Pluie" },
-    { id: "outHumidity", label: "Humidité" },
-    { id: "barometer", label: "Pression" },
+    entry("outTemp", "Temperature"),
+    entry("wind", "Wind"),
+    entry("rain", "Rain"),
+    entry("outHumidity", "Humidity"),
+    entry("barometer", "Pressure"),
   ];
   // pages par période (tous les paramètres), en haut du menu « Données »
   const PERIOD_PAGES = [
-    { id: "period:24h", label: "24 dernières heures" },
-    { id: "period:7d", label: "7 derniers jours" },
-    { id: "period:30d", label: "30 derniers jours" },
-    { id: "period:365d", label: "365 derniers jours" },
+    entry("period:24h", "Last 24 hours"),
+    entry("period:7d", "Last 7 days"),
+    entry("period:30d", "Last 30 days"),
+    entry("period:365d", "Last 365 days"),
   ];
   // pages supplémentaires du menu « Données », après les paramètres
-  const EXTRA = [{ id: "extremes", label: "Extrêmes", page: "extremes.html" }];
+  const EXTRA = [entry("extremes", "Extremes", { page: "extremes.html" })];
 
   // menu « Climatologie » (rempli d'après la configuration : [[archives]] climato)
   const CLIMATO = [];
   // menu « Prévisions » (rempli d'après la configuration : [[ensembles]] enable)
   const FORECAST = [];
-  const FC_PAGES = [{ id: "fc:meteogram", label: "Météogramme", page: "meteogram.html", key: "meteogram" },
-                    { id: "fc:ensembles", label: "Ensembles", page: "ensembles.html", key: "ensembles" }];
+  const FC_PAGES = [entry("fc:meteogram", "Meteogram", { page: "meteogram.html", key: "meteogram" }),
+                    entry("fc:ensembles", "Ensembles", { page: "ensembles.html", key: "ensembles" })];
   const fcPage = FC_PAGES.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
   // lien « Éclairs » (rempli d'après la configuration : [[lightning]], coordonnées)
   let LIGHTNING = null;
   // page « Webcam » (affichée dans le menu si [[webcam]] a un élément visible)
-  const WEBCAM = { id: "webcam", label: "Webcam", page: "webcam.html" };
+  const WEBCAM = entry("webcam", "Webcam", { page: "webcam.html" });
   const isWebcam = location.pathname.endsWith("/" + WEBCAM.page) || location.pathname === WEBCAM.page;
   let hasWebcam = isWebcam;
   // menu « Réglages » (toujours présent) : choix du visiteur, mémorisés par son navigateur
-  const SETTINGS = [{ id: "set:units", label: "Unités", page: "units.html" },
-                    { id: "set:admin", label: WXA.active() ? "Admin (actif)" : "Admin", page: "admin.html" }];
+  const SETTINGS = [entry("set:units", "Units", { page: "units.html" }),
+                    entry("set:admin", () => tm(WXA.active() ? "Admin (active)" : "Admin"), { page: "admin.html" })];
   const setPage = SETTINGS.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
 
   // pages situées dans un sous-dossier (pages d'archives : archive/) : préfixe des liens
@@ -328,21 +347,22 @@
   // pour la date du jour
   function setArchives(cfg) {
     if (cfg && !FORECAST.length) FC_PAGES.forEach((p) => { if (cfg[p.key] && cfg[p.key].enable) FORECAST.push(p); });
-    // carte des éclairs : https://maps.blitzortung.org/fr/#zoom/latitude/longitude
+    // carte des éclairs : https://maps.blitzortung.org/<langue>/#zoom/latitude/longitude
     const lg = cfg && cfg.lightning, lat = cfg && cfg.latitude, lon = cfg && cfg.longitude;
     const wc = cfg && cfg.webcam;
     hasWebcam = isWebcam || !!(wc && wc.enable && (wc.items || []).some((w) => WXA.visible(w)));
     if (lg && lg.enable !== false && Number.isFinite(lat) && Number.isFinite(lon)) {
-      LIGHTNING = `https://maps.blitzortung.org/fr/#${lg.zoom || 7}/${lat.toFixed(3)}/${lon.toFixed(3)}`;
+      const bl = window.WXL ? WXL.t("Menu", "blitzortung_lang") : "fr";
+      LIGHTNING = `https://maps.blitzortung.org/${encodeURIComponent(bl)}/#${lg.zoom || 7}/${lat.toFixed(3)}/${lon.toFixed(3)}`;
     }
     const a = cfg && cfg.archives;
     if (!a || EXTRA.some((e) => e.id === "archives")) return;
     const [y, m, dd] = WXT.ymd(WXT.now()).split("-");   // date du jour de la station
     const page = a.day ? `archive/day-${y}-${m}-${dd}.html` : a.month ? `archive/month-${y}-${m}.html` : a.year ? `archive/year-${y}.html` : "";
-    if (page) EXTRA.push({ id: "archives", label: "Archives", page });
+    if (page) EXTRA.push(entry("archives", "Archives", { page }));
     if (a.climato && !CLIMATO.length) {
-      CLIMATO.push({ id: "climato:month", label: "Climatologie mensuelle", page: `archive/climato-${y}-${m}.html` },
-                   { id: "climato:year", label: "Climatologie année", page: `archive/climato-${y}.html` });
+      CLIMATO.push(entry("climato:month", "Monthly climatology", { page: `archive/climato-${y}-${m}.html` }),
+                   entry("climato:year", "Yearly climatology", { page: `archive/climato-${y}.html` }));
     }
   }
 
@@ -388,21 +408,21 @@
     if (!nav) return;
     const item = (d) => `<li><a href="${esc(href(d.id))}"${d.id === current ? ' aria-current="page"' : ""}>${esc(d.label)}</a></li>`;
     nav.innerHTML = `
-      <a href="${href("home")}"${current === "home" ? ' aria-current="page"' : ""}>${HOME.label}</a>` +
-      dropdown("dd-data", "Données", [...PERIOD_PAGES, ...DATA, ...EXTRA], `
-          <li class="dd-head" role="presentation">Tous les paramètres</li>
+      <a href="${href("home")}"${current === "home" ? ' aria-current="page"' : ""}>${esc(HOME.label)}</a>` +
+      dropdown("dd-data", esc(tm("Data")), [...PERIOD_PAGES, ...DATA, ...EXTRA], `
+          <li class="dd-head" role="presentation">${esc(tm("All parameters"))}</li>
           ${PERIOD_PAGES.map(item).join("")}
           <li class="dd-sep" role="separator"></li>
-          <li class="dd-head" role="presentation">Par paramètre</li>
+          <li class="dd-head" role="presentation">${esc(tm("By parameter"))}</li>
           ${DATA.map(item).join("")}
           <li class="dd-sep" role="separator"></li>
           ${EXTRA.map(item).join("")}`) +
-      (CLIMATO.length ? dropdown("dd-climato", "Climatologie", CLIMATO, CLIMATO.map(item).join("")) : "") +
-      (FORECAST.length ? dropdown("dd-fc", "Prévisions", FORECAST, FORECAST.map(item).join("")) : "") +
-      (hasWebcam ? `<a href="${esc(href(WEBCAM.id))}"${current === WEBCAM.id ? ' aria-current="page"' : ""}>${WEBCAM.label}</a>` : "") +
+      (CLIMATO.length ? dropdown("dd-climato", esc(tm("Climatology")), CLIMATO, CLIMATO.map(item).join("")) : "") +
+      (FORECAST.length ? dropdown("dd-fc", esc(tm("Forecasts")), FORECAST, FORECAST.map(item).join("")) : "") +
+      (hasWebcam ? `<a href="${esc(href(WEBCAM.id))}"${current === WEBCAM.id ? ' aria-current="page"' : ""}>${esc(WEBCAM.label)}</a>` : "") +
       (LIGHTNING ? `<a class="ext-link" href="${esc(LIGHTNING)}" target="_blank" rel="noopener"
-        title="Carte des éclairs en temps réel (Blitzortung), dans un nouvel onglet">Éclairs<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5"/></svg><span class="sr"> (nouvel onglet)</span></a>` : "") +
-      dropdown("dd-set", "Réglages", SETTINGS, SETTINGS.map(item).join(""));
+        title="${esc(tm("Real-time lightning map (Blitzortung), in a new tab"))}">${esc(tm("Lightning"))}<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5"/></svg><span class="sr"> ${esc(tm("(new tab)"))}</span></a>` : "") +
+      dropdown("dd-set", esc(tm("Settings")), SETTINGS, SETTINGS.map(item).join(""));
     document.querySelectorAll("a[data-detail]").forEach((a) => (a.href = href(a.dataset.detail)));
 
     menus = [...nav.querySelectorAll(".dd")].map((dd) => {
@@ -472,7 +492,6 @@
 
   // mode admin activé / quitté sur la page « Admin » : menu « Données » et libellé mis à jour
   function refreshAdmin() {
-    SETTINGS[1].label = WXA.active() ? "Admin (actif)" : "Admin";
     window.weewxConfig.then((cfg) => { setArchives(cfg); setParams(cfg && cfg.parameters); });   // menu « Webcam » compris
   }
 

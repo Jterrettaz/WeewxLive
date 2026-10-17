@@ -20,7 +20,9 @@
 
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const num = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: d }) : "—");
+  // textes de la langue choisie (i18n.js) : [[Climato]], [[Common]]
+  const tk = WXL.ctx("Climato"), tc = WXL.ctx("Common");
+  const num = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString(WXL.locale, { minimumFractionDigits: 0, maximumFractionDigits: d }) : "—");
   // valeurs métriques affichées dans l'unité choisie (WXU, nav.js) ; couleurs et comptages
   // de jours restent calculés sur les valeurs métriques
   const withUnit = (v, u, d) => {
@@ -30,26 +32,26 @@
   };
   // seuil (métrique) d'un en-tête de colonne, converti : « 0 °C » -> « 32 °F »
   const thr = (g, v, d = 1) => `${num(WXU.conv(g, v), WXU.dec(g, d))} ${esc(WXU.get(g))}`;
-  const SECT = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+  const SECT = WXL.dirs.filter((x, i) => i < 16 && i % 2 === 0);   // 8 secteurs
   const sector = (deg) => SECT[Math.round(deg / 45) % 8];
   // méthode de calcul (skin.conf [[archives]] climato_method) : texte de la note des tableaux
   const METHOD = D.method === "omm"
-    ? "Méthode OMM (heures UTC) : Tn de la veille 18 h au jour 18 h ; Tx et pluie du jour 6 h au lendemain 6 h ; " +
-      "température moyenne : moyenne des 8 relevés trihoraires (0, 3 … 21 h) ; vent, humidité et pression : journée de 0 h à 24 h."
-    : "Journées de 0 h à 24 h (heure de la station), d'après les résumés journaliers de weewx.";
+    ? tk("WMO method (UTC): Tn from the previous day 18:00 to the day 18:00; Tx and rain from the day 06:00 to the next day 06:00; mean temperature: mean of the 8 three-hourly readings (00, 03 … 21:00); wind, humidity and pressure: day from 0:00 to 24:00.")
+    : tk("Days from 0:00 to 24:00 (station time), from weewx daily summaries.");
   // valeurs provisoires (fenêtre du jour pas encore close) : italique et astérisque ;
   // « until » : instant où la valeur devient définitive (infobulle), true si non précisé
   const PROV_NOTE = D.method === "omm"
-    ? "* Valeur provisoire : Tn définitive à 18 h UTC, Tx et pluie le lendemain à 6 h UTC."
-    : "* Valeur provisoire : définitive à la fin de la journée (minuit).";
+    ? tk("* Provisional value: Tn final at 18:00 UTC, Tx and rain the next day at 06:00 UTC.")
+    : tk("* Provisional value: final at the end of the day (midnight).");
   const provAttr = (until) => {
     if (!until) return "";
     const when = typeof until === "number" && window.WXT
-      ? ` (définitive le ${WXT.fmt(until, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })})` : "";
-    return ` data-prov="1" title="${esc("Valeur provisoire" + when)}"`;
+      ? tk(" (final on {when})", { when: WXT.fmt(until, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }) : "";
+    return ` data-prov="1" title="${esc(tk("Provisional value") + when)}"`;
   };
-  const provMark = (until) => (until ? '<span class="cm-p" aria-label="provisoire">*</span>' : "");
-  const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  const provMark = (until) => (until ? `<span class="cm-p" aria-label="${esc(tk("provisional"))}">*</span>` : "");
+  const MONTHS = WXL.months;
+  const monthYear = (m, y) => WXL.fill(WXL.loc("month_year", "{month} {year}"), { month: MONTHS[m - 1], year: y });
 
   // ------------------------------------------------------------------
   // Couleurs de fond (avec texte noir ou blanc selon la luminance du fond)
@@ -128,54 +130,57 @@
     };
     const cnt = (v, r) => val(v, null, 0, "", false, r && r.prov);
     const monthCell = (r) => {
-      const label = `${MONTHS[r.m - 1]} ${D.year}`;
+      const label = monthYear(r.m, D.year);
       return `<th scope="row">${any(r)
-        ? `<a class="cm-day" href="climato-${r.ym}.html" title="Climatologie de ${esc(label)}" aria-label="Climatologie de ${esc(label)}">${ICON}<span>${MONTHS[r.m - 1]}</span></a>`
+        ? `<a class="cm-day" href="climato-${r.ym}.html" title="${esc(tk("Climatology of {label}", { label }))}" aria-label="${esc(tk("Climatology of {label}", { label }))}">${ICON}<span>${MONTHS[r.m - 1]}</span></a>`
         : `<span class="cm-day"><span class="cm-noicon"></span><span>${MONTHS[r.m - 1]}</span></span>`}</th>`;
     };
     // tableau : groupe d'en-tête, colonnes [titre, cellule(r, total)]
     const table = (title, cols, caption) => `<div class="cm-scroll">
       <table class="cm-table cm-year">
         <caption class="sr">${esc(caption)}</caption>
-        <thead><tr><th rowspan="2" scope="col" class="cm-jour">Mois</th><th colspan="${cols.length}" scope="colgroup" class="cm-grp">${title}</th></tr>
+        <thead><tr><th rowspan="2" scope="col" class="cm-jour">${esc(tc("Month"))}</th><th colspan="${cols.length}" scope="colgroup" class="cm-grp">${title}</th></tr>
           <tr>${cols.map(([h]) => `<th scope="col" class="cm-sub2">${h}</th>`).join("")}</tr></thead>
         <tbody>${M.map((r) => `<tr>${monthCell(r)}${cols.map(([, c]) => c(r, false)).join("")}</tr>`).join("")}</tbody>
-        <tfoot><tr><th scope="row" class="cm-tot">Année</th>${cols.map(([, c]) => c(T, true)).join("")}</tr></tfoot>
+        <tfoot><tr><th scope="row" class="cm-tot">${esc(tc("Year"))}</th>${cols.map(([, c]) => c(T, true)).join("")}</tr></tfoot>
       </table></div>`;
     const out = [];
     const ut = U.temp, ur = U.rain;
 
     if (has("tavg", "tmin", "tmax")) {
       const lo = ext("tmin", Math.min), hi = ext("tmax", Math.max);
-      const tc = (k, rec) => (r, tot) => val(r[k], ut, 1, tot ? "" : tFill(r[k]), !tot && rec && r[k] === rec, r.prov);
-      out.push(table("Température", [
-        ["moy", tc("tavg")], ["moy min", tc("tminAvg")], ["min", tc("tmin", lo)],
-        ["moy max", tc("tmaxAvg")], ["max", tc("tmax", hi)],
-        [`Jours sans dégel<br><small>(max ≤ ${thr("temp", TH.ice)})</small>`, (r) => cnt(r.ice, r)],
-        [`Jours de gel<br><small>(min &lt; ${thr("temp", TH.frost)})</small>`, (r) => cnt(r.frost, r)],
-        [`Jours<br><small>(max &gt; ${thr("temp", TH.heat)})</small>`, (r) => cnt(r.heat, r)],
-      ], `Températures par mois, ${D.year}`));
+      const tcol = (k, rec) => (r, tot) => val(r[k], ut, 1, tot ? "" : tFill(r[k]), !tot && rec && r[k] === rec, r.prov);
+      // en-tête « texte<br><small>(seuil)</small> »
+      const hs = (k, sk, v) => `${esc(tk(k))}<br><small>${esc(tk(sk, { value: "\u0000" })).replace("\u0000", v)}</small>`;
+      out.push(table(esc(tk("Temperature")), [
+        [esc(tc("avg")), tcol("tavg")], [esc(tk("mean min")), tcol("tminAvg")], [esc(tc("min")), tcol("tmin", lo)],
+        [esc(tk("mean max")), tcol("tmaxAvg")], [esc(tc("max")), tcol("tmax", hi)],
+        [hs("Ice days", "(max ≤ {value})", thr("temp", TH.ice)), (r) => cnt(r.ice, r)],
+        [hs("Frost days", "(min < {value})", thr("temp", TH.frost)), (r) => cnt(r.frost, r)],
+        [hs("Days", "(max > {value})", thr("temp", TH.heat)), (r) => cnt(r.heat, r)],
+      ], tk("Temperatures by month, {year}", { year: D.year })));
     }
     if (has("rain")) {
       const top = ext("rain", Math.max);
-      out.push(table("Pluie", [
-        ["pluie totale", (r, tot) => val(r.rain, ur, 1, tot ? "" : rmFill(r.rain), !tot && r.rain === top && top > 0, r.prov)],
-        [`jours de pluie<br><small>(≥ ${thr("rain", TH.rain)})</small>`, (r) => cnt(r.rainDays, r)],
-        [`jours ≥ ${thr("rain", TH.heavy)}`, (r) => cnt(r.heavyDays, r)],
-      ], `Pluie par mois, ${D.year}`));
+      const hs = (k, sk, v) => `${esc(tk(k))}<br><small>${esc(tk(sk, { value: "\u0000" })).replace("\u0000", v)}</small>`;
+      out.push(table(esc(tk("Rain")), [
+        [esc(tk("total rain")), (r, tot) => val(r.rain, ur, 1, tot ? "" : rmFill(r.rain), !tot && r.rain === top && top > 0, r.prov)],
+        [hs("rain days", "(≥ {value})", thr("rain", TH.rain)), (r) => cnt(r.rainDays, r)],
+        [esc(tk("days ≥ {value}", { value: "\u0000" })).replace("\u0000", thr("rain", TH.heavy)), (r) => cnt(r.heavyDays, r)],
+      ], tk("Rain by month, {year}", { year: D.year })));
     }
     if (has("wind", "gust")) {
       const mw = ext("windMax", Math.max), mg = ext("gust", Math.max);
-      out.push(table("Vent", [
-        ["vent moyen", (r) => val(r.wind, U.wind, 1, "", false, r.prov)],
-        ["vent moyen max<br><small>(intervalle d'archive)</small>", (r, tot) => val(r.windMax, U.wind, 1, tot ? "" : grey(r.windMax, mw), !tot && r.windMax === mw, r.prov)],
-        ["rafale maximum", (r, tot) => val(r.gust, U.gust, 1, tot ? "" : grey(r.gust, mg), !tot && r.gust === mg, r.prov)],
-      ], `Vent par mois, ${D.year}`));
+      out.push(table(esc(tk("Wind")), [
+        [esc(tk("mean wind")), (r) => val(r.wind, U.wind, 1, "", false, r.prov)],
+        [`${esc(tk("max mean wind"))}<br><small>${esc(tk("(archive interval)"))}</small>`, (r, tot) => val(r.windMax, U.wind, 1, tot ? "" : grey(r.windMax, mw), !tot && r.windMax === mw, r.prov)],
+        [esc(tk("max gust")), (r, tot) => val(r.gust, U.gust, 1, tot ? "" : grey(r.gust, mg), !tot && r.gust === mg, r.prov)],
+      ], tk("Wind by month, {year}", { year: D.year })));
     }
     wrap.innerHTML = out.length ? `<div class="cm-tables">${out.join("")}</div>
-      <p class="cm-note">${esc(METHOD)} En gras : extrêmes de l'année.${M.some((r) => r.prov) ? ` <span class="cm-p">*</span> Mois en cours : valeurs provisoires (le dernier jour du mois n'est pas encore clos).` : ""}
-      Ligne « Année » : moyennes, extrêmes, cumuls et totaux de l'année.</p>`
-      : `<p class="muted">Pas de données pour cette année.</p>`;
+      <p class="cm-note">${esc(METHOD)} ${esc(tk("In bold: extremes of the year."))}${M.some((r) => r.prov) ? ` <span class="cm-p">*</span> ${esc(tk("Current month: provisional values (the last day of the month is not closed yet)."))}` : ""}
+      ${esc(tk("“Year” row: means, extremes, totals and counts for the year."))}</p>`
+      : `<p class="muted">${esc(tk("No data for this year."))}</p>`;
   }
 
   // ------------------------------------------------------------------
@@ -191,7 +196,7 @@
     const ext = (k, f) => { const v = days.map((r) => r[k]).filter(isNum); return v.length ? f(...v) : null; };
     const lowMin = ext("tmin", Math.min), highMax = ext("tmax", Math.max), topGust = ext("gust", Math.max);
     const [y, m] = ((days[0] && days[0].iso) || "").split("-");
-    const mName = m ? `${MONTHS[+m - 1]} ${y}` : "";
+    const mName = m ? monthYear(+m, y) : "";
 
     // cellule ; prov : instant où la valeur devient définitive (ou true), sinon rien
     const td = (v, u, d, style, bold, prov) => {
@@ -221,37 +226,37 @@
     const rows = days.map((r) => {
       const empty = !["tmin", "tmax", "wind", "rain", "hum", "baro"].some((k) => isNum(r[k]));
       const link = dayPages && !empty && r.iso >= (cfg.dayFirst || "") && r.iso <= (cfg.today || "9999");
-      const label = `${r.d} ${mName}`;
+      const label = WXL.fill(WXL.loc("day_month", "{day} {month}"), { day: r.d, month: mName });
       const day = link
-        ? `<a class="cm-day" href="day-${r.iso}.html" title="Archives du ${esc(label)}" aria-label="Archives du ${esc(label)}">${ICON}<span>${r.d}</span></a>`
+        ? `<a class="cm-day" href="day-${r.iso}.html" title="${esc(tk("Archives of {label}", { label }))}" aria-label="${esc(tk("Archives of {label}", { label }))}">${ICON}<span>${r.d}</span></a>`
         : `<span class="cm-day"><span class="cm-noicon"></span><span>${r.d}</span></span>`;
       return `<tr><th scope="row">${day}</th>${cells(r, false)}</tr>`;
     }).join("");
 
     const head1 = [
-      `<th rowspan="2" scope="col" class="cm-jour">Jour</th>`,
-      cols.temp ? `<th colspan="3" scope="colgroup" class="cm-grp">Température</th>` : "",
-      cols.wind || cols.dir ? `<th colspan="${(cols.wind ? 1 : 0) + (cols.dir ? 1 : 0)}" scope="colgroup" class="cm-grp">Vent</th>` : "",
-      cols.rain ? `<th rowspan="2" scope="col">Pluie</th>` : "",
-      cols.hum ? `<th rowspan="2" scope="col">Humidité</th>` : "",
-      cols.baro ? `<th rowspan="2" scope="col">Pression</th>` : "",
+      `<th rowspan="2" scope="col" class="cm-jour">${esc(tc("Day"))}</th>`,
+      cols.temp ? `<th colspan="3" scope="colgroup" class="cm-grp">${esc(tk("Temperature"))}</th>` : "",
+      cols.wind || cols.dir ? `<th colspan="${(cols.wind ? 1 : 0) + (cols.dir ? 1 : 0)}" scope="colgroup" class="cm-grp">${esc(tk("Wind"))}</th>` : "",
+      cols.rain ? `<th rowspan="2" scope="col">${esc(tk("Rain"))}</th>` : "",
+      cols.hum ? `<th rowspan="2" scope="col">${esc(tk("Humidity"))}</th>` : "",
+      cols.baro ? `<th rowspan="2" scope="col">${esc(tk("Pressure"))}</th>` : "",
     ].join("");
     const head2 = [
-      cols.temp ? `<th scope="col" class="cm-sub2">min</th><th scope="col" class="cm-sub2">moy</th><th scope="col" class="cm-sub2">max</th>` : "",
-      cols.wind ? `<th scope="col" class="cm-sub2">Vent moyen (rafale max)</th>` : "",
-      cols.dir ? `<th scope="col" class="cm-sub2">Secteur</th>` : "",
+      cols.temp ? `<th scope="col" class="cm-sub2">${esc(tc("min"))}</th><th scope="col" class="cm-sub2">${esc(tc("avg"))}</th><th scope="col" class="cm-sub2">${esc(tc("max"))}</th>` : "",
+      cols.wind ? `<th scope="col" class="cm-sub2">${esc(tk("Mean wind (max gust)"))}</th>` : "",
+      cols.dir ? `<th scope="col" class="cm-sub2">${esc(tk("Sector"))}</th>` : "",
     ].join("");
 
     wrap.innerHTML = days.length ? `
       <table class="cm-table">
-        <caption class="sr">Climatologie mensuelle, ${esc(mName)} : valeurs journalières</caption>
+        <caption class="sr">${esc(tk("Monthly climatology, {month}: daily values", { month: mName }))}</caption>
         <thead><tr>${head1}</tr><tr>${head2}</tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr><th scope="row" class="cm-tot">Mois</th>${cells(T, true)}</tr></tfoot>
+        <tfoot><tr><th scope="row" class="cm-tot">${esc(tc("Month"))}</th>${cells(T, true)}</tr></tfoot>
       </table>
-      <p class="cm-note">${esc(METHOD)} En gras : température la plus basse, la plus haute et rafale la plus forte du mois.${days.some((r) => r.prov) ? ` <span class="cm-p">*</span> ${esc(PROV_NOTE.slice(2))}` : ""}
-      Ligne « Mois » : minimum, moyenne et maximum du mois, vent moyen (rafale max.), cumul de pluie, humidité et pression moyennes.</p>`
-      : `<p class="muted">Pas de données pour ce mois.</p>`;
+      <p class="cm-note">${esc(METHOD)} ${esc(tk("In bold: lowest and highest temperature and strongest gust of the month."))}${days.some((r) => r.prov) ? ` <span class="cm-p">*</span> ${esc(PROV_NOTE.slice(2))}` : ""}
+      ${esc(tk("“Month” row: minimum, mean and maximum of the month, mean wind (max gust), total rain, mean humidity and pressure."))}</p>`
+      : `<p class="muted">${esc(tk("No data for this month."))}</p>`;
   }
 
   // ------------------------------------------------------------------
@@ -267,8 +272,8 @@
       const n = year ? 4 : 7;
       const first = (cfg.first || "").slice(0, n), last = (cfg.today || "").slice(0, n);
       if (ym < first || ym > last) {
-        const f = (s) => { if (year) return s; const [a, b] = s.split("-"); return `${MONTHS[+b - 1]} ${a}`; };
-        msg.textContent = `Pas de données pour ${year ? "cette année" : "ce mois"} (archives de ${f(first)} à ${f(last)}).`;
+        const f = (s) => { if (year) return s; const [a, b] = s.split("-"); return monthYear(+b, a); };
+        msg.textContent = tk(year ? "No data for this year (archives from {first} to {last})." : "No data for this month (archives from {first} to {last}).", { first: f(first), last: f(last) });
         return;
       }
       if (ym === (year ? cfg.y : cfg.ym)) return;
@@ -276,7 +281,7 @@
       msg.textContent = "";
       try {
         const r = await fetch(url, { method: "HEAD", cache: "no-store" });
-        if (!r.ok) { msg.textContent = `Page non disponible (${url}).`; return; }
+        if (!r.ok) { msg.textContent = tc("Page not available ({url}).", { url }); return; }
       } catch (err) { /* hors ligne ou HEAD refusé : on tente l'ouverture */ }
       location.href = url;
     });

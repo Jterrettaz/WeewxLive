@@ -23,15 +23,17 @@
     radar: { enable: true, provider: "windy", overlay: "radar", product: "radar", windyUrl: "", zoom: 7, frames: 13, delay: 500 },
     satellite: {
       enable: true, provider: "windy", overlay: "satellite", product: "satellite", windyUrl: "", url: "https://view.eumetsat.int/geoserver/wms",
-      layers: [{ name: "mtg_fd:ir105_hrfi", label: "Infrarouge" }, { name: "mtg_fd:rgb_truecolour", label: "Couleurs vraies" }],
+      layers: [{ name: "mtg_fd:ir105_hrfi", label: WXL.t("Maps", "Infrared") }, { name: "mtg_fd:rgb_truecolour", label: WXL.t("Maps", "True colour") }],
       zoom: 5, frames: 12, step: 10, latency: 30, delay: 400,
     },
   };
 
   const $ = (id) => document.getElementById(id);
+  // textes de la langue choisie (i18n.js)
+  const tf = WXL.ctx("Forecast"), tm = WXL.ctx("Maps");
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const fmt = (v, d = 0) => (v === null || v === undefined || isNaN(v)) ? "--"
-    : Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+    : Number(v).toLocaleString(WXL.locale, { minimumFractionDigits: d, maximumFractionDigits: d });
   // dates et heures : fuseau de la station (WXT, nav.js) ; t en secondes. Les prévisions
   // Open-Meteo sont demandées dans ce fuseau (dates « AAAA-MM-JJTHH:MM » lues par WXT.iso).
   const hm = (t) => WXT.hm(t);
@@ -62,8 +64,7 @@
   const fc = { daily: null, hourly: null, open: null, charts: null, f: null, updated: "", list: null, seq: 0 };
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
 
-  const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-  const dirName = (d) => (d === null || d === undefined ? "" : DIRS[Math.round(d / 22.5) % 16]);
+  const dirName = (d) => (d === null || d === undefined ? "" : WXL.dir(d));
 
   // Prévisions : 1) fichier data/forecast.json publié par weewx (cache serveur partagé
   // par tous les visiteurs) ; 2) à défaut, appel direct à Open-Meteo avec un cache
@@ -146,7 +147,7 @@
     const state = (id) => (fc.list || []).find((x) => x.id === id);
     sel.innerHTML = list.map((m) => {
       const st = state(m.id), bad = st && st.error;
-      return `<option value="${esc(m.id)}"${m.id === cur ? " selected" : ""}${bad && m.id !== cur ? " disabled" : ""}>${esc(m.label)}${bad ? " (indisponible)" : ""}</option>`;
+      return `<option value="${esc(m.id)}"${m.id === cur ? " selected" : ""}${bad && m.id !== cur ? " disabled" : ""}>${esc(m.label)}${bad ? " " + esc(WXL.t("Common", "(unavailable)")) : ""}</option>`;
     }).join("");
     sel.hidden = list.length < 2;
     if (!sel.dataset.ready) {
@@ -169,7 +170,7 @@
       fc.updated = "";
       if (j.fetched) {
         const t = hm(j.fetched);
-        fc.updated = `mises à jour à ${t}${j.stale ? " (copie précédente)" : ""}`;
+        fc.updated = tf("updated at {time}", { time: t }) + (j.stale ? " " + tf("(previous copy)") : "");
       }
       renderForecast(j.daily, Object.assign({}, f, { model }));
       fc.daily = j.daily; fc.hourly = j.hourly;
@@ -178,7 +179,7 @@
       if (seq !== fc.seq) return;
       closeDay();
       fc.daily = null; fc.hourly = null;
-      $("forecast").innerHTML = `<p class="muted">Prévisions indisponibles pour ce modèle (${esc(e.message)}).</p>`;
+      $("forecast").innerHTML = `<p class="muted">${esc(tf("Forecasts unavailable for this model ({error}).", { error: e.message }))}</p>`;
       $("fc-model").textContent = ""; $("fc-sun").textContent = "";
     }
     modelSelect(cfg);
@@ -200,15 +201,15 @@
     for (let i = 0; i < n; i++) {
       const date = WXT.iso(d.time[i]);
       const [label, ic] = WMO[d.weather_code[i]] || ["—", "cloud"];
-      const name = d.time[i] === today ? "Aujourd'hui"
+      const name = d.time[i] === today ? tf("Today")
         : WXT.fmt(date, { weekday: "long" }).replace(/^./, (c) => c.toUpperCase());
-      const short = d.time[i] === today ? "Auj." : WXT.fmt(date, { weekday: "short" }).replace(/^./, (c) => c.toUpperCase());
+      const short = d.time[i] === today ? tf("Tod.") : WXT.fmt(date, { weekday: "short" }).replace(/^./, (c) => c.toUpperCase());
       const lo = d.temperature_2m_min[i], hi = d.temperature_2m_max[i];
       const left = ((lo - tmin) / span) * 100, width = Math.max(4, ((hi - lo) / span) * 100);
       const pr = d.precipitation_sum[i], pp = d.precipitation_probability_max ? d.precipitation_probability_max[i] : null;
       const wd = d.wind_direction_10m_dominant[i];
       days.push(`
-        <li><button type="button" class="fc-day" data-i="${i}" aria-expanded="false" aria-controls="fc-hours" title="${esc(label)} — détail heure par heure">
+        <li><button type="button" class="fc-day" data-i="${i}" aria-expanded="false" aria-controls="fc-hours" title="${esc(tf("{label} — hour-by-hour detail", { label }))}">
           <span class="fc-when"><b><span class="long">${esc(name)}</span><span class="short">${esc(short)}</span></b><span>${WXT.fmt(date, { day: "numeric", month: "short" })}</span></span>
           ${icon(ic, label)}
           <span class="fc-desc">${esc(label)}</span>
@@ -216,19 +217,20 @@
           <span class="fc-bar" aria-hidden="true"><i style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%;background:linear-gradient(90deg, ${tstep(lo)}, ${tstep(hi)})"></i></span>
           <span class="fc-rain${pr > 0 ? "" : " dry"}"><span>${uf("rain", pr, 1)} ${ul("rain")}</span>${pp !== null && pp !== undefined ? `<span class="pp">${fmt(pp)} %</span>` : ""}</span>
           <span class="fc-wind">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}
-            ${uf("wind", d.wind_speed_10m_max[i])} ${ul("wind")} ${esc(dirName(wd))}<span>raf. ${uf("wind", d.wind_gusts_10m_max[i])}</span></span>
+            ${uf("wind", d.wind_speed_10m_max[i])} ${ul("wind")} ${esc(dirName(wd))}<span>${esc(tf("gust {speed}", { speed: uf("wind", d.wind_gusts_10m_max[i]) }))}</span></span>
         </button></li>`);
     }
     $("forecast").innerHTML = `<ol class="fc" style="--n:${n}">${days.join("")}</ol>
-      <p class="fc-tip">Choisissez un jour pour voir les prévisions heure par heure.</p>`;
+      <p class="fc-tip">${esc(tf("Pick a day to see the hour-by-hour forecast."))}</p>`;
     const i0 = d.time.indexOf(today);
     $("fc-sun").textContent = i0 >= 0
-      ? `Lever ${hm(WXT.iso(d.sunrise[i0]))} · coucher ${hm(WXT.iso(d.sunset[i0]))}${d.uv_index_max && d.uv_index_max[i0] !== null ? ` · UV max. ${fmt(d.uv_index_max[i0])}` : ""}`
+      ? tf("Sunrise {rise} · sunset {set}", { rise: hm(WXT.iso(d.sunrise[i0])), set: hm(WXT.iso(d.sunset[i0])) }) +
+        (d.uv_index_max && d.uv_index_max[i0] !== null ? tf(" · max UV {uv}", { uv: fmt(d.uv_index_max[i0]) }) : "")
       : "";
     // modèle : liste déroulante (s'il n'y en a qu'un, son nom ici)
     const m1 = (f.models || []).find((x) => x.id === f.model);
     const one = $("fc-select") && $("fc-select").hidden
-      ? `modèle ${m1 && m1.label ? m1.label : f.model === "best_match" ? "« best match »" : f.model} · ` : "";
+      ? tf("model {model} · ", { model: m1 && m1.label ? m1.label : f.model === "best_match" ? WXL.t("Models", "“best match”") : f.model }) : "";
     $("fc-model").textContent = one + (fc.updated || "");
   }
 
@@ -243,11 +245,11 @@
     fc.charts = {
       temp: new MiniChart($("fh-temp"), {
         unit: "°C", decimals: 1, minRange: 4, xTicks: "h6", maxGap: 7200, tipHead: dayTip,
-        series: [{ type: "line", fill: true, tempScale: true, label: "Température", color: "--temp", endDot: false, data: [] }],
+        series: [{ type: "line", fill: true, tempScale: true, label: tf("Temperature"), color: "--temp", endDot: false, data: [] }],
       }),
       rain: new MiniChart($("fh-rain"), {
         unit: "mm", decimals: 1, floor: 0, minRange: 1, xTicks: "h6", tipHead: dayTip,
-        series: [{ type: "bar", label: "Précipitations", color: "--rain", bucket: 3600, data: [] }],
+        series: [{ type: "bar", label: tf("Precipitation"), color: "--rain", bucket: 3600, data: [] }],
       }),
     };
     return fc.charts;
@@ -263,8 +265,8 @@
     h.time.forEach((t, k) => { if (t.startsWith(day)) idx.push(k); });
     const ts = (k) => WXT.iso(h.time[k]);
 
-    $("fh-title").textContent = WXT.fmt(WXT.iso(day), { weekday: "long", day: "numeric", month: "long" })
-      .replace(/^./, (c) => c.toUpperCase()) + " — heure par heure";
+    $("fh-title").textContent = tf("{day} — hour by hour", { day: WXT.fmt(WXT.iso(day), { weekday: "long", day: "numeric", month: "long" })
+      .replace(/^./, (c) => c.toUpperCase()) });
 
     // Graphiques (température ; précipitations, cumul de l'heure écoulée)
     const panel = $("fc-hours");
@@ -286,11 +288,11 @@
       const pr = h.precipitation[k], pp = h.precipitation_probability ? h.precipitation_probability[k] : null;
       const wd = h.wind_direction_10m[k];
       return `<li class="fh-hour${t === nowH ? " now" : ""}${t < nowH ? " past" : ""}">
-        <span class="fh-h">${t === nowH ? "Maint." : WXT.parts(t).h + " h"}</span>
+        <span class="fh-h">${esc(t === nowH ? tf("Now") : WXL.hour(WXT.parts(t).h))}</span>
         ${icon(nightIcon(ic, h.is_day ? h.is_day[k] : 1), label)}
         <b class="fh-t"${tcol(h.temperature_2m[k])}>${uf("temp", h.temperature_2m[k])}°</b>
         <span class="fh-r${pr > 0 ? "" : " dry"}">${uf("rain", pr, 1)} ${ul("rain")}${pp !== null && pp !== undefined ? `<small>${fmt(pp)} %</small>` : ""}</span>
-        <span class="fh-w">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}${uf("wind", h.wind_speed_10m[k])}<small>raf. ${uf("wind", h.wind_gusts_10m[k])}</small></span>
+        <span class="fh-w">${isNum(wd) ? `<svg viewBox="0 0 12 12" aria-hidden="true" style="transform:rotate(${wd + 180}deg)"><path d="M6 1l3.5 9L6 8 2.5 10z"/></svg>` : ""}${uf("wind", h.wind_speed_10m[k])}<small>${esc(tf("gust {speed}", { speed: uf("wind", h.wind_gusts_10m[k]) }))}</small></span>
         <span class="fh-hu">${fmt(h.relative_humidity_2m[k])} %</span>
       </li>`;
     }).join("");
@@ -350,7 +352,7 @@
     if (p === "esri") {
       const tone = dark ? "Dark_Gray" : "Light_Gray";
       const u = (layer) => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${tone}_${layer}/MapServer/tile/{z}/{y}/{x}`;
-      return { base: [u("Base"), { maxZoom: 16, attribution: "Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap" }], labels: [u("Reference"), { maxZoom: 16 }] };
+      return { base: [u("Base"), { maxZoom: 16, attribution: esc(tm("Basemap © Esri, HERE, Garmin, © OpenStreetMap")) }], labels: [u("Reference"), { maxZoom: 16 }] };
     }
     if (p === "opentopomap") {
       return { base: ["https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { subdomains: "abc", maxZoom: 17,
@@ -380,7 +382,7 @@
     }
     L.circleMarker([cfg.latitude, cfg.longitude], {
       radius: 5, weight: 2, color: "#ffffff", fillColor: "#e34948", fillOpacity: 1, pane: "markerPane",
-    }).bindTooltip("Station").addTo(map);
+    }).bindTooltip(esc(WXL.t("Common", "Station"))).addTo(map);
     return map;
   }
 
@@ -389,8 +391,8 @@
     constructor(root, delay, onShow) {
       this.delay = delay; this.onShow = onShow; this.n = 0; this.i = -1; this.timer = null; this.times = [];
       root.innerHTML = `
-        <button type="button" class="pl-btn" aria-label="Lecture"><svg viewBox="0 0 16 16"><path class="pl-play" d="M4 2.5v11l9-5.5z"/><g class="pl-pause"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></g></svg></button>
-        <input type="range" class="pl-range" min="0" max="0" value="0" aria-label="Image">
+        <button type="button" class="pl-btn" aria-label="${esc(tm("Play"))}"><svg viewBox="0 0 16 16"><path class="pl-play" d="M4 2.5v11l9-5.5z"/><g class="pl-pause"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></g></svg></button>
+        <input type="range" class="pl-range" min="0" max="0" value="0" aria-label="${esc(tm("Image"))}">
         <span class="pl-time">--:--</span>`;
       this.btn = root.querySelector(".pl-btn");
       this.range = root.querySelector(".pl-range");
@@ -418,7 +420,7 @@
     }
     play() {
       if (this.n < 2) return;
-      this.btn.classList.add("on"); this.btn.setAttribute("aria-label", "Pause");
+      this.btn.classList.add("on"); this.btn.setAttribute("aria-label", tm("Pause"));
       const tick = () => {
         this.show(this.i + 1);
         this.timer = setTimeout(tick, this.i === this.n - 1 ? this.delay * 4 : this.delay);
@@ -427,7 +429,7 @@
     }
     pause() {
       clearTimeout(this.timer); this.timer = null;
-      this.btn.classList.remove("on"); this.btn.setAttribute("aria-label", "Lecture");
+      this.btn.classList.remove("on"); this.btn.setAttribute("aria-label", tm("Play"));
     }
   }
 
@@ -455,8 +457,8 @@
     $(prefix + "-player").hidden = true;
     const seg = $(prefix + "-layers");
     if (seg) seg.hidden = true;
-    $(prefix + "-hint").textContent = ["radar", "satellite"].includes(c.overlay) ? "animation : bouton ▶ de la carte" : "";
-    $(prefix + "-credit").innerHTML = 'Carte <a href="https://www.windy.com/" rel="noopener">Windy.com</a>';
+    $(prefix + "-hint").textContent = ["radar", "satellite"].includes(c.overlay) ? tm("animation: ▶ button on the map") : "";
+    $(prefix + "-credit").innerHTML = esc(tm("Map {credit}")).replace("{credit}", '<a href="https://www.windy.com/" rel="noopener">Windy.com</a>');
   }
 
   // ---------------- Radar RainViewer ----------------
@@ -482,7 +484,7 @@
         player.setFrames(past.map((f) => f.time));
         $("radar-msg").hidden = true;
       } catch (e) {
-        $("radar-msg").textContent = "Radar indisponible pour le moment.";
+        $("radar-msg").textContent = tm("Radar unavailable for now.");
         $("radar-msg").hidden = false;
       }
     }
@@ -582,15 +584,15 @@
     if (!cfg.radar.enable && !cfg.satellite.enable) $("radar-card").closest("section").hidden = true;
     const maps = [];
     if (!cfg.radar.enable) $("radar-card").hidden = true;
-    else if (cfg.radar.provider === "windy") whenVisible($("radar-card"), () => initWindy(cfg, cfg.radar, "radar", "Carte radar Windy"));
+    else if (cfg.radar.provider === "windy") whenVisible($("radar-card"), () => initWindy(cfg, cfg.radar, "radar", tm("Windy radar map")));
     else maps.push(["radar-card", initRadar]);
     if (!cfg.satellite.enable) $("sat-card").hidden = true;
-    else if (cfg.satellite.provider === "windy") whenVisible($("sat-card"), () => initWindy(cfg, cfg.satellite, "sat", "Carte satellite Windy"));
+    else if (cfg.satellite.provider === "windy") whenVisible($("sat-card"), () => initWindy(cfg, cfg.satellite, "sat", tm("Windy satellite map")));
     else maps.push(["sat-card", initSatellite]);
     for (const [id, init] of maps) {
       whenVisible($(id), async () => {
         if (!(await loadLeaflet())) {
-          $(id).querySelector(".map-msg").textContent = "La bibliothèque Leaflet n'a pas pu être chargée.";
+          $(id).querySelector(".map-msg").textContent = tm("The Leaflet library could not be loaded.");
           $(id).querySelector(".map-msg").hidden = false;
           return;
         }

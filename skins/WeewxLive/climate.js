@@ -8,7 +8,9 @@
   const DEMO = new URLSearchParams(location.search).has("demo");
   const $ = (id) => document.getElementById(id);
   const isNum = (v) => v !== null && v !== undefined && !isNaN(v);
-  const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
+  // textes de la langue choisie (i18n.js) ; HTML permis dans certains textes (<b>)
+  const tl = WXL.ctx("Climate");
+  const fmt = (v, d = 1) => (isNum(v) ? Number(v).toLocaleString(WXL.locale, { minimumFractionDigits: d, maximumFractionDigits: d }) : "--");
   // valeur en gras ; unité métrique convertie dans l'unité d'affichage choisie (WXU, nav.js)
   const B = (v, u, d = 1) => {
     const g = WXU.groupOf(u);
@@ -18,8 +20,8 @@
   const hm = (t) => (isNum(t) ? WXT.hm(t) : "--");
   const dmy = (t) => (isNum(t) ? WXT.fmt(t, { day: "2-digit", month: "long", year: "numeric" }) : "--");
   const dmyShort = (t) => WXT.fmt(t, { day: "2-digit", month: "2-digit", year: "numeric" });
-  const monthName = (m) => new Date(2000, m - 1, 1).toLocaleDateString("fr-FR", { month: "long" });
-  const de = (word) => (/^[aeiouyhâéèêîôû]/i.test(word) ? "d'" : "de ") + word;   // « d'octobre », « de mars »
+  const monthName = (m) => WXL.months[m - 1];
+  const de = WXL.ofMonth;   // « d'octobre », « de mars » (français)
 
   let data = null;
   const charts = {};
@@ -65,31 +67,31 @@
   // ligne « actuelle » mise en évidence si elle dépasse le record
   // (provisional : moyenne d'un jour / d'un mois encore en cours)
   const now = (html, record, provisional) => `<p class="cl-now${record ? " cl-record" : ""}">${html}${record
-    ? ` <span class="cl-badge">${provisional ? "record provisoire" : "record"}</span>` : ""}</p>`;
+    ? ` <span class="cl-badge">${tl(provisional ? "provisional record" : "record")}</span>` : ""}</p>`;
 
   function dayText(d) {
     const y = d.today.year, past = d.day.filter((r) => r.year !== y), cur = d.day.find((r) => r.year === y) || {};
     const L = [];
-    const rec = (label, row, txt) => row ? `<p><b>${label} :</b> en ${row.year} ${txt}</p>` : "";
+    const rec = (label, row, txt) => row ? `<p>${tl("{label}: in {year} {text}", { label: tl(label), year: row.year, text: txt })}</p>` : "";
     const hot = best(past, "tavg", hi), cold = best(past, "tavg", lo);
-    L.push(`<div class="cl-group">${rec("Le plus chaud", hot, `avec une température moyenne de ${B(hot && hot.tavg, "°C")}`)}`,
-      now(`Aujourd'hui, la température moyenne actuelle est de ${B(cur.tavg, "°C")}`,
+    L.push(`<div class="cl-group">${rec("Warmest", hot, tl("with a mean temperature of {value}", { value: B(hot && hot.tavg, "°C") }))}`,
+      now(tl("Today, the current mean temperature is {value}", { value: B(cur.tavg, "°C") }),
         hot && isNum(cur.tavg) && (cur.tavg > hot.tavg || (cold && cur.tavg < cold.tavg)), true),
-      `${rec("Le plus froid", cold, `avec une température moyenne de ${B(cold && cold.tavg, "°C")}`)}</div>`);
+      `${rec("Coldest", cold, tl("with a mean temperature of {value}", { value: B(cold && cold.tavg, "°C") }))}</div>`);
     const tmx = best(past, "tmax", hi), tmn = best(past, "tmin", lo);
-    L.push(`<div class="cl-group">${rec("Température la plus haute", tmx, `avec ${B(tmx && tmx.tmax, "°C")} à ${tmx ? hm(tmx.tmaxTime) : ""}`)}`,
-      now(`Aujourd'hui, la température maximale est de ${B(cur.tmax, "°C")}`, tmx && cur.tmax > tmx.tmax),
-      rec("Température la plus basse", tmn, `avec ${B(tmn && tmn.tmin, "°C")} à ${tmn ? hm(tmn.tminTime) : ""}`),
-      `${now(`Aujourd'hui, la température minimale est de ${B(cur.tmin, "°C")}`, tmn && cur.tmin < tmn.tmin)}</div>`);
+    L.push(`<div class="cl-group">${rec("Highest temperature", tmx, tl("with {value} at {time}", { value: B(tmx && tmx.tmax, "°C"), time: tmx ? hm(tmx.tmaxTime) : "" }))}`,
+      now(tl("Today, the maximum temperature is {value}", { value: B(cur.tmax, "°C") }), tmx && cur.tmax > tmx.tmax),
+      rec("Lowest temperature", tmn, tl("with {value} at {time}", { value: B(tmn && tmn.tmin, "°C"), time: tmn ? hm(tmn.tminTime) : "" })),
+      `${now(tl("Today, the minimum temperature is {value}", { value: B(cur.tmin, "°C") }), tmn && cur.tmin < tmn.tmin)}</div>`);
     const pmx = best(past, "pmax", hi), pmn = best(past, "pmin", lo);
-    L.push(`<div class="cl-group">${rec("Pression la plus haute", pmx, `avec ${B(pmx && pmx.pmax, "hPa")}`)}`,
-      now(`Aujourd'hui, la pression maximale est de ${B(cur.pmax, "hPa")}`, pmx && cur.pmax > pmx.pmax),
-      rec("Pression la plus basse", pmn, `avec ${B(pmn && pmn.pmin, "hPa")}`),
-      `${now(`Aujourd'hui, la pression minimale est de ${B(cur.pmin, "hPa")}`, pmn && cur.pmin < pmn.pmin)}</div>`);
+    L.push(`<div class="cl-group">${rec("Highest pressure", pmx, tl("with {value}", { value: B(pmx && pmx.pmax, "hPa") }))}`,
+      now(tl("Today, the maximum pressure is {value}", { value: B(cur.pmax, "hPa") }), pmx && cur.pmax > pmx.pmax),
+      rec("Lowest pressure", pmn, tl("with {value}", { value: B(pmn && pmn.pmin, "hPa") })),
+      `${now(tl("Today, the minimum pressure is {value}", { value: B(cur.pmin, "hPa") }), pmn && cur.pmin < pmn.pmin)}</div>`);
     const wet = best(past, "rain", hi), windy = best(past, "wind", hi);
-    L.push(`<div class="cl-group">${rec("Le plus pluvieux", wet, `avec ${B(wet && wet.rain, "mm")}`)}`,
-      `${now(`Aujourd'hui : ${B(cur.rain, "mm")}`, wet && cur.rain > wet.rain)}</div>`);
-    L.push(`<div class="cl-group">${rec("Le plus venteux", windy, `avec un vent moyen de ${B(windy && windy.wind, "km/h")} (rafale max. de ${B(windy && windy.gust, "km/h", 0)})`)}</div>`);
+    L.push(`<div class="cl-group">${rec("Wettest", wet, tl("with {value}", { value: B(wet && wet.rain, "mm") }))}`,
+      `${now(tl("Today: {value}", { value: B(cur.rain, "mm") }), wet && cur.rain > wet.rain)}</div>`);
+    L.push(`<div class="cl-group">${rec("Windiest", windy, tl("with a mean wind of {wind} (max gust {gust})", { wind: B(windy && windy.wind, "km/h"), gust: B(windy && windy.gust, "km/h", 0) }))}</div>`);
     return L.join("");
   }
 
@@ -99,28 +101,28 @@
     const cur = d.month.find((r) => r.year === y) || {};
     const L = [];
     const hot = best(full, "tavg", hi), cold = best(full, "tavg", lo);
-    L.push(`<div class="cl-group">${hot ? `<p>Le mois ${dmn} <b>le plus chaud</b> : en ${hot.year} avec une température moyenne de ${B(hot.tavg, "°C")}</p>` : ""}`,
-      now(`Ce mois-ci, température moyenne actuelle de ${B(cur.tavg, "°C")}`,
+    L.push(`<div class="cl-group">${hot ? `<p>${tl("Warmest month (sentence)", { of_month: dmn, year: hot.year, value: B(hot.tavg, "°C") })}</p>` : ""}`,
+      now(tl("This month, current mean temperature {value}", { value: B(cur.tavg, "°C") }),
         isNum(cur.tavg) && ((hot && cur.tavg > hot.tavg) || (cold && cur.tavg < cold.tavg)), true),
-      `${cold ? `<p>Le mois ${dmn} <b>le plus froid</b> : en ${cold.year} avec une température moyenne de ${B(cold.tavg, "°C")}</p>` : ""}</div>`);
+      `${cold ? `<p>${tl("Coldest month (sentence)", { of_month: dmn, year: cold.year, value: B(cold.tavg, "°C") })}</p>` : ""}</div>`);
     const tmx = best(past, "tmax", hi), tmn = best(past, "tmin", lo);
-    L.push(`<div class="cl-group">${tmx ? `<p><b>Température la plus haute</b> mesurée en ${mn} : le ${dmy(tmx.tmaxTime)} avec ${B(tmx.tmax, "°C")}</p>` : ""}`,
-      now(`Ce mois-ci, la plus haute est de ${B(cur.tmax, "°C")}${cur.tmaxTime ? ` le ${dmyShort(cur.tmaxTime)}` : ""}`, tmx && cur.tmax > tmx.tmax),
-      tmn ? `<p><b>Température la plus basse</b> mesurée en ${mn} : le ${dmy(tmn.tminTime)} avec ${B(tmn.tmin, "°C")}</p>` : "",
-      `${now(`Ce mois-ci, la plus basse est de ${B(cur.tmin, "°C")}${cur.tminTime ? ` le ${dmyShort(cur.tminTime)}` : ""}`, tmn && cur.tmin < tmn.tmin)}</div>`);
+    L.push(`<div class="cl-group">${tmx ? `<p>${tl("Highest temperature in {month} (sentence)", { month: mn, date: dmy(tmx.tmaxTime), value: B(tmx.tmax, "°C") })}</p>` : ""}`,
+      now(tl("This month, the highest is {value}", { value: B(cur.tmax, "°C") }) + (cur.tmaxTime ? tl(" on {date}", { date: dmyShort(cur.tmaxTime) }) : ""), tmx && cur.tmax > tmx.tmax),
+      tmn ? `<p>${tl("Lowest temperature in {month} (sentence)", { month: mn, date: dmy(tmn.tminTime), value: B(tmn.tmin, "°C") })}</p>` : "",
+      `${now(tl("This month, the lowest is {value}", { value: B(cur.tmin, "°C") }) + (cur.tminTime ? tl(" on {date}", { date: dmyShort(cur.tminTime) }) : ""), tmn && cur.tmin < tmn.tmin)}</div>`);
     const pmx = best(past, "pmax", hi), pmn = best(past, "pmin", lo);
-    L.push(`<div class="cl-group">${pmx ? `<p><b>Pression la plus haute</b> mesurée en ${mn} : le ${dmy(pmx.pmaxTime)} avec ${B(pmx.pmax, "hPa")}</p>` : ""}`,
-      now(`Ce mois-ci, la plus haute est de ${B(cur.pmax, "hPa")}${cur.pmaxTime ? ` le ${dmyShort(cur.pmaxTime)}` : ""}`, pmx && cur.pmax > pmx.pmax),
-      pmn ? `<p><b>Pression la plus basse</b> mesurée en ${mn} : le ${dmy(pmn.pminTime)} avec ${B(pmn.pmin, "hPa")}</p>` : "",
-      `${now(`Ce mois-ci, la plus basse est de ${B(cur.pmin, "hPa")}${cur.pminTime ? ` le ${dmyShort(cur.pminTime)}` : ""}`, pmn && cur.pmin < pmn.pmin)}</div>`);
+    L.push(`<div class="cl-group">${pmx ? `<p>${tl("Highest pressure in {month} (sentence)", { month: mn, date: dmy(pmx.pmaxTime), value: B(pmx.pmax, "hPa") })}</p>` : ""}`,
+      now(tl("This month, the highest is {value}", { value: B(cur.pmax, "hPa") }) + (cur.pmaxTime ? tl(" on {date}", { date: dmyShort(cur.pmaxTime) }) : ""), pmx && cur.pmax > pmx.pmax),
+      pmn ? `<p>${tl("Lowest pressure in {month} (sentence)", { month: mn, date: dmy(pmn.pminTime), value: B(pmn.pmin, "hPa") })}</p>` : "",
+      `${now(tl("This month, the lowest is {value}", { value: B(cur.pmin, "hPa") }) + (cur.pminTime ? tl(" on {date}", { date: dmyShort(cur.pminTime) }) : ""), pmn && cur.pmin < pmn.pmin)}</div>`);
     const hd = past.filter((r) => r.hotDay).reduce((a, r) => (!a || r.hotDay.v > a.hotDay.v ? r : a), null);
     const cd = past.filter((r) => r.coldDay).reduce((a, r) => (!a || r.coldDay.v < a.coldDay.v ? r : a), null);
-    L.push(`<div class="cl-group">${hd ? `<p>Le <b>jour le plus chaud</b> en ${mn} : le ${dmy(hd.hotDay.t)} avec une moyenne de ${B(hd.hotDay.v, "°C")}</p>` : ""}`,
-      `${cd ? `<p>Le <b>jour le plus froid</b> en ${mn} : le ${dmy(cd.coldDay.t)} avec une moyenne de ${B(cd.coldDay.v, "°C")}</p>` : ""}</div>`);
+    L.push(`<div class="cl-group">${hd ? `<p>${tl("Warmest day in {month} (sentence)", { month: mn, date: dmy(hd.hotDay.t), value: B(hd.hotDay.v, "°C") })}</p>` : ""}`,
+      `${cd ? `<p>${tl("Coldest day in {month} (sentence)", { month: mn, date: dmy(cd.coldDay.t), value: B(cd.coldDay.v, "°C") })}</p>` : ""}</div>`);
     const wet = best(full, "rain", hi), dry = best(full, "rain", lo);
-    L.push(`<div class="cl-group">${wet ? `<p>Le mois ${dmn} <b>le plus pluvieux</b> : en ${wet.year} avec ${B(wet.rain, "mm")}</p>` : ""}`,
-      dry ? `<p>Le mois ${dmn} <b>le plus sec</b> : en ${dry.year} avec ${B(dry.rain, "mm")}</p>` : "",
-      `${now(`Ce mois-ci : ${B(cur.rain, "mm")} jusqu'à présent`, wet && cur.rain > wet.rain)}</div>`);
+    L.push(`<div class="cl-group">${wet ? `<p>${tl("Wettest month (sentence)", { of_month: dmn, year: wet.year, value: B(wet.rain, "mm") })}</p>` : ""}`,
+      dry ? `<p>${tl("Driest month (sentence)", { of_month: dmn, year: dry.year, value: B(dry.rain, "mm") })}</p>` : "",
+      `${now(tl("This month: {value} so far", { value: B(cur.rain, "mm") }), wet && cur.rain > wet.rain)}</div>`);
     return L.join("");
   }
 
@@ -141,13 +143,13 @@
     if (kind === "temp") {
       Object.assign(opts, { unit: "°C", decimals: 1, minRange: 5 });
       series = [{
-        type: "range", label: "Min. – max.", color: "--temp", bucket: 1, midTick: true, valueLabels: true,
+        type: "range", label: WXL.t("Common", "Min. – max."), color: "--temp", bucket: 1, midTick: true, valueLabels: true,
         data: rows.filter((r) => isNum(r.tmin) && isNum(r.tmax)).map((r) => [r.year, r.tmin, r.tmax, r.tavg]),
         pointColor: (p) => (isNum(p[3]) ? TempScale.color(p[3]) : "var(--text-3)"),
       }];
     } else {
       Object.assign(opts, { unit: "mm", decimals: 1, floor: 0, minRange: 1 });
-      series = [{ type: "bar", label: "Pluie", color: "--rain", data: rows.filter((r) => isNum(r.rain)).map((r) => [r.year - 0.5, r.rain, r.year + 0.5]) }];
+      series = [{ type: "bar", label: tl("Rain"), color: "--rain", data: rows.filter((r) => isNum(r.rain)).map((r) => [r.year - 0.5, r.rain, r.year + 0.5]) }];
     }
     if (!charts[id]) charts[id] = new MiniChart($(id), Object.assign({ series }, opts));
     else charts[id].setSeries(series, opts);
@@ -161,19 +163,22 @@
     const { day, month } = d.today;
     const mn = monthName(month);
     const since = WXT.fmt(d.since, { month: "long", year: "numeric" });
-    $("cl-day-title").textContent = `${day === 1 ? "1er" : day} ${mn} : extrêmes`;
-    $("cl-month-title").textContent = `Pour ${mn}`;
-    document.querySelectorAll(".cl-since").forEach((e) => (e.textContent = `(statistiques depuis ${since})`));
+    const dm = WXL.dayMonth(day, mn);   // « 1er octobre », « 12 octobre »
+    $("cl-day-title").textContent = tl("{date}: extremes", { date: dm });
+    $("cl-month-title").textContent = tl("For {month}", { month: mn });
+    document.querySelectorAll(".cl-since").forEach((e) => (e.textContent = tl("(statistics since {since})", { since })));
     $("cl-day-text").innerHTML = dayText(d);
     $("cl-month-text").innerHTML = monthText(d);
-    $("cl-day-th").textContent = `Températures des ${day === 1 ? "1er" : day} ${mn}`;
-    $("cl-day-rh").textContent = `Précipitations des ${day === 1 ? "1er" : day} ${mn}`;
-    $("cl-month-th").textContent = `Températures des mois ${de(mn)}`;
-    $("cl-month-rh").textContent = `Précipitations des mois ${de(mn)}`;
-    yearChart("cl-day-temp", d.day, "temp", (y) => `${day} ${mn} ${y}`);
-    yearChart("cl-day-rain", d.day, "rain", (y) => `${day} ${mn} ${y}`);
-    yearChart("cl-month-temp", d.month, "temp", (y) => `${mn} ${y}`);
-    yearChart("cl-month-rain", d.month, "rain", (y) => `${mn} ${y}${y === d.today.year ? " (en cours)" : ""}`);
+    $("cl-day-th").textContent = tl("Temperatures on {date}", { date: dm });
+    $("cl-day-rh").textContent = tl("Precipitation on {date}", { date: dm });
+    $("cl-month-th").textContent = tl("Temperatures in {of_month}", { of_month: de(mn) });
+    $("cl-month-rh").textContent = tl("Precipitation in {of_month}", { of_month: de(mn) });
+    const dmy3 = (y) => WXL.fill(WXL.loc("day_month", "{day} {month}"), { day, month: mn }) + " " + y;
+    const my = (y) => WXL.fill(WXL.loc("month_year", "{month} {year}"), { month: mn, year: y });
+    yearChart("cl-day-temp", d.day, "temp", dmy3);
+    yearChart("cl-day-rain", d.day, "rain", dmy3);
+    yearChart("cl-month-temp", d.month, "temp", my);
+    yearChart("cl-month-rain", d.month, "rain", (y) => my(y) + (y === d.today.year ? " " + WXL.t("Common", "(current)") : ""));
     document.querySelectorAll(".cl-scale").forEach((e) => (e.innerHTML = TempScale.legend()));
     document.querySelectorAll("#climate .legend i.hilo").forEach((e) => (e.outerHTML = TempScale.hiloSwatch()));
   }

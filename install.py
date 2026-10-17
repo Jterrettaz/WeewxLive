@@ -9,7 +9,7 @@ def loader():
 class WeewxLiveInstaller(ExtensionInstaller):
     def __init__(self):
         super(WeewxLiveInstaller, self).__init__(
-            version="1.97",
+            version="2.02",
             name="weewx-live",
             description="Tableau de bord météo temps réel (MQTT ou archive), pages de détail, archives, "
                         "records et prévisions Open-Meteo, en JSON statique",
@@ -19,6 +19,9 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "WeewxLive": {
                         "skin": "WeewxLive",
                         "enable": "true",
+                        # langue des pages (lang/fr.conf, en.conf, de.conf, it.conf) : prioritaire sur
+                        # [StdReport] [[Defaults]] lang (= en dans le weewx.conf de weewx 5)
+                        "lang": "fr",
                     }
                 }
             },
@@ -27,6 +30,7 @@ class WeewxLiveInstaller(ExtensionInstaller):
                 # un tuple par dossier : compatible weewx 4 et 5
                 ("skins/WeewxLive", [
                     "skins/WeewxLive/skin.conf",
+                    "skins/WeewxLive/skin.en.conf",
                     "skins/WeewxLive/index.html.tmpl",
                     "skins/WeewxLive/panels.inc",
                     "skins/WeewxLive/astro.inc",
@@ -34,7 +38,7 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/maps.inc",
                     "skins/WeewxLive/climate.inc",
                     "skins/WeewxLive/layout.js",
-                    "skins/WeewxLive/detail.html",
+                    "skins/WeewxLive/detail.html.tmpl",
                     "skins/WeewxLive/detail.js",
                     "skins/WeewxLive/nav.js",
                     "skins/WeewxLive/extras.js",
@@ -42,24 +46,32 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/astro.js",
                     "skins/WeewxLive/archive.js",
                     "skins/WeewxLive/climato.js",
-                    "skins/WeewxLive/extremes.html",
+                    "skins/WeewxLive/extremes.html.tmpl",
                     "skins/WeewxLive/extremes.js",
-                    "skins/WeewxLive/ensembles.html",
+                    "skins/WeewxLive/ensembles.html.tmpl",
                     "skins/WeewxLive/ensembles.js",
-                    "skins/WeewxLive/meteogram.html",
+                    "skins/WeewxLive/meteogram.html.tmpl",
                     "skins/WeewxLive/meteogram.js",
                     "skins/WeewxLive/wxicons.js",
-                    "skins/WeewxLive/units.html",
+                    "skins/WeewxLive/units.html.tmpl",
                     "skins/WeewxLive/units.js",
-                    "skins/WeewxLive/admin.html",
+                    "skins/WeewxLive/admin.html.tmpl",
                     "skins/WeewxLive/admin.js",
-                    "skins/WeewxLive/webcam.html",
+                    "skins/WeewxLive/webcam.html.tmpl",
                     "skins/WeewxLive/webcam.js",
                     "skins/WeewxLive/style.css",
                     "skins/WeewxLive/app.js",
                     "skins/WeewxLive/minichart.js",
                     "skins/WeewxLive/config.json.tmpl",
                     "skins/WeewxLive/wxtime.js.tmpl",
+                    "skins/WeewxLive/i18n.js.tmpl",
+                ]),
+                # fichiers de langue (option « lang » du rapport, skin.conf : lang = fr)
+                ("skins/WeewxLive/lang", [
+                    "skins/WeewxLive/lang/fr.conf",
+                    "skins/WeewxLive/lang/en.conf",
+                    "skins/WeewxLive/lang/de.conf",
+                    "skins/WeewxLive/lang/it.conf",
                 ]),
                 ("skins/WeewxLive/archive", [
                     "skins/WeewxLive/archive/header.inc",
