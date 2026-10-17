@@ -472,7 +472,8 @@ directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (all
 
 - L'installeur ajoute `lang = fr` à cette section (aussi lors d'une mise à jour, si l'option
   manque). Ce réglage l'emporte sur `[StdReport] [[Defaults]] lang` (`en` dans le
-  `weewx.conf` créé par weewx 5) et sur `lang = fr` de `skin.conf`.
+  `weewx.conf` créé par weewx 5) et sur `lang = fr` de `skin.conf` (voir
+  [Régler la langue dans skin.conf](#régler-la-langue-dans-skinconf)).
 - Tout est traduit : menus, titres, panneaux, graphiques et infobulles, tableaux, messages,
   noms des jours et des mois, directions du vent (O / W pour l'ouest), phases de la lune,
   temps prévu, noms des modèles de prévision et messages d'erreur. Les nombres et les dates
@@ -496,6 +497,40 @@ directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (all
   dossier `archive/` de `HTML_ROOT` pour les régénérer dans la nouvelle langue.
   Les fichiers `data/` actualisés moins souvent (météogramme, ensembles : noms des modèles)
   passent à la nouvelle langue à leur prochaine génération (`stale_age`, 30 min à 1 h).
+
+#### Régler la langue dans `skin.conf`
+
+La langue peut aussi se régler dans `skin.conf`, par l'option `lang` placée en tête du
+fichier (avant `[LiveJSON]`) :
+
+```ini
+SKIN_NAME = WeewxLive
+SKIN_VERSION = 2.02
+
+lang = en          # fr, en, de ou it
+```
+
+weewx retient la **première** valeur trouvée dans cet ordre :
+
+| Priorité | Emplacement | Valeur après installation |
+|---|---|---|
+| 1 | `weewx.conf`, `[StdReport]` → `[[WeewxLive]]` → `lang` | `fr` (ajouté par l'installeur) |
+| 2 | `weewx.conf`, `[StdReport]` → `[[Defaults]]` → `lang` | `en` (weewx 5) |
+| 3 | `skin.conf` → `lang` | `fr` |
+
+Le `lang` de `skin.conf` n'est donc utilisé que si les deux autres sont absents :
+
+1. dans `skin.conf`, remplacer `lang = fr` par la langue voulue (`en`, `de`, `it`) ;
+2. dans `weewx.conf`, supprimer la ligne `lang = fr` de `[[WeewxLive]]` ;
+3. dans `weewx.conf`, mettre en commentaire `lang = en` de `[[Defaults]]` (`#lang = en`) ;
+   les autres rapports (Seasons…) prennent alors la langue de leur propre `skin.conf` ;
+4. redémarrer weewx (ou `weectl report run WeewxLive`) ; supprimer le dossier `archive/` de
+   `HTML_ROOT` pour refaire les pages d'archives passées dans la nouvelle langue.
+
+**Après chaque mise à jour de l'extension**, ce réglage est perdu : la réinstallation remplace
+`skin.conf` (retour à `lang = fr`) et rajoute `lang = fr` dans `[[WeewxLive]]`. Il faut alors
+refaire les étapes 1 et 2. C'est pourquoi le réglage recommandé reste `lang` dans
+`[[WeewxLive]]` de `weewx.conf`, conservé lors des mises à jour.
 
 ### Unités affichées (`[[units]]`)
 
