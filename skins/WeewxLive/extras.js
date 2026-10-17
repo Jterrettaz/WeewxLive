@@ -179,6 +179,7 @@
       if (seq !== fc.seq) return;
       closeDay();
       fc.daily = null; fc.hourly = null;
+      if ($("fc-title") && f.days) $("fc-title").textContent = tf("{days}-day forecast", { days: f.days });
       $("forecast").innerHTML = `<p class="muted">${esc(tf("Forecasts unavailable for this model ({error}).", { error: e.message }))}</p>`;
       $("fc-model").textContent = ""; $("fc-sun").textContent = "";
     }
@@ -190,15 +191,24 @@
   const tcol = (v) => (window.TempScale && isNum(v) ? ` style="color:${TempScale.textColor(Math.round(v))}"` : "");
   const tstep = (v) => (window.TempScale ? TempScale.stepColor(v) : "var(--temp)");
 
+  // Jour sans données : au-delà de l'échéance du modèle (Météo-France, MeteoSwiss ICON… :
+  // 4 à 5 jours), Open-Meteo renvoie des valeurs nulles ; ces jours ne sont pas affichés.
+  const nul = (a, i) => !a || a[i] === null || a[i] === undefined;
+  const hasDay = (d, i) => !(nul(d.temperature_2m_max, i) && nul(d.temperature_2m_min, i) && nul(d.weather_code, i));
+
   function renderForecast(d, f) {
     fc.f = f;
-    const n = d.time.length;
+    const shown = d.time.map((_t, i) => i).filter((i) => hasDay(d, i));
+    const n = shown.length;
+    if (!n) throw new Error(WXL.t("Errors", "empty response"));
+    // titre : nombre de jours réellement disponibles pour ce modèle
+    if ($("fc-title")) $("fc-title").textContent = tf("{days}-day forecast", { days: n });
     const tmin = Math.min(...d.temperature_2m_min.filter((v) => v !== null));
     const tmax = Math.max(...d.temperature_2m_max.filter((v) => v !== null));
     const span = Math.max(1, tmax - tmin);
     const today = WXT.ymd(WXT.now());   // AAAA-MM-JJ de la station
     const days = [];
-    for (let i = 0; i < n; i++) {
+    for (const i of shown) {
       const date = WXT.iso(d.time[i]);
       const [label, ic] = WMO[d.weather_code[i]] || ["—", "cloud"];
       const name = d.time[i] === today ? tf("Today")
@@ -257,7 +267,7 @@
 
   function openDay(i, keepScroll) {
     const d = fc.daily, h = fc.hourly;
-    if (!d || !h || !d.time[i]) return;
+    if (!d || !h || !d.time[i] || !hasDay(d, i)) { closeDay(); return; }
     fc.open = i;
     $("forecast").querySelectorAll(".fc-day").forEach((b) => b.setAttribute("aria-expanded", String(+b.dataset.i === i)));
     const day = d.time[i];

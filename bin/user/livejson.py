@@ -70,7 +70,7 @@ from weeutil.weeutil import TimeSpan, archiveDaySpan, getFileName, to_bool
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.02"
+VERSION = "2.04"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {

@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.02.
+et n'a pas besoin d'être joignable depuis internet. Version 2.04.
 
 *English version: [README.eng.md](README.eng.md).*
 
@@ -37,9 +37,9 @@ et n'a pas besoin d'être joignable depuis internet. Version 2.02.
 - **Une page par période** (en haut du menu « Données ») : 24 dernières heures, 7, 30 et
   365 derniers jours, avec une section par paramètre (statistiques et graphique).
 - **Archives** (`archive/day-AAAA-MM-JJ.html`, `month-AAAA-MM.html`, `year-AAAA.html`) :
-  une page par jour (tous les panneaux du tableau de bord), par mois et par année (une section
-  par paramètre), avec sélecteur de date et navigation précédent / suivant (chaque type de
-  page est désactivable).
+  une page par jour (tous les panneaux du tableau de bord ; **désactivées par défaut**,
+  `day = true` pour les activer), par mois et par année (une section par paramètre), avec
+  sélecteur de date et navigation précédent / suivant (chaque type de page est désactivable).
 - **Climatologie** (menu « Climatologie ») : tableau **mensuel** (`archive/climato-AAAA-MM.html`,
   une ligne par jour : températures, vent, secteur, pluie, humidité, pression ; lien vers la
   page d'archives de chaque jour) et **annuel** (`archive/climato-AAAA.html`, une ligne par
@@ -188,6 +188,10 @@ avec weewx 4, déplacez la section à la main.
 **Mise à jour** : la réinstallation remplace `skin.conf` et les fichiers du skin (dont
 `minichart.js`). Placez vos réglages dans `weewx.conf` (voir
 [Conserver ses réglages](#conserver-ses-réglages-lors-des-mises-à-jour-weewxconf)).
+
+**Mise à jour depuis une version antérieure à 2.03** : les pages d'archives « jour » sont
+désormais désactivées par défaut (`[[archives]] day = false`). Pour continuer à les produire,
+ajouter `day = true` dans `weewx.conf` (voir [Archives](#archives-pages-jour-mois-année)).
 
 **Mise à jour depuis une version antérieure à 1.98** : les pages `detail.html`,
 `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html` et
@@ -472,7 +476,8 @@ directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (all
 
 - L'installeur ajoute `lang = fr` à cette section (aussi lors d'une mise à jour, si l'option
   manque). Ce réglage l'emporte sur `[StdReport] [[Defaults]] lang` (`en` dans le
-  `weewx.conf` créé par weewx 5) et sur `lang = fr` de `skin.conf`.
+  `weewx.conf` créé par weewx 5) et sur `lang = fr` de `skin.conf` (voir
+  [Régler la langue dans skin.conf](#régler-la-langue-dans-skinconf)).
 - Tout est traduit : menus, titres, panneaux, graphiques et infobulles, tableaux, messages,
   noms des jours et des mois, directions du vent (O / W pour l'ouest), phases de la lune,
   temps prévu, noms des modèles de prévision et messages d'erreur. Les nombres et les dates
@@ -496,6 +501,40 @@ directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (all
   dossier `archive/` de `HTML_ROOT` pour les régénérer dans la nouvelle langue.
   Les fichiers `data/` actualisés moins souvent (météogramme, ensembles : noms des modèles)
   passent à la nouvelle langue à leur prochaine génération (`stale_age`, 30 min à 1 h).
+
+#### Régler la langue dans `skin.conf`
+
+La langue peut aussi se régler dans `skin.conf`, par l'option `lang` placée en tête du
+fichier (avant `[LiveJSON]`) :
+
+```ini
+SKIN_NAME = WeewxLive
+SKIN_VERSION = 2.04
+
+lang = en          # fr, en, de ou it
+```
+
+weewx retient la **première** valeur trouvée dans cet ordre :
+
+| Priorité | Emplacement | Valeur après installation |
+|---|---|---|
+| 1 | `weewx.conf`, `[StdReport]` → `[[WeewxLive]]` → `lang` | `fr` (ajouté par l'installeur) |
+| 2 | `weewx.conf`, `[StdReport]` → `[[Defaults]]` → `lang` | `en` (weewx 5) |
+| 3 | `skin.conf` → `lang` | `fr` |
+
+Le `lang` de `skin.conf` n'est donc utilisé que si les deux autres sont absents :
+
+1. dans `skin.conf`, remplacer `lang = fr` par la langue voulue (`en`, `de`, `it`) ;
+2. dans `weewx.conf`, supprimer la ligne `lang = fr` de `[[WeewxLive]]` ;
+3. dans `weewx.conf`, mettre en commentaire `lang = en` de `[[Defaults]]` (`#lang = en`) ;
+   les autres rapports (Seasons…) prennent alors la langue de leur propre `skin.conf` ;
+4. redémarrer weewx (ou `weectl report run WeewxLive`) ; supprimer le dossier `archive/` de
+   `HTML_ROOT` pour refaire les pages d'archives passées dans la nouvelle langue.
+
+**Après chaque mise à jour de l'extension**, ce réglage est perdu : la réinstallation remplace
+`skin.conf` (retour à `lang = fr`) et rajoute `lang = fr` dans `[[WeewxLive]]`. Il faut alors
+refaire les étapes 1 et 2. C'est pourquoi le réglage recommandé reste `lang` dans
+`[[WeewxLive]]` de `weewx.conf`, conservé lors des mises à jour.
 
 ### Unités affichées (`[[units]]`)
 
@@ -783,7 +822,9 @@ Pour masquer le panneau :
 `models` (5 au plus) ; le choix est mémorisé par le navigateur, `model` est celui affiché par
 défaut. Un modèle en échec de téléchargement apparaît « (indisponible) ». Si `days` dépasse
 l'échéance d'un modèle (Météo-France : 4 jours), la limite indiquée par Open-Meteo est
-retenue pour ce modèle ; tous ne fournissent pas la probabilité de précipitations ni l'indice
+retenue pour ce modèle. Les jours sans données (au-delà de l'échéance du modèle : Météo-France,
+MeteoSuisse ICON… 4 à 5 jours) ne sont pas affichés et le titre du bloc indique le nombre de
+jours disponibles (« Prévisions 4 jours ») ; tous ne fournissent pas la probabilité de précipitations ni l'indice
 UV (valeurs alors absentes).
 
 **Cache des prévisions** (1 heure par défaut, `cache` en secondes dans `[[forecast]]`) :
@@ -998,7 +1039,7 @@ qu'une fois (si le fichier n'existe pas déjà).
 
 ```ini
     [[archives]]
-        day = true        # pages « jour »
+        day = false       # pages « jour » (désactivées par défaut ; true pour les activer)
         month = true      # pages « mois » (toutes, depuis le début de la base)
         year = true       # pages « année » (toutes)
         climato = true    # tableaux climatologiques mensuels et annuels (tous)
@@ -1006,7 +1047,16 @@ qu'une fois (si le fichier n'existe pas déjà).
         days = 0          # pages « jour » produites en remontant depuis aujourd'hui (0 = toutes, défaut)
 ```
 
-Par défaut (`days = 0`), la première génération produit une page pour chaque journée de la
+**Pages « jour » désactivées par défaut** (depuis 2.03) : avec `day = false`, l'entrée
+« Archives » ouvre la page du mois en cours, le sélecteur de date propose « Mois » et
+« Année », et l'icône des jours du tableau climatologique mensuel n'apparaît pas. Pour les
+activer, mettre `day = true` dans `[[archives]]`, de préférence dans `weewx.conf`
+(`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[archives]]]]`, voir
+[Conserver ses réglages](#conserver-ses-réglages-lors-des-mises-à-jour-weewxconf)), sinon
+la prochaine mise à jour les désactive de nouveau. Les pages « jour » déjà générées restent
+dans `HTML_ROOT` et sur le serveur.
+
+Avec `day = true` et `days = 0`, la première génération produit une page pour chaque journée de la
 base (plusieurs milliers sur une base de plusieurs années, environ 40 à 90 Ko chacune) : elle
 peut prendre du temps et le premier envoi FTP sera volumineux ; les suivantes ne produisent
 que la page du jour. Pour limiter, par exemple, aux 365 derniers jours : `days = 365`. Ces

@@ -2,7 +2,7 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.02.
+and does not need to be reachable from the internet. Version 2.04.
 
 *English translation of [README.md](README.md) (the French README is the reference version).*
 
@@ -35,8 +35,9 @@ and does not need to be reachable from the internet. Version 2.02.
 - **One page per period** (top of the "Data" menu): last 24 hours, last 7, 30 and 365 days,
   with one section per parameter (statistics and chart).
 - **Archives** (`archive/day-YYYY-MM-DD.html`, `month-YYYY-MM.html`, `year-YYYY.html`): one
-  page per day (all dashboard panels), per month and per year (one section per parameter),
-  with a date picker and previous / next navigation (each page type can be disabled).
+  page per day (all dashboard panels; **disabled by default**, `day = true` to enable them),
+  per month and per year (one section per parameter), with a date picker and previous / next
+  navigation (each page type can be disabled).
 - **Climatology** ("Climatology" menu): **monthly** table (`archive/climato-YYYY-MM.html`, one
   row per day: temperatures, wind, sector, rain, humidity, pressure; link to each day's
   archive page) and **yearly** table (`archive/climato-YYYY.html`, one row per month:
@@ -183,6 +184,10 @@ section by hand.
 **Update**: reinstalling replaces `skin.conf` and the skin files (including `minichart.js`).
 Put your settings in `weewx.conf` (see
 [Keeping your settings across updates](#keeping-your-settings-across-updates-weewxconf)).
+
+**Updating from a version older than 2.03**: "day" archive pages are now disabled by
+default (`[[archives]] day = false`). To keep producing them, add `day = true` to
+`weewx.conf` (see [Archives](#archives-day-month-year-pages)).
 
 **Updating from a version older than 1.98**: the pages `detail.html`, `extremes.html`,
 `ensembles.html`, `meteogram.html`, `units.html`, `admin.html` and `webcam.html` are now
@@ -464,7 +469,8 @@ guidelines: `fr.conf` (French), `en.conf` (English), `de.conf` (German) and `it.
 
 - The installer adds `lang = fr` to this section (also on an update, if the option is
   missing). This setting takes precedence over `[StdReport] [[Defaults]] lang` (`en` in the
-  `weewx.conf` created by weewx 5) and over `lang = fr` in `skin.conf`.
+  `weewx.conf` created by weewx 5) and over `lang = fr` in `skin.conf` (see
+  [Setting the language in skin.conf](#setting-the-language-in-skinconf)).
 - Everything is translated: menus, titles, panels, charts and tooltips, tables, messages,
   day and month names, wind directions (O / W for west), moon phases, forecast weather,
   forecast model names and error messages. Numbers and dates follow the language
@@ -487,6 +493,40 @@ guidelines: `fr.conf` (French), `en.conf` (English), `de.conf` (German) and `it.
   `archive/` folder of `HTML_ROOT` to regenerate them in the new language. The `data/` files
   refreshed less often (meteogram, ensembles: model names) switch to the new language at
   their next generation (`stale_age`, 30 min to 1 h).
+
+#### Setting the language in `skin.conf`
+
+The language can also be set in `skin.conf`, with the `lang` option at the top of the file
+(before `[LiveJSON]`):
+
+```ini
+SKIN_NAME = WeewxLive
+SKIN_VERSION = 2.04
+
+lang = en          # fr, en, de or it
+```
+
+weewx uses the **first** value found in this order:
+
+| Priority | Location | Value after installation |
+|---|---|---|
+| 1 | `weewx.conf`, `[StdReport]` → `[[WeewxLive]]` → `lang` | `fr` (added by the installer) |
+| 2 | `weewx.conf`, `[StdReport]` → `[[Defaults]]` → `lang` | `en` (weewx 5) |
+| 3 | `skin.conf` → `lang` | `fr` |
+
+The `lang` of `skin.conf` is therefore only used if the other two are absent:
+
+1. in `skin.conf`, replace `lang = fr` with the language you want (`en`, `de`, `it`);
+2. in `weewx.conf`, delete the line `lang = fr` from `[[WeewxLive]]`;
+3. in `weewx.conf`, comment out `lang = en` in `[[Defaults]]` (`#lang = en`); the other
+   reports (Seasons…) then use the language of their own `skin.conf`;
+4. restart weewx (or `weectl report run WeewxLive`); delete the `archive/` folder of
+   `HTML_ROOT` to rebuild past archive pages in the new language.
+
+**After each update of the extension**, this setting is lost: reinstalling replaces
+`skin.conf` (back to `lang = fr`) and adds `lang = fr` to `[[WeewxLive]]` again. Steps 1 and
+2 must then be repeated. This is why the recommended setting remains `lang` in
+`[[WeewxLive]]` of `weewx.conf`, which is kept across updates.
 
 ### Displayed units (`[[units]]`)
 
@@ -767,7 +807,9 @@ shows these values, without moonrise / moonset or chart. To hide the panel:
 **Choice of model**: the drop-down list in the block header offers the models of `models` (at
 most 5); the choice is remembered by the browser, `model` is the one shown by default. A
 model whose download failed appears as "(unavailable)". If `days` exceeds a model's range
-(Météo-France: 4 days), the limit given by Open-Meteo is used for that model; not all models
+(Météo-France: 4 days), the limit given by Open-Meteo is used for that model. Days without
+data (beyond the model's range: Météo-France, MeteoSwiss ICON… 4 to 5 days) are not shown
+and the block title gives the number of available days ("4-day forecast"); not all models
 provide precipitation probability or UV index (values then missing).
 
 **Forecast cache** (1 hour by default, `cache` in seconds in `[[forecast]]`): weewx downloads
@@ -982,7 +1024,7 @@ not already exist).
 
 ```ini
     [[archives]]
-        day = true        # "day" pages
+        day = false       # "day" pages (disabled by default; true to enable them)
         month = true      # "month" pages (all, since the start of the database)
         year = true       # "year" pages (all)
         climato = true    # monthly and yearly climatological tables (all)
@@ -990,7 +1032,16 @@ not already exist).
         days = 0          # "day" pages produced going back from today (0 = all, default)
 ```
 
-By default (`days = 0`), the first generation produces a page for every day in the database
+**"Day" pages disabled by default** (since 2.03): with `day = false`, the "Archives" entry
+opens the page of the current month, the date picker offers "Month" and "Year", and the day
+icon of the monthly climatological table does not appear. To enable them, set `day = true`
+in `[[archives]]`, preferably in `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` →
+`[[[[archives]]]]`, see
+[Keeping your settings](#keeping-your-settings-across-updates-weewxconf)), otherwise the next
+update disables them again. "Day" pages already generated stay in `HTML_ROOT` and on the
+server.
+
+With `day = true` and `days = 0`, the first generation produces a page for every day in the database
 (several thousand for a database of several years, about 40 to 90 KB each): it can take
 some time and the first FTP upload will be large; later generations only produce the page of
 the day. To limit it, for example, to the last 365 days: `days = 365`. These options are

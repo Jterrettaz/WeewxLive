@@ -3,6 +3,27 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.04
+
+- Tableau de bord, **Prévisions** : les jours sans données ne sont plus affichés. Au-delà de
+  leur échéance (Météo-France, MeteoSuisse ICON… 4 à 5 jours), certains modèles renvoient des
+  valeurs vides : seuls les jours disponibles apparaissent, sur toute la largeur du bloc, et
+  le titre indique leur nombre (« Prévisions 4 jours »). Le détail heure par heure d'un jour
+  absent du nouveau modèle se referme ; un modèle sans aucune donnée affiche « Prévisions
+  indisponibles pour ce modèle (réponse vide) ».
+
+## 2.03
+
+- **Pages d'archives « jour » désactivées par défaut** : `[[archives]] day = false` dans
+  `skin.conf` (une page par journée de la base rendait la première génération longue et le
+  premier envoi FTP volumineux). L'entrée « Archives » ouvre alors la page du mois en cours,
+  le sélecteur de date propose « Mois » et « Année », le tableau climatologique mensuel n'a
+  plus de lien vers les jours. Pour les garder : `day = true`, de préférence dans
+  `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[archives]]]]`), sinon la mise à
+  jour les désactive. Les pages déjà générées restent en place.
+- README (français et anglais) : nouvelle section « Régler la langue dans `skin.conf` »
+  (priorités de weewx, étapes, effet des mises à jour).
+
 ## 2.02
 
 - **Documentation en anglais** incluse dans l'extension : `README.eng.md` (traduction du

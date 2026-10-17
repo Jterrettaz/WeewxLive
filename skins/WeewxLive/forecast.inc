@@ -1,7 +1,7 @@
 ## weewx-live : bloc « Prévisions » du tableau de bord (extras.js)
   <section class="wide">
     <article class="card fc-card" id="fc-card" style="--c: var(--sun)">
-      <header><h2>$lt("Forecast", "{days}-day forecast", days=$livejson_fc_days)</h2>
+      <header><h2 id="fc-title">$lt("Forecast", "{days}-day forecast", days=$livejson_fc_days)</h2>
         <select class="fc-select" id="fc-select" aria-label="$lt("Forecast", "Forecast model")" hidden></select>
         <span class="hint" id="fc-model">Open-Meteo</span><span class="hint fc-sun" id="fc-sun"></span></header>
       <div id="forecast"><p class="muted">$lt("Forecast", "Loading forecasts…")</p></div>
