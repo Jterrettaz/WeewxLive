@@ -2,7 +2,9 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.04.
+et n'a pas besoin d'être joignable depuis internet. Version 2.05.
+
+**Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
 *English version: [README.eng.md](README.eng.md).*
 
@@ -164,6 +166,9 @@ le système d'unités de la base (US, METRIC, METRICWX) : °C, km/h, mm, mm/h, h
 `livejson.py` ; les autres mesures restent dans l'unité de la base).
 
 ## 1. Installer l'extension
+
+**Version minimum : weewx 4.6** (Python 3). weewx 4.5 et antérieurs ne sont pas compatibles
+(voir [Notes](#notes)).
 
 ```bash
 # weewx 5
@@ -501,6 +506,40 @@ directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (all
   dossier `archive/` de `HTML_ROOT` pour les régénérer dans la nouvelle langue.
   Les fichiers `data/` actualisés moins souvent (météogramme, ensembles : noms des modèles)
   passent à la nouvelle langue à leur prochaine génération (`stale_age`, 30 min à 1 h).
+
+#### Régler la langue dans `skin.conf`
+
+La langue peut aussi se régler dans `skin.conf`, par l'option `lang` placée en tête du
+fichier (avant `[LiveJSON]`) :
+
+```ini
+SKIN_NAME = WeewxLive
+SKIN_VERSION = 2.05
+
+lang = en          # fr, en, de ou it
+```
+
+weewx retient la **première** valeur trouvée dans cet ordre :
+
+| Priorité | Emplacement | Valeur après installation |
+|---|---|---|
+| 1 | `weewx.conf`, `[StdReport]` → `[[WeewxLive]]` → `lang` | `fr` (ajouté par l'installeur) |
+| 2 | `weewx.conf`, `[StdReport]` → `[[Defaults]]` → `lang` | `en` (weewx 5) |
+| 3 | `skin.conf` → `lang` | `fr` |
+
+Le `lang` de `skin.conf` n'est donc utilisé que si les deux autres sont absents :
+
+1. dans `skin.conf`, remplacer `lang = fr` par la langue voulue (`en`, `de`, `it`) ;
+2. dans `weewx.conf`, supprimer la ligne `lang = fr` de `[[WeewxLive]]` ;
+3. dans `weewx.conf`, mettre en commentaire `lang = en` de `[[Defaults]]` (`#lang = en`) ;
+   les autres rapports (Seasons…) prennent alors la langue de leur propre `skin.conf` ;
+4. redémarrer weewx (ou `weectl report run WeewxLive`) ; supprimer le dossier `archive/` de
+   `HTML_ROOT` pour refaire les pages d'archives passées dans la nouvelle langue.
+
+**Après chaque mise à jour de l'extension**, ce réglage est perdu : la réinstallation remplace
+`skin.conf` (retour à `lang = fr`) et rajoute `lang = fr` dans `[[WeewxLive]]`. Il faut alors
+refaire les étapes 1 et 2. C'est pourquoi le réglage recommandé reste `lang` dans
+`[[WeewxLive]]` de `weewx.conf`, conservé lors des mises à jour.
 
 ### Unités affichées (`[[units]]`)
 
@@ -1294,6 +1333,11 @@ const TEMP_STEPS = {
 
 ## Notes
 
+- Versions de weewx : **weewx 4.6.0 au minimum**, sous Python 3. Testé (version 2.05) avec
+  weewx 4.6.0, 4.6.2, 4.7.0, 4.8.0, 4.10.2, 5.0.0, 5.3.1 et 5.5.2 : installation, génération
+  et pages sans erreur, en français et en allemand. weewx 4.5 et antérieurs ne conviennent pas
+  (générateur Cheetah d'une autre forme, pas de fichiers de langue `lang/`). Avec weewx 4,
+  placer `[[WeewxLive]]` avant `[[FTP]]` / `[[RSYNC]]` à la main (voir section 1).
 - Capteur absent (pas de capteur solaire, etc.) : la carte correspondante reste à « -- ».
 - Accessibilité : graphiques annoncés comme images avec une description, menu utilisable au
   clavier (flèches, Début / Fin, Échap), bandeaux annoncés aux lecteurs d'écran.

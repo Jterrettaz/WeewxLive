@@ -3,6 +3,14 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.05
+
+- **Correction pour weewx 4.6 à 5.3** (ex. 5.3.1) : le générateur `LiveCheetahGenerator`
+  ne se chargeait pas (« ImportError: cannot import name 'getFileName' from
+  'weeutil.weeutil' ») et le rapport WeewxLive n'était pas produit. `getFileName` n'existe
+  que depuis weewx 5.4 : livejson.py en contient désormais une copie, utilisée quand weewx ne
+  la fournit pas.
+
 ## 2.04
 
 - Tableau de bord, **Prévisions** : les jours sans données ne sont plus affichés. Au-delà de

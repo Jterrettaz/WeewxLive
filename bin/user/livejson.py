@@ -66,11 +66,26 @@ import weewx.units
 import weewx.xtypes
 from weewx.cheetahgenerator import CheetahGenerator, SearchList
 from weeutil.config import accumulateLeaves
-from weeutil.weeutil import TimeSpan, archiveDaySpan, getFileName, to_bool
+from weeutil.weeutil import TimeSpan, archiveDaySpan, to_bool
+
+try:
+    from weeutil.weeutil import getFileName          # weewx 5.4 et suivants
+except ImportError:                                  # weewx 4 et 5.0 à 5.3
+    def getFileName(template, timestamp):
+        """Nom du fichier produit par un gabarit (copie de weeutil.weeutil.getFileName) :
+        YYYY, MM, WW, DD et formats strftime remplacés, « .tmpl » retiré."""
+        report_time = datetime.datetime.fromtimestamp(timestamp)
+        filename = os.path.basename(template).replace(".tmpl", "")
+        if "YYYY" in filename or "MM" in filename or "DD" in filename or "WW" in filename:
+            filename = filename.replace("YYYY", "%4d" % report_time.year)
+            filename = filename.replace("MM", "%02d" % report_time.month)
+            filename = filename.replace("WW", "%02d" % report_time.isocalendar()[1])
+            filename = filename.replace("DD", "%02d" % report_time.day)
+        return report_time.strftime(filename)
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.04"
+VERSION = "2.05"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {

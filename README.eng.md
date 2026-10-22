@@ -2,7 +2,9 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.04.
+and does not need to be reachable from the internet. Version 2.05.
+
+**Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
 *English translation of [README.md](README.md) (the French README is the reference version).*
 
@@ -160,6 +162,9 @@ hPa/h, cm, °C·d, Wh, lx… (unit groups of `GROUP_TARGET` in `livejson.py`; ot
 stay in the database unit).
 
 ## 1. Install the extension
+
+**Minimum version: weewx 4.6** (Python 3). weewx 4.5 and earlier are not compatible (see
+[Notes](#notes)).
 
 ```bash
 # weewx 5
@@ -501,7 +506,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.04
+SKIN_VERSION = 2.05
 
 lang = en          # fr, en, de or it
 ```
@@ -1306,6 +1311,11 @@ const TEMP_STEPS = {
 
 ## Notes
 
+- weewx versions: **weewx 4.6.0 or later**, under Python 3. Tested (version 2.05) with
+  weewx 4.6.0, 4.6.2, 4.7.0, 4.8.0, 4.10.2, 5.0.0, 5.3.1 and 5.5.2: installation, generation
+  and pages without errors, in French and German. weewx 4.5 and earlier are not suitable
+  (Cheetah generator of a different form, no `lang/` language files). With weewx 4, move
+  `[[WeewxLive]]` before `[[FTP]]` / `[[RSYNC]]` by hand (see section 1).
 - Missing sensor (no solar sensor, etc.): the matching card stays at "--".
 - Accessibility: charts announced as images with a description, keyboard-usable menu
   (arrows, Home / End, Esc), banners announced to screen readers.
