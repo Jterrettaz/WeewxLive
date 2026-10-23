@@ -6,6 +6,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 2.07.
 
 [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
+[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
+
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
 *English version: [README.eng.md](README.eng.md).*

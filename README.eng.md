@@ -6,6 +6,8 @@ and does not need to be reachable from the internet. Version 2.07.
 
 [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
+[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
+
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
 *English translation of [README.md](README.md) (the French README is the reference version).*
