@@ -4,6 +4,8 @@ Weather website for a **Davis Vantage Pro 2** station (or any station) run by **
 that can be published on **static** web hosting: the weewx server stays on the local network
 and does not need to be reachable from the internet. Version 2.06.
 
+[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
+
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
 *English translation of [README.md](README.md) (the French README is the reference version).*
