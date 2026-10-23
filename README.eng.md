@@ -2,7 +2,7 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.05.
+and does not need to be reachable from the internet. Version 2.06.
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -52,6 +52,10 @@ and does not need to be reachable from the internet. Version 2.05.
 - **Ensemble forecasts** ("Forecasts" → "Ensembles" menu, `ensembles.html`): all members of
   the Open-Meteo ensemble models (ECMWF, GFS, ICON, GEM, Google…), combined mean, rain and
   probability per day, model comparison, day-by-day table; models and horizons configurable.
+- **MeteoAlarm weather warnings** ("Forecasts" → "Weather warnings" menu, `vigilance.html`):
+  warnings of the national weather services for one or more locations, in one or more
+  countries; pills of the warnings in force (yellow, orange, red) at the top of the
+  dashboard, full details on the "Weather warnings" page; updated every 5 minutes.
 - **Pages in French, English, German or Italian** (option `lang`, skin files `lang/fr.conf`,
   `en.conf`, `de.conf` and `it.conf`, following the weewx guidelines); another language is
   added with one more file (see [Page language](#page-language-lang)).
@@ -118,6 +122,7 @@ router.
 | `skins/WeewxLive/wxtime.js.tmpl` | station time zone (the date functions of all pages are in `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | "Settings → Units" page (units chosen by the visitor) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | "Webcam" page (images and videos from `[[webcam]]`) |
+| `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | MeteoAlarm weather warnings: dashboard pills and "Weather warnings" page ([Weather warnings](#weather-warnings-meteoalarm)) |
 | `skins/WeewxLive/admin.html.tmpl`, `admin.js` | "Settings → Admin" page (entering and leaving [admin mode](#admin-mode-reserved-parameters)) |
 | `skins/WeewxLive/wxicons.js` | WMO weather codes and icons (dashboard forecasts, meteogram) |
 | `skins/WeewxLive/nav.js` | station time (date functions), units, admin mode, common menu; name, subtitle and logo of the static pages |
@@ -136,7 +141,7 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `config.json` | page configuration | at each archive |
 | `wxtime.js` | station time zone ([Station time](#station-time)) | at each archive |
 | `i18n.js` | texts of the chosen language ([Page language](#page-language-lang)) | at each archive |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html`, `webcam.html` | translated pages (templates) | at each archive |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html`, `webcam.html`, `vigilance.html` | translated pages (templates) | at each archive |
 | `data/history.json` | 24 h series, extremes and totals of the day | at each archive |
 | `data/p24h.json` | detail page, 24 h | at each archive |
 | `data/p7d.json` | 7 days | 30 min max. |
@@ -147,6 +152,7 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `data/astro.json` | sun and moon of the day (weewx almanac) | at each archive |
 | `data/meteogram.json` | Open-Meteo meteogram (ground and pressure levels, 5 models) | every 30 min, download at most once an hour per model |
 | `data/ensembles.json` | Open-Meteo ensemble forecasts (members) | every 30 min, download at most once every 3 h per model |
+| `data/warnings.json` | MeteoAlarm weather warnings of each location | at each archive, download at most once every 5 min per country |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | archive pages | current period at each archive; past periods once |
 | `*.js`, `style.css`, `img/`, `vendor/` | copied files | at each archive (FTP only uploads changed files) |
 
@@ -506,7 +512,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.05
+SKIN_VERSION = 2.06
 
 lang = en          # fr, en, de or it
 ```
@@ -955,6 +961,73 @@ Coordinates: those of `[Station]` in `weewx.conf`, or `[[forecast]] latitude / l
         enable = true     # false: no "Lightning" menu
         zoom = 7          # map zoom level (2 to 12)
 ```
+
+### Weather warnings (MeteoAlarm)
+
+[MeteoAlarm](https://meteoalarm.org) (EUMETNET) gathers the warnings of the European national
+weather services (Météo-France, MeteoSwiss, DWD, Aeronautica Militare…). weewx downloads the
+JSON feed of each country concerned (`https://feeds.meteoalarm.org/api/v1/warnings/feeds-<country>`),
+at most once per `cache` (5 minutes by default), and publishes in `data/warnings.json` the
+**yellow, orange and red** warnings in force or upcoming for each configured location; the
+pages re-read this file every 5 minutes.
+
+- **Dashboard**: when a warning is in force, a row of **pills** appears at the top of the
+  page, below the station name: one pill per location and per phenomenon, in the colour of
+  its level (e.g. "Thunderstorms" and "Flooding" in yellow, "Avalanches" in orange), with the
+  location name when there are several. Tooltip: level, phenomenon, end of the warning.
+  Nothing is shown when there is no warning (green level).
+- **A click on a pill** opens the **"Weather warnings"** page (`vigilance.html`, also in the
+  "Forecasts" menu): for each location, highest level, then each warning **in progress** and
+  **upcoming**: level, phenomenon, period (start and end, in station time), official name,
+  headline, description, instructions, area, issuing service, publication date, severity /
+  certainty / urgency, link to the weather service website. The texts are those of the
+  service, in the page language when the feed provides it, otherwise in English. At the
+  bottom of the page: meaning of the levels.
+- Expired, cancelled or updated (replaced) warnings are not shown. If a country does not
+  provide the phenomenon type (MeteoSwiss), it is derived from the warning name.
+
+```ini
+[LiveJSON]
+    [[meteoalarm]]
+        enable = true
+        cache = 300            # s between two downloads of a country (60 to 3600)
+        min_level = 2          # minimum level shown: 2 yellow, 3 orange, 4 red
+        # timeout = 20         # MeteoAlarm response timeout (s, 5 to 120)
+        [[[home]]]
+            title = Sciez
+            country = france   # or fr
+            area = Haute-Savoie
+        [[[geneva]]]
+            title = Geneva
+            country = switzerland
+            latitude = 46.20
+            longitude = 6.15
+        [[[aosta]]]
+            title = Aosta Valley
+            country = it
+            region = IT004
+```
+
+| Location option | Role |
+|---|---|
+| `title` | displayed name (pills, page) |
+| `country` | country of the feed: English name (`france`, `switzerland`, `italy`, `germany`, `austria`, `united-kingdom`…) or ISO code (`fr`, `ch`, `it`, `de`, `at`, `gb`…) |
+| `region` | CAP area code(s) of the feed, separated by commas: NUTS3 for France (e.g. `FR825` for Var), `EMMA_ID` in most other countries (e.g. `IT004`) |
+| `area` | area name(s) of the feed (`areaDesc`, e.g. `Haute-Savoie`, `Valle d'Aosta`), case-insensitive |
+| `latitude`, `longitude` | point inside the area polygons: for countries whose warnings only have polygons (Switzerland) |
+
+- Without `region`, `area` or `latitude` / `longitude`, the station coordinates are used
+  (areas described by polygons only).
+- Area codes and names: those of the country feed (open
+  `https://feeds.meteoalarm.org/api/v1/warnings/feeds-france` in the browser and look for
+  `areaDesc`), or the map of [meteoalarm.org](https://meteoalarm.org).
+- Without any location: no download, no pills, no menu entry.
+- Download failure: the previous copy is kept (message on the page), new attempt after
+  `cache` seconds; message in the weewx log (`livejson:`).
+- Updates follow the report generation: at each weewx archive (every 5 minutes with
+  `archive_interval = 300`); with a longer interval, warnings are refreshed at the same pace.
+- Terms of use: data from MeteoAlarm / national weather services, source credited on the
+  page; non-commercial use.
 
 ## 7. This day and this month over the years
 

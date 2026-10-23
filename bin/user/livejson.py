@@ -85,7 +85,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.05"
+VERSION = "2.06"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -635,6 +635,190 @@ def _webcam(opts):
 
 
 # ----------------------------------------------------------------------
+# Vigilance météo MeteoAlarm (EUMETNET) : avertissements des services météorologiques
+# nationaux, flux JSON par pays (https://feeds.meteoalarm.org/api/v1/warnings/feeds-<pays>).
+# Un téléchargement par pays et par période de cache (5 min par défaut), en mémoire du
+# processus weewxd ; en cas d'échec, la copie précédente est conservée.
+# ----------------------------------------------------------------------
+METEOALARM_URL = "https://feeds.meteoalarm.org/api/v1/warnings/feeds-%s"
+# codes ISO acceptés pour l'option country (sinon : nom anglais du flux, ex. united-kingdom)
+METEOALARM_COUNTRIES = {
+    "at": "austria", "be": "belgium", "ba": "bosnia-herzegovina", "bg": "bulgaria",
+    "hr": "croatia", "cy": "cyprus", "cz": "czechia", "dk": "denmark", "ee": "estonia",
+    "fi": "finland", "fr": "france", "de": "germany", "gr": "greece", "hu": "hungary",
+    "is": "iceland", "ie": "ireland", "il": "israel", "it": "italy", "lv": "latvia",
+    "lt": "lithuania", "lu": "luxembourg", "mt": "malta", "md": "moldova", "me": "montenegro",
+    "nl": "netherlands", "mk": "republic-of-north-macedonia", "no": "norway", "pl": "poland",
+    "pt": "portugal", "ro": "romania", "rs": "serbia", "sk": "slovakia", "si": "slovenia",
+    "es": "spain", "se": "sweden", "ch": "switzerland", "ua": "ukraine", "gb": "united-kingdom",
+    "uk": "united-kingdom",
+}
+# types de phénomènes MeteoAlarm (paramètre CAP awareness_type « N; nom »)
+METEOALARM_TYPES = {1: "wind", 2: "snow-ice", 3: "thunderstorm", 4: "fog", 5: "high-temperature",
+                    6: "low-temperature", 7: "coastal-event", 8: "forest-fire", 9: "avalanches",
+                    10: "rain", 12: "flooding", 13: "rain-flood"}
+# type déduit du nom du phénomène quand awareness_type manque (ex. MétéoSuisse) : mots-clés
+# des textes anglais, allemands, français et italiens (le premier trouvé l'emporte)
+METEOALARM_KEYWORDS = (
+    (9, ("avalanch", "lawin", "valang")),
+    (8, ("forest fire", "fire", "waldbrand", "feux de for", "incendi")),
+    (13, ("rain-flood", "rain flood")),
+    (12, ("flood", "hochwasser", "überschwemm", "inondation", "crue", "alluvion", "piena")),
+    (3, ("thunder", "gewitter", "orage", "temporal")),
+    (2, ("snow", "ice", "schnee", "glätte", "glatteis", "neige", "verglas", "neve", "ghiaccio")),
+    (5, ("heat", "high temp", "hitze", "canicule", "chaleur", "caldo", "calore")),
+    (6, ("frost", "cold", "low temp", "kälte", "grand froid", "gel", "freddo", "gelo")),
+    (7, ("coastal", "küste", "sturmflut", "vagues", "submersion", "mareggiat")),
+    (4, ("fog", "nebel", "brouillard", "nebbia")),
+    (10, ("rain", "regen", "pluie", "pioggia")),
+    (1, ("wind", "sturm", "storm", "vent", "vento")),
+)
+_SEVERITY_LEVEL = {"minor": 1, "moderate": 2, "severe": 3, "extreme": 4}
+_MA_CACHE = {}   # URL -> (horodatage du téléchargement, données)
+_MA_FAIL = {}    # URL -> horodatage du dernier échec
+
+
+def _ma_fetch(url, timeout):
+    """Flux MeteoAlarm d'un pays -> (données, erreur)."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "weewx-live/%s" % VERSION,
+                                                   "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("warnings"), list):
+            raise ValueError("réponse inattendue")
+        return data, None
+    except urllib.error.HTTPError as e:
+        return None, "HTTP %s" % e.code
+    except Exception as e:
+        return None, str(e)
+
+
+def _ma_country(v):
+    c = re.sub(r"[\s_]+", "-", str(v or "").strip().lower())
+    return METEOALARM_COUNTRIES.get(c, c)
+
+
+def _ma_time(s):
+    """Date CAP (ISO 8601 avec décalage) -> secondes epoch, ou None."""
+    if not s:
+        return None
+    try:
+        d = datetime.datetime.fromisoformat(str(s).strip().replace("Z", "+00:00"))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=datetime.timezone.utc)
+        return int(d.timestamp())
+    except ValueError:
+        return None
+
+
+def _ma_params(info):
+    out = {}
+    for p in info.get("parameter") or []:
+        if isinstance(p, dict) and p.get("valueName"):
+            out[str(p["valueName"]).strip().lower()] = str(p.get("value", "")).strip()
+    return out
+
+
+def _ma_level_type(infos):
+    """Niveau (1 vert … 4 rouge) et type (METEOALARM_TYPES, 0 = autre) d'une alerte."""
+    level = typ = 0
+    for info in infos:
+        prm = _ma_params(info)
+        m = re.match(r"\s*(\d+)", prm.get("awareness_level", ""))
+        if m and not level:
+            level = int(m.group(1))
+        m = re.match(r"\s*(\d+)", prm.get("awareness_type", ""))
+        if m and not typ:
+            typ = int(m.group(1))
+    if not level:
+        level = max([_SEVERITY_LEVEL.get(str(i.get("severity", "")).lower(), 0) for i in infos] or [0])
+    if not typ:
+        # nom du phénomène, en anglais d'abord
+        names = [str(i.get("event", "")).lower() for i in sorted(
+            infos, key=lambda i: not str(i.get("language", "")).lower().startswith("en"))]
+        for t, words in METEOALARM_KEYWORDS:
+            if any(w in n for n in names for w in words):
+                typ = t
+                break
+    return level, (typ if typ in METEOALARM_TYPES else 0)
+
+
+def _ma_polygons(area):
+    polys = area.get("polygon") or []
+    if isinstance(polys, str):
+        polys = [polys]
+    out = []
+    for p in polys:
+        pts = []
+        for pair in str(p).split():
+            try:
+                la, lo = pair.split(",")[:2]
+                pts.append((float(la), float(lo)))
+            except ValueError:
+                pass
+        if len(pts) >= 3:
+            out.append(pts)
+    return out
+
+
+def _point_in_poly(lat, lon, pts):
+    inside = False
+    j = len(pts) - 1
+    for i in range(len(pts)):
+        yi, xi = pts[i]
+        yj, xj = pts[j]
+        if (yi > lat) != (yj > lat) and lon < (xj - xi) * (lat - yi) / ((yj - yi) or 1e-12) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _ma_area_match(loc, area):
+    """La zone CAP « area » concerne-t-elle le lieu « loc » ? (code de région, nom de zone,
+    ou point dans un polygone)."""
+    if loc["regions"]:
+        codes = {str(g.get("value", "")).strip().upper() for g in (area.get("geocode") or [])
+                 if isinstance(g, dict)}
+        if codes & loc["regions"]:
+            return True
+    if loc["areas"] and str(area.get("areaDesc", "")).strip().casefold() in loc["areas"]:
+        return True
+    if loc["point"]:
+        lat, lon = loc["point"]
+        return any(_point_in_poly(lat, lon, p) for p in _ma_polygons(area))
+    return False
+
+
+def _meteoalarm(opts):
+    """[[meteoalarm]] : options et lieux suivis (une sous-section par lieu : title, country,
+    region = codes de zone (EMMA_ID, NUTS3…), area = noms de zone, latitude / longitude)."""
+    sec = opts.get("meteoalarm", {}) or {}
+    locs = []
+    for lid in getattr(sec, "sections", []):
+        s = sec[lid]
+        if not to_bool(s.get("enable", True)):
+            continue
+        country = _ma_country(s.get("country"))
+        if not re.match(r"^[a-z][a-z-]{1,40}$", country):
+            log.error("livejson: [[meteoalarm]] %s : pays (country) absent ou invalide, lieu ignoré", lid)
+            continue
+        regions = {str(x).strip().upper() for x in _as_list(s.get("region", "")) if str(x).strip()}
+        areas = {str(x).strip().casefold() for x in _as_list(s.get("area", "")) if str(x).strip()}
+        lat, lon = _to_float(s.get("latitude")), _to_float(s.get("longitude"))
+        locs.append({"id": lid, "title": str(s.get("title", lid) or lid), "country": country,
+                     "regions": regions, "areas": areas,
+                     "point": (lat, lon) if lat is not None and lon is not None else None})
+    return {
+        "enable": to_bool(sec.get("enable", True)) and bool(locs),
+        "cache": _int(sec.get("cache"), 300, 60, 3600),
+        "timeout": _int(sec.get("timeout"), 20, 5, 120),
+        "min_level": _int(sec.get("min_level"), 2, 2, 4),
+        "locations": locs,
+    }
+
+
+# ----------------------------------------------------------------------
 # Téléchargements Open-Meteo (prévisions, météogramme, ensembles)
 # ----------------------------------------------------------------------
 # échéance refusée par Open-Meteo (erreur 400 : « … forecast_days … range from 0 to 4 »)
@@ -1019,6 +1203,8 @@ class LiveJSON(SearchList):
         self.meteogram = dict(opts.get("meteogram", {}))
         self.lightning = dict(opts.get("lightning", {}))
         self.webcam = _webcam(opts)
+        # vigilance météo MeteoAlarm ([[meteoalarm]] : lieux suivis)
+        self.meteoalarm = _meteoalarm(opts)
         self.dash_order = _dash_order(opts)
         # unités d'affichage par défaut ([[units]]) : window.WX_UNITS (wxtime.js) et config.json
         self.display_units = _display_units(opts)
@@ -1105,6 +1291,8 @@ class LiveJSON(SearchList):
             "livejson_astro": _Lazy(lambda: self._dump(self.astro_data(stop, db_lookup))),
             # prévisions d'ensemble Open-Meteo (data/ensembles.json)
             "livejson_ensembles": _Lazy(lambda: self._dump(self.ensembles_data())),
+            # vigilance météo MeteoAlarm (data/warnings.json)
+            "livejson_warnings": _Lazy(lambda: self._dump(self.warnings_data())),
             # météogramme Open-Meteo (data/meteogram.json)
             "livejson_meteogram": _Lazy(lambda: self._dump(self.meteogram_data())),
             # pages « jour » (gabarit archive/day-%Y-%m-%d.html.tmpl, timespan = la journée)
@@ -1236,6 +1424,9 @@ class LiveJSON(SearchList):
                           "zoom": _int(self.lightning.get("zoom"), 7, 2, 12)},
             # page « Webcam » : images et vidéos ([[webcam]]), éléments admin compris
             "webcam": self.webcam,
+            # vigilance météo MeteoAlarm : bandeau du tableau de bord, page vigilance.html
+            "meteoalarm": {"enable": self.meteoalarm["enable"], "cache": self.meteoalarm["cache"],
+                           "locations": [{"id": l["id"], "title": l["title"]} for l in self.meteoalarm["locations"]]},
             "forecast": {
                 "enable": to_bool(f.get("enable", True)),
                 # modèle par défaut et modèles de la liste déroulante (identifiant, nom)
@@ -1709,6 +1900,124 @@ class LiveJSON(SearchList):
             out["stale"] = True
             out["warning"] = err
         return out
+
+    # ------------------------------------------------------------------
+    # Vigilance météo MeteoAlarm (data/warnings.json, bandeau du tableau de bord et page
+    # vigilance.html)
+    # ------------------------------------------------------------------
+    def _ma_feed(self, country):
+        """Flux d'un pays (cache de [[meteoalarm]] cache secondes) -> (données, horodatage, erreur)."""
+        o = self.meteoalarm
+        url = METEOALARM_URL % urllib.parse.quote(country)
+        now = time.time()
+        cached = _MA_CACHE.get(url)
+        if cached is not None and now - cached[0] < o["cache"]:
+            return cached[1], cached[0], None
+        if now - _MA_FAIL.get(url, 0) < o["cache"]:
+            err = self.L("Errors", "retrying after a recent failure")
+        else:
+            data, err = _ma_fetch(url, o["timeout"])
+            if data is not None:
+                _MA_CACHE[url] = (now, data)
+                _MA_FAIL.pop(url, None)
+                log.debug("livejson: MeteoAlarm (%s) : %d alertes téléchargées", country, len(data["warnings"]))
+                return data, now, None
+            _MA_FAIL[url] = now
+            log.error("livejson: échec du téléchargement MeteoAlarm (%s) : %s", country, err)
+        if cached is not None:
+            return cached[1], cached[0], err
+        return None, None, err
+
+    def _ma_info(self, infos):
+        """Bloc d'informations dans la langue des pages, sinon en anglais, sinon le premier."""
+        lang = (self.L.lang or "en").lower()
+        for pref in (lang, "en"):
+            for i in infos:
+                if str(i.get("language", "")).lower().split("-")[0] == pref:
+                    return i
+        return infos[0]
+
+    def warnings_data(self):
+        """Avertissements MeteoAlarm en cours ou à venir (niveau ≥ min_level, non expirés,
+        ni annulés, ni remplacés par une mise à jour) pour chaque lieu de [[meteoalarm]]."""
+        o = self.meteoalarm
+        if not o["enable"]:
+            return {"enable": False}
+        now = time.time()
+        feeds = {}
+        for c in sorted({loc["country"] for loc in o["locations"]}):
+            feeds[c] = self._ma_feed(c)
+        st_lat, st_lon = self._coords()
+        out = []
+        for loc in o["locations"]:
+            if not (loc["regions"] or loc["areas"] or loc["point"]) and st_lat is not None and st_lon is not None:
+                loc = dict(loc, point=(st_lat, st_lon))     # coordonnées de la station
+            data, fetched, err = feeds[loc["country"]]
+            item = {"id": loc["id"], "title": loc["title"], "country": loc["country"]}
+            if data is None:
+                item["error"] = err or self.L("Common", "unavailable")
+                out.append(item)
+                continue
+            item["fetched"] = int(fetched)
+            if err:
+                item["stale"] = True
+                item["warning"] = err
+            alerts = [w.get("alert") for w in data["warnings"] if isinstance(w, dict) and isinstance(w.get("alert"), dict)]
+            # alertes remplacées (mise à jour ou annulation) : identifiants cités dans « references »
+            replaced = set()
+            for a in alerts:
+                for ref in str(a.get("references", "") or "").split():
+                    parts = ref.split(",")
+                    if len(parts) >= 2:
+                        replaced.add(parts[1])
+            seen, found = set(), []
+            for a in alerts:
+                infos = [i for i in (a.get("info") or []) if isinstance(i, dict)]
+                if not infos or a.get("identifier") in replaced:
+                    continue
+                if str(a.get("status", "Actual")).lower() != "actual" or str(a.get("msgType", "")).lower() == "cancel":
+                    continue
+                level, typ = _ma_level_type(infos)
+                if level < o["min_level"]:
+                    continue
+                info = self._ma_info(infos)
+                expires = _ma_time(info.get("expires"))
+                if expires is not None and expires <= now:
+                    continue
+                areas = [ar for i in infos for ar in (i.get("area") or []) if isinstance(ar, dict)]
+                hit = [ar for ar in areas if _ma_area_match(loc, ar)]
+                if not hit:
+                    continue
+                onset = _ma_time(info.get("onset")) or _ma_time(info.get("effective")) or _ma_time(a.get("sent"))
+                key = (level, typ, onset, expires, str(info.get("event", "")))
+                if key in seen:
+                    continue
+                seen.add(key)
+                names = []
+                for ar in hit:
+                    n = str(ar.get("areaDesc", "")).strip()
+                    if n and n not in names:
+                        names.append(n)
+                found.append({
+                    "level": level, "type": typ, "type_id": METEOALARM_TYPES.get(typ, "other"),
+                    "event": str(info.get("event", "") or ""),
+                    "headline": str(info.get("headline", "") or ""),
+                    "description": str(info.get("description", "") or ""),
+                    "instruction": str(info.get("instruction", "") or ""),
+                    "onset": onset, "expires": expires, "sent": _ma_time(a.get("sent")),
+                    "areas": names, "sender": str(info.get("senderName", "") or a.get("sender", "") or ""),
+                    "web": str(info.get("web", "") or ""), "language": str(info.get("language", "") or ""),
+                    "severity": str(info.get("severity", "") or ""),
+                    "certainty": str(info.get("certainty", "") or ""),
+                    "urgency": str(info.get("urgency", "") or ""),
+                    "msgType": str(a.get("msgType", "") or ""),
+                    "identifier": str(a.get("identifier", "") or ""),
+                })
+            found.sort(key=lambda w: (-w["level"], w["onset"] or 0, w["type"]))
+            item["warnings"] = found
+            out.append(item)
+        return {"enable": True, "version": VERSION, "generated": int(now), "source": "meteoalarm",
+                "cache": o["cache"], "min_level": o["min_level"], "locations": out}
 
     def ensembles_data(self):
         """Prévisions d'ensemble de chaque modèle configuré ([LiveJSON] [[ensembles]])."""

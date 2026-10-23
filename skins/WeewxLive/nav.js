@@ -260,7 +260,8 @@ if (!window.WXL && document.readyState === "loading") {
 /* weewx-live — menu commun aux pages : « Tableau de bord », puis menus déroulants
  * « Données » (pages par période, une page de détail par paramètre de skin.conf,
  * « Extrêmes », « Archives »), « Climatologie » (tableaux mensuel et annuel, si
- * [[archives]] climato), « Prévisions » (« Météogramme », « Ensembles », si activés) et
+ * [[archives]] climato), « Prévisions » (« Météogramme », « Ensembles », « Vigilance météo »,
+ * si activés) et
  * « Webcam » (images et vidéos de [[webcam]], webcam.html ; seulement si un élément est
  * visible par le visiteur, éléments admin compris), lien « Éclairs » (carte Blitzortung
  * centrée sur la station, nouvel onglet ; [[lightning]]),
@@ -302,7 +303,8 @@ if (!window.WXL && document.readyState === "loading") {
   // menu « Prévisions » (rempli d'après la configuration : [[ensembles]] enable)
   const FORECAST = [];
   const FC_PAGES = [entry("fc:meteogram", "Meteogram", { page: "meteogram.html", key: "meteogram" }),
-                    entry("fc:ensembles", "Ensembles", { page: "ensembles.html", key: "ensembles" })];
+                    entry("fc:ensembles", "Ensembles", { page: "ensembles.html", key: "ensembles" }),
+                    entry("fc:warnings", "Weather warnings", { page: "vigilance.html", key: "meteoalarm" })];
   const fcPage = FC_PAGES.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
   // lien « Éclairs » (rempli d'après la configuration : [[lightning]], coordonnées)
   let LIGHTNING = null;

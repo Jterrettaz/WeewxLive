@@ -848,3 +848,57 @@ html:not(.wx-admin) [data-admin] { display: none !important; }
   color: var(--text-2); font-size: 14px; }
 .wc-err[hidden] { display: none; }
 .wc-cap { margin: 8px 0 0; color: var(--text-2); font-size: 13px; }
+
+/* ---------- Vigilance météo (MeteoAlarm) : pastilles du tableau de bord, page vigilance.html ----------
+ * couleurs des niveaux : jaune, orange, rouge (conventions MeteoAlarm), identiques en thème sombre */
+:root { --wa-1: #2e9b4f; --wa-2: #ffd21f; --wa-3: #ff8a00; --wa-4: #e0242b; }
+.wa-l1 { --wa: var(--wa-1); --wa-fg: #fff; }
+.wa-l2 { --wa: var(--wa-2); --wa-fg: #2b2300; }
+.wa-l3 { --wa: var(--wa-3); --wa-fg: #2b1500; }
+.wa-l4 { --wa: var(--wa-4); --wa-fg: #fff; }
+.wa-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  max-width: 1280px; margin: 0 auto 10px; padding: 0 16px;
+}
+.wa-bar[hidden] { display: none; }
+.wa-lead { font-size: 13px; font-weight: 600; color: var(--text-2, var(--text)); margin-right: 2px; }
+.wa-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 9px;
+  border-radius: 999px; background: var(--wa); color: var(--wa-fg);
+  font-size: 13px; font-weight: 650; text-decoration: none; line-height: 1.2;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .15);
+}
+.wa-pill:hover, .wa-pill:focus-visible { filter: brightness(1.06); text-decoration: underline; }
+.wa-pill:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.wa-ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; }
+.wa-root { display: grid; gap: 16px; }
+.wa-loc, .wa-legend { --c: var(--warn); }
+.wa-loc > header, .wa-legend > header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; }
+.wa-loc > header h2, .wa-legend > header h2 { font-size: 18px; margin: 0; }
+.wa-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+  background: var(--wa); color: var(--wa-fg); font-size: 12.5px; font-weight: 650; white-space: nowrap;
+}
+.wa-badge .wa-ic { width: 16px; height: 16px; }
+.wa-group { font-size: 14px; margin: 14px 0 8px; color: var(--text-2, var(--text)); text-transform: uppercase; letter-spacing: .04em; }
+.wa-card {
+  border: 1px solid var(--border); border-left: 6px solid var(--wa); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 10px; background: color-mix(in srgb, var(--wa) 6%, var(--surface));
+}
+.wa-card > header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.wa-card h3 { font-size: 16px; margin: 0; }
+.wa-card h4 { font-size: 13px; margin: 10px 0 4px; }
+.wa-state { margin-left: auto; font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-3); }
+.wa-state.on { color: var(--text); border-color: var(--wa); font-weight: 600; }
+.wa-period { margin: 8px 0 4px; font-weight: 600; }
+.wa-event { margin: 0 0 4px; color: var(--text-3); font-size: 13px; }
+.wa-head { margin: 6px 0; font-weight: 600; }
+.wa-text { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.wa-meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 10px 0 0; font-size: 12.5px; }
+.wa-meta div { display: flex; gap: 6px; }
+.wa-meta dt { color: var(--text-3); }
+.wa-meta dd { margin: 0; }
+.wa-link { margin: 8px 0 0; font-size: 13px; }
+.wa-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; }
+.wa-legend li .wa-badge { margin-right: 6px; }

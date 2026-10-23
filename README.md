@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.05.
+et n'a pas besoin d'être joignable depuis internet. Version 2.06.
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -55,6 +55,11 @@ et n'a pas besoin d'être joignable depuis internet. Version 2.05.
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
   groupée, pluie et probabilité par jour, comparaison des modèles, tableau jour après jour ;
   modèles et horizons configurables.
+- **Vigilance météo MeteoAlarm** (menu « Prévisions » → « Vigilance météo », `vigilance.html`) :
+  avertissements des services météorologiques nationaux pour un ou plusieurs lieux, dans un
+  ou plusieurs pays ; pastilles des vigilances en cours (jaune, orange, rouge) en haut du
+  tableau de bord, détail complet sur la page « Vigilance météo » ; mise à jour toutes les
+  5 minutes.
 - **Pages en français, anglais, allemand ou italien** (option `lang`, fichiers `lang/fr.conf`,
   `en.conf`, `de.conf` et `it.conf` du skin, selon les directives weewx) ; une autre langue
   s'ajoute avec un fichier de plus (voir [Langue des pages](#langue-des-pages-lang)).
@@ -121,6 +126,7 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
+| `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | vigilance météo MeteoAlarm : pastilles du tableau de bord et page « Vigilance météo » ([Vigilance météo](#vigilance-météo-meteoalarm)) |
 | `skins/WeewxLive/admin.html.tmpl`, `admin.js` | page « Réglages → Admin » (entrée et sortie du [mode admin](#mode-admin-paramètres-réservés)) |
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
 | `skins/WeewxLive/nav.js` | heure de la station (fonctions de date), unités, mode admin, menu commun ; nom, sous-titre et logo des pages statiques |
@@ -139,7 +145,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `config.json` | configuration de la page | à chaque archive |
 | `wxtime.js` | fuseau horaire de la station ([Heure de la station](#heure-de-la-station)) | à chaque archive |
 | `i18n.js` | textes de la langue choisie ([Langue des pages](#langue-des-pages-lang)) | à chaque archive |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html`, `webcam.html` | pages traduites (gabarits) | à chaque archive |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html`, `webcam.html`, `vigilance.html` | pages traduites (gabarits) | à chaque archive |
 | `data/history.json` | séries 24 h, extrêmes et cumuls du jour | à chaque archive |
 | `data/p24h.json` | page de détail, 24 h | à chaque archive |
 | `data/p7d.json` | 7 jours | 30 min max. |
@@ -150,6 +156,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/astro.json` | soleil et lune du jour (almanach weewx) | à chaque archive |
 | `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression, 5 modèles) | toutes les 30 min, téléchargement au plus une fois par heure et par modèle |
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
+| `data/warnings.json` | vigilance météo MeteoAlarm de chaque lieu | à chaque archive, téléchargement au plus une fois par 5 min et par pays |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
 | `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
@@ -514,7 +521,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.05
+SKIN_VERSION = 2.06
 
 lang = en          # fr, en, de ou it
 ```
@@ -968,6 +975,76 @@ Le menu **« Éclairs »** ouvre dans un nouvel onglet la carte des éclairs en 
         enable = true     # false : pas de menu « Éclairs »
         zoom = 7          # niveau de zoom de la carte (2 à 12)
 ```
+
+### Vigilance météo (MeteoAlarm)
+
+[MeteoAlarm](https://meteoalarm.org) (EUMETNET) rassemble les avertissements des services
+météorologiques nationaux européens (Météo-France, MétéoSuisse, DWD, Aeronautica Militare…).
+weewx télécharge le flux JSON de chaque pays concerné
+(`https://feeds.meteoalarm.org/api/v1/warnings/feeds-<pays>`), au plus une fois par `cache`
+(5 minutes par défaut), et publie dans `data/warnings.json` les vigilances **jaunes, orange et
+rouges** en cours ou à venir de chaque lieu configuré ; les pages relisent ce fichier toutes
+les 5 minutes.
+
+- **Tableau de bord** : quand une vigilance est en cours, une ligne de **pastilles** apparaît
+  en haut de la page, sous le nom de la station : une pastille par lieu et par phénomène, à la
+  couleur de son niveau (ex. « Orages » et « Crues » en jaune, « Avalanches » en orange),
+  avec le nom du lieu quand il y en a plusieurs. Infobulle : niveau, phénomène, fin de la
+  vigilance. Rien n'est affiché en l'absence de vigilance (niveau vert).
+- **Un clic sur une pastille** ouvre la page **« Vigilance météo »** (`vigilance.html`, aussi
+  dans le menu « Prévisions ») : pour chaque lieu, niveau le plus élevé, puis chaque
+  avertissement **en cours** et **à venir** : niveau, phénomène, période (début et fin, à
+  l'heure de la station), nom officiel, titre, description, conseils de comportement, zone,
+  service émetteur, date de publication, gravité / certitude / urgence, lien vers le site du
+  service météorologique. Les textes sont ceux du service, dans la langue des pages quand le
+  flux la fournit, sinon en anglais. En bas de page : signification des niveaux.
+- Les avertissements expirés, annulés ou remplacés par une mise à jour ne sont pas affichés.
+  Si un pays ne fournit pas le type de phénomène (MétéoSuisse), il est déduit du nom de
+  l'avertissement.
+
+```ini
+[LiveJSON]
+    [[meteoalarm]]
+        enable = true
+        cache = 300            # s entre deux téléchargements d'un pays (60 à 3600)
+        min_level = 2          # niveau minimal affiché : 2 jaune, 3 orange, 4 rouge
+        # timeout = 20         # délai de réponse de MeteoAlarm (s, 5 à 120)
+        [[[maison]]]
+            title = Sciez
+            country = france   # ou fr
+            area = Haute-Savoie
+        [[[geneve]]]
+            title = Genève
+            country = switzerland
+            latitude = 46.20
+            longitude = 6.15
+        [[[aoste]]]
+            title = Val d'Aoste
+            country = it
+            region = IT004
+```
+
+| Option du lieu | Rôle |
+|---|---|
+| `title` | nom affiché (pastilles, page) |
+| `country` | pays du flux : nom anglais (`france`, `switzerland`, `italy`, `germany`, `austria`, `united-kingdom`…) ou code ISO (`fr`, `ch`, `it`, `de`, `at`, `gb`…) |
+| `region` | code(s) de zone CAP du flux, séparés par des virgules : NUTS3 pour la France (ex. `FR825` pour le Var), `EMMA_ID` dans la plupart des autres pays (ex. `IT004`) |
+| `area` | nom(s) de zone du flux (`areaDesc`, ex. `Haute-Savoie`, `Valle d'Aosta`), sans tenir compte des majuscules |
+| `latitude`, `longitude` | point situé dans les polygones des zones : pour les pays dont les avertissements n'ont que des polygones (Suisse) |
+
+- Sans `region`, `area` ni `latitude` / `longitude`, les coordonnées de la station sont
+  utilisées (zones décrites par des polygones seulement).
+- Codes et noms de zones : ceux du flux du pays (ouvrir
+  `https://feeds.meteoalarm.org/api/v1/warnings/feeds-france` dans le navigateur et chercher
+  `areaDesc`), ou la carte de [meteoalarm.org](https://meteoalarm.org).
+- Sans aucun lieu : pas de téléchargement, pas de pastilles, pas d'entrée de menu.
+- Échec du téléchargement : la copie précédente est conservée (message sur la page), nouvel
+  essai après `cache` secondes ; message dans le journal de weewx (`livejson:`).
+- La mise à jour suit la génération du rapport : à chaque archive weewx (toutes les 5 minutes
+  avec `archive_interval = 300`) ; avec un intervalle plus long, la vigilance est actualisée
+  au même rythme.
+- Conditions d'utilisation : données MeteoAlarm / services météorologiques nationaux, source
+  mentionnée sur la page ; usage non commercial.
 
 ## 7. Ce jour et ce mois au fil des ans
 

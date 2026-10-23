@@ -3,9 +3,30 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.06
+
+- **Vigilance météo MeteoAlarm** (EUMETNET) : nouvelle section `[LiveJSON] [[meteoalarm]]`,
+  un ou plusieurs lieux, éventuellement dans des pays différents (`country` : nom anglais ou
+  code ISO ; lieu repéré par `region` = code de zone NUTS3 / EMMA_ID, `area` = nom de zone,
+  ou `latitude` / `longitude` dans les polygones des zones, à défaut les coordonnées de la
+  station). weewx télécharge le flux de chaque pays au plus toutes les 5 minutes (`cache`)
+  et publie `data/warnings.json` ; les pages le relisent toutes les 5 minutes.
+- **Tableau de bord** : pastilles des vigilances en cours (jaune, orange, rouge) en haut de
+  page, une par lieu et par phénomène (plusieurs niveaux possibles en même temps) ; rien en
+  l'absence de vigilance.
+- **Page « Vigilance météo »** (`vigilance.html`, menu « Prévisions », ouverte par un clic
+  sur une pastille) : pour chaque lieu, avertissements en cours et à venir avec niveau,
+  phénomène, période, description, conseils, zone, émetteur, gravité / certitude / urgence
+  et lien vers le service météorologique ; signification des niveaux.
+- Avertissements expirés, annulés ou remplacés : ignorés. Type de phénomène déduit du nom
+  quand le flux ne le donne pas (MétéoSuisse). Textes dans la langue des pages si le flux la
+  fournit, sinon en anglais.
+- Nouveaux textes (contexte `[[Warnings]]`, entrée de menu « Weather warnings ») dans les
+  4 fichiers de langue.
+
 ## 2.05
 
-- **Correction pour weewx 4.6 à 5.3** (ex. 5.3.1) : le générateur `LiveCheetahGenerator`
+- **Correction pour weewx 5.0 à 5.3** (ex. 5.3.1) : le générateur `LiveCheetahGenerator`
   ne se chargeait pas (« ImportError: cannot import name 'getFileName' from
   'weeutil.weeutil' ») et le rapport WeewxLive n'était pas produit. `getFileName` n'existe
   que depuis weewx 5.4 : livejson.py en contient désormais une copie, utilisée quand weewx ne
