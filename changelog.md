@@ -3,6 +3,16 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.10
+
+- **Documentation en anglais par défaut** : `README.md` est désormais en anglais (ancien
+  `README.eng.md`), la version française devient `README.fr.md` ; lien vers l'autre langue en
+  tête de chaque fichier. `skin.conf` a ses commentaires en anglais (ancien `skin.en.conf`),
+  la copie aux commentaires français devient `skins/WeewxLive/skin.fr.conf` (non lue par
+  weewx). Réglages inchangés, y compris la langue des pages (`lang = fr`).
+- Mise à jour : la réinstallation remplace `skin.conf` par la version anglaise et ajoute
+  `skin.fr.conf` ; l'ancien `skin.en.conf` peut être supprimé.
+
 ## 2.09
 
 - Tableau de bord, pastilles de vigilance : les lieux qui ont la même vigilance (même niveau,
