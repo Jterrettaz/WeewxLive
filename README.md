@@ -2,7 +2,9 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.06.
+et n'a pas besoin d'être joignable depuis internet. Version 2.07.
+
+[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -521,7 +523,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.06
+SKIN_VERSION = 2.07
 
 lang = en          # fr, en, de ou it
 ```
@@ -1001,6 +1003,8 @@ les 5 minutes.
 - Les avertissements expirés, annulés ou remplacés par une mise à jour ne sont pas affichés.
   Si un pays ne fournit pas le type de phénomène (MétéoSuisse), il est déduit du nom de
   l'avertissement.
+- Couleurs des niveaux : jaune `#f9e400`, orange `#f7a401`, rouge `#e71919` (variables
+  `--wa-2`, `--wa-3`, `--wa-4` de `style.css`).
 
 ```ini
 [LiveJSON]

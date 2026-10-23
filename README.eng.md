@@ -2,7 +2,9 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.06.
+and does not need to be reachable from the internet. Version 2.07.
+
+[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -512,7 +514,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.06
+SKIN_VERSION = 2.07
 
 lang = en          # fr, en, de or it
 ```
@@ -985,6 +987,8 @@ pages re-read this file every 5 minutes.
   bottom of the page: meaning of the levels.
 - Expired, cancelled or updated (replaced) warnings are not shown. If a country does not
   provide the phenomenon type (MeteoSwiss), it is derived from the warning name.
+- Level colours: yellow `#f9e400`, orange `#f7a401`, red `#e71919` (variables `--wa-2`,
+  `--wa-3`, `--wa-4` of `style.css`).
 
 ```ini
 [LiveJSON]

@@ -851,7 +851,7 @@ html:not(.wx-admin) [data-admin] { display: none !important; }
 
 /* ---------- Vigilance météo (MeteoAlarm) : pastilles du tableau de bord, page vigilance.html ----------
  * couleurs des niveaux : jaune, orange, rouge (conventions MeteoAlarm), identiques en thème sombre */
-:root { --wa-1: #2e9b4f; --wa-2: #ffd21f; --wa-3: #ff8a00; --wa-4: #e0242b; }
+:root { --wa-1: #2e9b4f; --wa-2: #f9e400; --wa-3: #f7a401; --wa-4: #e71919; }
 .wa-l1 { --wa: var(--wa-1); --wa-fg: #fff; }
 .wa-l2 { --wa: var(--wa-2); --wa-fg: #2b2300; }
 .wa-l3 { --wa: var(--wa-3); --wa-fg: #2b1500; }

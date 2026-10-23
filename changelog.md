@@ -3,6 +3,12 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.07
+
+- Vigilance météo : nouvelles couleurs des niveaux, jaune `#f9e400`, orange `#f7a401`,
+  rouge `#e71919` (pastilles du tableau de bord, page « Vigilance météo »). Texte foncé sur
+  le jaune et l'orange, blanc sur le rouge (contraste ≥ 4,5:1).
+
 ## 2.06
 
 - **Vigilance météo MeteoAlarm** (EUMETNET) : nouvelle section `[LiveJSON] [[meteoalarm]]`,
