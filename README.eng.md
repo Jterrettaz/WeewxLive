@@ -2,11 +2,10 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.07.
+and does not need to be reachable from the internet. Version 2.09.
 
 [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
-[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -516,7 +515,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.07
+SKIN_VERSION = 2.09
 
 lang = en          # fr, en, de or it
 ```
@@ -976,13 +975,17 @@ at most once per `cache` (5 minutes by default), and publishes in `data/warnings
 pages re-read this file every 5 minutes.
 
 - **Dashboard**: when a warning is in force, a row of **pills** appears at the top of the
-  page, below the station name: one pill per location and per phenomenon, in the colour of
-  its level (e.g. "Thunderstorms" and "Flooding" in yellow, "Avalanches" in orange), with the
-  location name when there are several. Tooltip: level, phenomenon, end of the warning.
-  Nothing is shown when there is no warning (green level).
-- **A click on a pill** opens the **"Weather warnings"** page (`vigilance.html`, also in the
+  page, below the station name: one pill per level and per phenomenon, in the colour of its
+  level (e.g. "Thunderstorms" and "Flooding" in yellow, "Avalanches" in orange). When several
+  locations are configured, each pill gives the locations concerned, grouped when they have
+  the same warning (e.g. "Thunderstorms (Sciez, Aosta Valley)" in yellow). Tooltip: level,
+  phenomenon, end of the warning for each location. Nothing is shown when there is no warning
+  (green level).
+- **A click on a pill** opens the **"Weather warnings"** page (at the location's section when
+  the pill concerns only one) (`vigilance.html`, also in the
   "Forecasts" menu): for each location, highest level, then each warning **in progress** and
-  **upcoming**: level, phenomenon, period (start and end, in station time), official name,
+  **upcoming**: level and location (pill at the top of the frame, e.g. "Orange warning ·
+  Sciez"), phenomenon, period (start and end, in station time), official name,
   headline, description, instructions, area, issuing service, publication date, severity /
   certainty / urgency, link to the weather service website. The texts are those of the
   service, in the page language when the feed provides it, otherwise in English. At the

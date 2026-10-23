@@ -3,6 +3,20 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.09
+
+- Tableau de bord, pastilles de vigilance : les lieux qui ont la même vigilance (même niveau,
+  même phénomène) sont regroupés dans une seule pastille, par exemple « Orages (Sciez, Val
+  d'Aoste) » en jaune au lieu de deux pastilles. Infobulle : fin de la vigilance pour chaque
+  lieu. Lien vers la section du lieu s'il n'y en a qu'un, sinon vers le haut de la page
+  « Vigilance météo ».
+
+## 2.08
+
+- Page « Vigilance météo » : la pastille en haut de chaque avertissement indique aussi le
+  lieu (`title` du lieu dans `[[meteoalarm]]`), par exemple « Vigilance orange · Sciez »,
+  pour identifier le lieu concerné sans remonter jusqu'à l'en-tête de sa section.
+
 ## 2.07
 
 - Vigilance météo : nouvelles couleurs des niveaux, jaune `#f9e400`, orange `#f7a401`,

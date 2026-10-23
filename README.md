@@ -2,11 +2,10 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.07.
+et n'a pas besoin d'être joignable depuis internet. Version 2.09.
 
 [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
-[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -525,7 +524,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.07
+SKIN_VERSION = 2.09
 
 lang = en          # fr, en, de ou it
 ```
@@ -991,13 +990,17 @@ rouges** en cours ou à venir de chaque lieu configuré ; les pages relisent ce 
 les 5 minutes.
 
 - **Tableau de bord** : quand une vigilance est en cours, une ligne de **pastilles** apparaît
-  en haut de la page, sous le nom de la station : une pastille par lieu et par phénomène, à la
-  couleur de son niveau (ex. « Orages » et « Crues » en jaune, « Avalanches » en orange),
-  avec le nom du lieu quand il y en a plusieurs. Infobulle : niveau, phénomène, fin de la
-  vigilance. Rien n'est affiché en l'absence de vigilance (niveau vert).
-- **Un clic sur une pastille** ouvre la page **« Vigilance météo »** (`vigilance.html`, aussi
+  en haut de la page, sous le nom de la station : une pastille par niveau et par phénomène, à
+  la couleur de son niveau (ex. « Orages » et « Crues » en jaune, « Avalanches » en orange).
+  Quand plusieurs lieux sont configurés, chaque pastille donne les lieux concernés, regroupés
+  quand ils ont la même vigilance (ex. « Orages (Sciez, Val d'Aoste) » en jaune). Infobulle :
+  niveau, phénomène, fin de la vigilance pour chaque lieu. Rien n'est affiché en l'absence de
+  vigilance (niveau vert).
+- **Un clic sur une pastille** ouvre la page **« Vigilance météo »** (à la section du lieu si
+  la pastille n'en concerne qu'un) (`vigilance.html`, aussi
   dans le menu « Prévisions ») : pour chaque lieu, niveau le plus élevé, puis chaque
-  avertissement **en cours** et **à venir** : niveau, phénomène, période (début et fin, à
+  avertissement **en cours** et **à venir** : niveau et lieu (pastille en haut du cadre, ex.
+  « Vigilance orange · Sciez »), phénomène, période (début et fin, à
   l'heure de la station), nom officiel, titre, description, conseils de comportement, zone,
   service émetteur, date de publication, gravité / certitude / urgence, lien vers le site du
   service météorologique. Les textes sont ceux du service, dans la langue des pages quand le

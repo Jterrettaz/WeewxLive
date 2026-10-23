@@ -85,7 +85,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.07"
+VERSION = "2.09"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
