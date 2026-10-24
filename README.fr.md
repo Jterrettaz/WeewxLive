@@ -2,9 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.10.
-
-[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
+et n'a pas besoin d'être joignable depuis internet. Version 2.12.
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -57,9 +55,10 @@ et n'a pas besoin d'être joignable depuis internet. Version 2.10.
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
   groupée, pluie et probabilité par jour, comparaison des modèles, tableau jour après jour ;
   modèles et horizons configurables.
-- **Vigilance météo MeteoAlarm** (menu « Prévisions » → « Vigilance météo », `vigilance.html`) :
-  avertissements des services météorologiques nationaux pour un ou plusieurs lieux, dans un
-  ou plusieurs pays ; pastilles des vigilances en cours (jaune, orange, rouge) en haut du
+- **Vigilance météo** (menu « Prévisions » → « Vigilance météo », `vigilance.html`) :
+  avertissements des services météorologiques nationaux par MeteoAlarm (Europe), le National
+  Weather Service (États-Unis) et Environnement et Changement climatique Canada, pour un ou
+  plusieurs lieux, dans un ou plusieurs pays ; pastilles des vigilances en cours (jaune, orange, rouge) en haut du
   tableau de bord, détail complet sur la page « Vigilance météo » ; mise à jour toutes les
   5 minutes.
 - **Pages en français, anglais, allemand ou italien** (option `lang`, fichiers `lang/fr.conf`,
@@ -103,7 +102,7 @@ aucun port à ouvrir sur votre box.
 |---|---|
 | `install.py` | installeur pour `weectl extension install` |
 | `README.md` | version anglaise de ce README (README par défaut) |
-| `changelog.md` | journal des modifications, version par version |
+| `changelog.md`, `changelog.fr.md` | journal des modifications, version par version (anglais, français) |
 | `bin/user/livejson.py` | extension weewx (SearchList) : calcule tous les fichiers JSON et les valeurs du gabarit |
 | `skins/WeewxLive/skin.conf` | configuration du rapport : paramètres affichés, MQTT, prévisions, cartes, extrêmes |
 | `skins/WeewxLive/skin.fr.conf` | copie de `skin.conf` aux commentaires en français (référence, non lue par weewx) |
@@ -128,7 +127,7 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
-| `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | vigilance météo MeteoAlarm : pastilles du tableau de bord et page « Vigilance météo » ([Vigilance météo](#vigilance-météo-meteoalarm)) |
+| `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | vigilance météo MeteoAlarm : pastilles du tableau de bord et page « Vigilance météo » ([Vigilance météo](#vigilance-météo-meteoalarm-nws-eccc)) |
 | `skins/WeewxLive/admin.html.tmpl`, `admin.js` | page « Réglages → Admin » (entrée et sortie du [mode admin](#mode-admin-paramètres-réservés)) |
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
 | `skins/WeewxLive/nav.js` | heure de la station (fonctions de date), unités, mode admin, menu commun ; nom, sous-titre et logo des pages statiques |
@@ -158,7 +157,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/astro.json` | soleil et lune du jour (almanach weewx) | à chaque archive |
 | `data/meteogram.json` | météogramme Open-Meteo (sol et niveaux de pression, 5 modèles) | toutes les 30 min, téléchargement au plus une fois par heure et par modèle |
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
-| `data/warnings.json` | vigilance météo MeteoAlarm de chaque lieu | à chaque archive, téléchargement au plus une fois par 5 min et par pays |
+| `data/warnings.json` | vigilance météo de chaque lieu (MeteoAlarm, NWS, ECCC) | à chaque archive, téléchargement au plus une fois par 5 min et par source (MeteoAlarm : par pays) |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
 | `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
@@ -527,7 +526,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.10
+SKIN_VERSION = 2.12
 
 lang = en          # fr, en, de ou it
 ```
@@ -982,7 +981,7 @@ Le menu **« Éclairs »** ouvre dans un nouvel onglet la carte des éclairs en 
         zoom = 7          # niveau de zoom de la carte (2 à 12)
 ```
 
-### Vigilance météo (MeteoAlarm)
+### Vigilance météo (MeteoAlarm, NWS, ECCC)
 
 [MeteoAlarm](https://meteoalarm.org) (EUMETNET) rassemble les avertissements des services
 météorologiques nationaux européens (Météo-France, MétéoSuisse, DWD, Aeronautica Militare…).
@@ -1057,6 +1056,43 @@ les 5 minutes.
   au même rythme.
 - Conditions d'utilisation : données MeteoAlarm / services météorologiques nationaux, source
   mentionnée sur la page ; usage non commercial.
+
+#### États-Unis (NWS) et Canada (ECCC)
+
+Un lieu peut utiliser une autre source que MeteoAlarm avec l'option `source` ; les pastilles,
+la page « Vigilance météo » et les niveaux fonctionnent de la même façon, et des lieux de
+sources différentes peuvent être mélangés.
+
+```ini
+    [[meteoalarm]]
+        [[[minneapolis]]]
+            title = Minneapolis
+            source = nws          # National Weather Service (États-Unis)
+            latitude = 44.98
+            longitude = -93.27
+        [[[montreal]]]
+            title = Montréal
+            source = eccc         # Environnement et Changement climatique Canada
+            latitude = 45.50
+            longitude = -73.57
+```
+
+| `source` | Service | Lieu | Niveaux |
+|---|---|---|---|
+| `meteoalarm` (défaut) | [MeteoAlarm](https://meteoalarm.org), Europe | `country` + `region` / `area` / `latitude`, `longitude` | `awareness_level` de l'avertissement (jaune, orange, rouge) |
+| `nws` | [National Weather Service](https://www.weather.gov/documentation/services-web-API) (`api.weather.gov/alerts/active`) | `latitude`, `longitude` (requête par point), ou `region` = codes de zone ou de comté NWS (ex. `MNZ060`, `MNC053`) | Advisory, Watch : jaune ; Warning : orange ; Emergency ou gravité `Extreme` : rouge (les « statements » ne sont pas affichés) |
+| `eccc` | [Environnement et Changement climatique Canada](https://api.weather.gc.ca/collections/weather-alerts) (MSC GeoMet, `weather-alerts`) | `latitude`, `longitude` (point situé dans les régions d'alerte) | couleur de risque de l'alerte (jaune, orange, rouge ; les bulletins ne sont pas affichés) |
+
+- Sans `latitude` / `longitude` (et, pour le NWS, sans `region`), les coordonnées de la station
+  sont utilisées. `country` ne sert pas à ces deux sources.
+- NWS : textes en anglais (événement, titre, description, conseils) ; une requête par lieu et
+  par `cache`, avec un User-Agent identifiant weewx-live, comme l'exige le NWS.
+- ECCC : textes en français quand les pages sont en français, sinon en anglais ; « Gravité » et
+  « Certitude » donnent l'impact et la confiance indiqués par ECCC ; lien vers meteo.gc.ca /
+  weather.gc.ca.
+- Phénomène déduit du nom de l'avertissement (ex. « Winter Storm Warning » : neige-verglas ;
+  « Wind Chill Advisory » : grand froid). Deux types n'existent que pour ces sources :
+  tornade et cyclone tropical (ouragan, tempête tropicale).
 
 ## 7. Ce jour et ce mois au fil des ans
 

@@ -85,7 +85,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.10"
+VERSION = "2.12"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -656,22 +656,30 @@ METEOALARM_COUNTRIES = {
 # types de phénomènes MeteoAlarm (paramètre CAP awareness_type « N; nom »)
 METEOALARM_TYPES = {1: "wind", 2: "snow-ice", 3: "thunderstorm", 4: "fog", 5: "high-temperature",
                     6: "low-temperature", 7: "coastal-event", 8: "forest-fire", 9: "avalanches",
-                    10: "rain", 12: "flooding", 13: "rain-flood"}
+                    10: "rain", 12: "flooding", 13: "rain-flood",
+                    # types propres à weewx-live (NWS, ECCC : pas d'équivalent MeteoAlarm)
+                    14: "tornado", 15: "tropical-cyclone"}
 # type déduit du nom du phénomène quand awareness_type manque (ex. MétéoSuisse) : mots-clés
 # des textes anglais, allemands, français et italiens (le premier trouvé l'emporte)
 METEOALARM_KEYWORDS = (
+    (14, ("tornado", "tornade", "tromba")),
+    (15, ("hurricane", "tropical storm", "tropical cyclone", "typhoon", "cyclone", "ouragan",
+          "tempête tropicale", "uragano", "orkan")),
     (9, ("avalanch", "lawin", "valang")),
-    (8, ("forest fire", "fire", "waldbrand", "feux de for", "incendi")),
+    (8, ("forest fire", "fire", "red flag", "waldbrand", "feux de for", "incendi")),
+    (7, ("coastal", "storm surge", "surge", "high surf", "surf", "rip current", "tsunami", "marine",
+         "small craft", "gale", "küste", "sturmflut", "vagues", "submersion", "côtier", "mareggiat")),
     (13, ("rain-flood", "rain flood")),
     (12, ("flood", "hochwasser", "überschwemm", "inondation", "crue", "alluvion", "piena")),
     (3, ("thunder", "gewitter", "orage", "temporal")),
-    (2, ("snow", "ice", "schnee", "glätte", "glatteis", "neige", "verglas", "neve", "ghiaccio")),
+    (6, ("wind chill", "refroidissement éolien")),
+    (2, ("snow", "ice", "winter", "blizzard", "freezing rain", "freezing drizzle", "sleet", "schnee",
+         "glätte", "glatteis", "neige", "verglas", "poudrerie", "pluie verglaçante", "neve", "ghiaccio")),
     (5, ("heat", "high temp", "hitze", "canicule", "chaleur", "caldo", "calore")),
-    (6, ("frost", "cold", "low temp", "kälte", "grand froid", "gel", "freddo", "gelo")),
-    (7, ("coastal", "küste", "sturmflut", "vagues", "submersion", "mareggiat")),
+    (6, ("frost", "freeze", "cold", "low temp", "kälte", "grand froid", "froid", "gel", "freddo", "gelo")),
     (4, ("fog", "nebel", "brouillard", "nebbia")),
     (10, ("rain", "regen", "pluie", "pioggia")),
-    (1, ("wind", "sturm", "storm", "vent", "vento")),
+    (1, ("wind", "storm", "dust", "sturm", "vent", "vento")),
 )
 _SEVERITY_LEVEL = {"minor": 1, "moderate": 2, "severe": 3, "extreme": 4}
 _MA_CACHE = {}   # URL -> (horodatage du téléchargement, données)
@@ -737,11 +745,16 @@ def _ma_level_type(infos):
         # nom du phénomène, en anglais d'abord
         names = [str(i.get("event", "")).lower() for i in sorted(
             infos, key=lambda i: not str(i.get("language", "")).lower().startswith("en"))]
-        for t, words in METEOALARM_KEYWORDS:
-            if any(w in n for n in names for w in words):
-                typ = t
-                break
+        typ = _type_from_names(names)
     return level, (typ if typ in METEOALARM_TYPES else 0)
+
+
+def _type_from_names(names):
+    """Type de phénomène d'après des noms d'avertissement (mots-clés, en début de mot)."""
+    for t, words in METEOALARM_KEYWORDS:
+        if any(re.search(r"(?<!\w)" + re.escape(w), n) for n in names for w in words):
+            return t
+    return 0
 
 
 def _ma_polygons(area):
@@ -791,22 +804,32 @@ def _ma_area_match(loc, area):
 
 
 def _meteoalarm(opts):
-    """[[meteoalarm]] : options et lieux suivis (une sous-section par lieu : title, country,
-    region = codes de zone (EMMA_ID, NUTS3…), area = noms de zone, latitude / longitude)."""
+    """[[meteoalarm]] : options et lieux suivis (une sous-section par lieu : title, source =
+    meteoalarm (défaut), nws (États-Unis) ou eccc (Canada), country (MeteoAlarm), region =
+    codes de zone (EMMA_ID, NUTS3… ; zones NWS), area = noms de zone, latitude / longitude)."""
     sec = opts.get("meteoalarm", {}) or {}
     locs = []
     for lid in getattr(sec, "sections", []):
         s = sec[lid]
         if not to_bool(s.get("enable", True)):
             continue
-        country = _ma_country(s.get("country"))
-        if not re.match(r"^[a-z][a-z-]{1,40}$", country):
-            log.error("livejson: [[meteoalarm]] %s : pays (country) absent ou invalide, lieu ignoré", lid)
+        source = str(s.get("source", "meteoalarm") or "meteoalarm").strip().lower()
+        if source not in ALERT_SOURCES:
+            log.error("livejson: [[meteoalarm]] %s : source « %s » inconnue (meteoalarm, nws, eccc), lieu ignoré", lid, source)
             continue
+        if source == "nws":
+            country = "united-states"
+        elif source == "eccc":
+            country = "canada"
+        else:
+            country = _ma_country(s.get("country"))
+            if not re.match(r"^[a-z][a-z-]{1,40}$", country):
+                log.error("livejson: [[meteoalarm]] %s : pays (country) absent ou invalide, lieu ignoré", lid)
+                continue
         regions = {str(x).strip().upper() for x in _as_list(s.get("region", "")) if str(x).strip()}
         areas = {str(x).strip().casefold() for x in _as_list(s.get("area", "")) if str(x).strip()}
         lat, lon = _to_float(s.get("latitude")), _to_float(s.get("longitude"))
-        locs.append({"id": lid, "title": str(s.get("title", lid) or lid), "country": country,
+        locs.append({"id": lid, "title": str(s.get("title", lid) or lid), "country": country, "source": source,
                      "regions": regions, "areas": areas,
                      "point": (lat, lon) if lat is not None and lon is not None else None})
     return {
@@ -817,6 +840,72 @@ def _meteoalarm(opts):
         "locations": locs,
     }
 
+
+# ----------------------------------------------------------------------
+# Vigilance météo : autres sources que MeteoAlarm (option source d'un lieu de [[meteoalarm]])
+#   nws  : National Weather Service (États-Unis), https://api.weather.gov/alerts/active
+#          (GeoJSON, propriétés CAP ; requête par point ou par zone NWS)
+#   eccc : Environnement et Changement climatique Canada, collection « weather-alerts » de
+#          MSC GeoMet (https://api.weather.gc.ca, GeoJSON, une entité par région d'alerte)
+# ----------------------------------------------------------------------
+ALERT_SOURCES = ("meteoalarm", "nws", "eccc")
+NWS_URL = "https://api.weather.gov/alerts/active"
+ECCC_URL = "https://api.weather.gc.ca/collections/weather-alerts/items"
+ECCC_LEVEL = {"yellow": 2, "orange": 3, "red": 4}
+
+
+def _json_fetch(url, timeout, accept="application/json"):
+    """Requête JSON (NWS, ECCC) -> (données, erreur). Le NWS exige un User-Agent identifiable."""
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "weewx-live/%s (https://github.com/Jterrettaz/WeewxLive)" % VERSION,
+            "Accept": accept})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("features"), list):
+            raise ValueError("réponse inattendue")
+        return data, None
+    except urllib.error.HTTPError as e:
+        return None, "HTTP %s" % e.code
+    except Exception as e:
+        return None, str(e)
+
+
+def _geojson_rings(geom):
+    """Contours extérieurs d'une géométrie GeoJSON (Polygon, MultiPolygon) en (lat, lon)."""
+    if not isinstance(geom, dict):
+        return []
+    t, c = geom.get("type"), geom.get("coordinates") or []
+    polys = [c] if t == "Polygon" else c if t == "MultiPolygon" else []
+    out = []
+    for poly in polys:
+        try:
+            ring = [(float(p[1]), float(p[0])) for p in poly[0]]
+        except (TypeError, ValueError, IndexError):
+            continue
+        if len(ring) >= 3:
+            out.append(ring)
+    return out
+
+
+def _nws_level(event, severity):
+    """Niveau (2 jaune, 3 orange, 4 rouge) d'une alerte NWS : gravité CAP, relevée d'après le
+    type de message (Advisory / Watch : jaune, Warning : orange, Emergency : rouge)."""
+    lvl = _SEVERITY_LEVEL.get(str(severity or "").lower(), 0)
+    e = str(event or "").lower()
+    kw = 4 if "emergency" in e else 3 if "warning" in e else 2 if ("watch" in e or "advisory" in e) else 1
+    return max(lvl, kw)
+
+
+def _nws_text(s):
+    """Texte NWS : lignes coupées à ~70 caractères recollées, paragraphes et listes conservés."""
+    s = str(s or "").replace("\r\n", "\n").strip()
+    return re.sub(r"(?<=\S)\n(?=[^\n*\-•])", " ", s)
+
+
+def _cap_first(s):
+    s = str(s or "").strip()
+    return s[:1].upper() + s[1:]
 
 # ----------------------------------------------------------------------
 # Téléchargements Open-Meteo (prévisions, météogramme, ensembles)
@@ -1902,13 +1991,13 @@ class LiveJSON(SearchList):
         return out
 
     # ------------------------------------------------------------------
-    # Vigilance météo MeteoAlarm (data/warnings.json, bandeau du tableau de bord et page
-    # vigilance.html)
+    # Vigilance météo (data/warnings.json, bandeau du tableau de bord et page
+    # vigilance.html) : MeteoAlarm (Europe), NWS (États-Unis), ECCC (Canada)
     # ------------------------------------------------------------------
-    def _ma_feed(self, country):
-        """Flux d'un pays (cache de [[meteoalarm]] cache secondes) -> (données, horodatage, erreur)."""
+    def _alert_feed(self, url, fetch, label):
+        """Téléchargement d'une source d'alertes, cache de [[meteoalarm]] cache secondes
+        (clé = URL) -> (données, horodatage, erreur ; copie précédente conservée en cas d'échec)."""
         o = self.meteoalarm
-        url = METEOALARM_URL % urllib.parse.quote(country)
         now = time.time()
         cached = _MA_CACHE.get(url)
         if cached is not None and now - cached[0] < o["cache"]:
@@ -1916,14 +2005,14 @@ class LiveJSON(SearchList):
         if now - _MA_FAIL.get(url, 0) < o["cache"]:
             err = self.L("Errors", "retrying after a recent failure")
         else:
-            data, err = _ma_fetch(url, o["timeout"])
+            data, err = fetch(url, o["timeout"])
             if data is not None:
                 _MA_CACHE[url] = (now, data)
                 _MA_FAIL.pop(url, None)
-                log.debug("livejson: MeteoAlarm (%s) : %d alertes téléchargées", country, len(data["warnings"]))
+                log.debug("livejson: alertes %s téléchargées", label)
                 return data, now, None
             _MA_FAIL[url] = now
-            log.error("livejson: échec du téléchargement MeteoAlarm (%s) : %s", country, err)
+            log.error("livejson: échec du téléchargement des alertes %s : %s", label, err)
         if cached is not None:
             return cached[1], cached[0], err
         return None, None, err
@@ -1937,23 +2026,187 @@ class LiveJSON(SearchList):
                     return i
         return infos[0]
 
+    @staticmethod
+    def _warning(level, typ, **kw):
+        w = {"level": level, "type": typ, "type_id": METEOALARM_TYPES.get(typ, "other"),
+             "event": "", "headline": "", "description": "", "instruction": "", "onset": None,
+             "expires": None, "sent": None, "areas": [], "sender": "", "web": "", "language": "",
+             "severity": "", "certainty": "", "urgency": "", "msgType": "", "identifier": ""}
+        w.update({k: v for k, v in kw.items() if v is not None})
+        return w
+
+    def _meteoalarm_warnings(self, data, loc, now):
+        o = self.meteoalarm
+        alerts = [w.get("alert") for w in data["warnings"] if isinstance(w, dict) and isinstance(w.get("alert"), dict)]
+        # alertes remplacées (mise à jour ou annulation) : identifiants cités dans « references »
+        replaced = set()
+        for a in alerts:
+            for ref in str(a.get("references", "") or "").split():
+                parts = ref.split(",")
+                if len(parts) >= 2:
+                    replaced.add(parts[1])
+        found = []
+        for a in alerts:
+            infos = [i for i in (a.get("info") or []) if isinstance(i, dict)]
+            if not infos or a.get("identifier") in replaced:
+                continue
+            if str(a.get("status", "Actual")).lower() != "actual" or str(a.get("msgType", "")).lower() == "cancel":
+                continue
+            level, typ = _ma_level_type(infos)
+            if level < o["min_level"]:
+                continue
+            info = self._ma_info(infos)
+            expires = _ma_time(info.get("expires"))
+            if expires is not None and expires <= now:
+                continue
+            areas = [ar for i in infos for ar in (i.get("area") or []) if isinstance(ar, dict)]
+            hit = [ar for ar in areas if _ma_area_match(loc, ar)]
+            if not hit:
+                continue
+            names = []
+            for ar in hit:
+                n = str(ar.get("areaDesc", "")).strip()
+                if n and n not in names:
+                    names.append(n)
+            found.append(self._warning(
+                level, typ, event=str(info.get("event", "") or ""),
+                headline=str(info.get("headline", "") or ""),
+                description=str(info.get("description", "") or ""),
+                instruction=str(info.get("instruction", "") or ""),
+                onset=_ma_time(info.get("onset")) or _ma_time(info.get("effective")) or _ma_time(a.get("sent")),
+                expires=expires, sent=_ma_time(a.get("sent")), areas=names,
+                sender=str(info.get("senderName", "") or a.get("sender", "") or ""),
+                web=str(info.get("web", "") or ""), language=str(info.get("language", "") or ""),
+                severity=str(info.get("severity", "") or ""), certainty=str(info.get("certainty", "") or ""),
+                urgency=str(info.get("urgency", "") or ""), msgType=str(a.get("msgType", "") or ""),
+                identifier=str(a.get("identifier", "") or "")))
+        return found
+
+    def _nws_warnings(self, data, now):
+        """Alertes NWS (déjà limitées au point ou aux zones demandés par la requête)."""
+        o = self.meteoalarm
+        props = [f.get("properties") for f in data["features"] if isinstance(f, dict) and isinstance(f.get("properties"), dict)]
+        replaced = set()
+        for p in props:
+            for r in p.get("references") or []:
+                if isinstance(r, dict) and r.get("identifier"):
+                    replaced.add(str(r["identifier"]))
+        found = []
+        for p in props:
+            pid = str(p.get("id", "") or "")
+            if pid in replaced or str(p.get("status", "Actual")) != "Actual" or str(p.get("messageType", "")) == "Cancel":
+                continue
+            ends = _ma_time(p.get("ends")) or _ma_time(p.get("expires"))
+            if ends is not None and ends <= now:
+                continue
+            event = str(p.get("event", "") or "")
+            level = _nws_level(event, p.get("severity"))
+            if level < o["min_level"]:
+                continue
+            prm = p.get("parameters") or {}
+            head = prm.get("NWSheadline") if isinstance(prm, dict) else None
+            head = head[0] if isinstance(head, list) and head else str(p.get("headline", "") or "")
+            areas = [a.strip() for a in str(p.get("areaDesc", "") or "").split(";") if a.strip()]
+            found.append(self._warning(
+                level, _type_from_names([event.lower()]), event=event, headline=str(head or ""),
+                description=_nws_text(p.get("description")), instruction=_nws_text(p.get("instruction")),
+                onset=_ma_time(p.get("onset")) or _ma_time(p.get("effective")) or _ma_time(p.get("sent")),
+                expires=ends, sent=_ma_time(p.get("sent")), areas=areas,
+                sender=str(p.get("senderName", "") or "NWS"), web=str(p.get("web", "") or "https://www.weather.gov"),
+                language="en-US", severity=str(p.get("severity", "") or ""),
+                certainty=str(p.get("certainty", "") or ""), urgency=str(p.get("urgency", "") or ""),
+                msgType=str(p.get("messageType", "") or ""), identifier=pid))
+        return found
+
+    def _eccc_warnings(self, data, point, now):
+        """Alertes ECCC : une entité par région d'alerte ; régions contenant le point du lieu,
+        regroupées par alerte (texte le plus récent)."""
+        o = self.meteoalarm
+        fr = (self.L.lang or "en").lower() == "fr"
+        sfx = "fr" if fr else "en"
+        best = {}
+        for f in data["features"]:
+            if not isinstance(f, dict) or not isinstance(f.get("properties"), dict):
+                continue
+            p = f["properties"]
+            if str(p.get("status_en", "") or "").strip().lower() in ("ended", "cancelled", "canceled"):
+                continue
+            rings = _geojson_rings(f.get("geometry"))
+            if point and rings and not any(_point_in_poly(point[0], point[1], r) for r in rings):
+                continue
+            colour = str(p.get("risk_colour_en", "") or "").strip().lower()
+            level = ECCC_LEVEL.get(colour) or (2 if str(p.get("alert_type", "")).lower() == "warning" else 1)
+            if level < o["min_level"]:
+                continue
+            expires = _ma_time(p.get("event_end_datetime")) or _ma_time(p.get("expiration_datetime"))
+            if expires is not None and expires <= now:
+                continue
+            fid = str(f.get("id", "") or "")
+            key = fid.rsplit("_", 1)[0] if "_" in fid else (str(p.get("alert_code", "")), str(p.get("publication_datetime", "")))
+            sent = _ma_time(p.get("publication_datetime"))
+            prev = best.get(key)
+            if prev is not None and (prev["sent"] or 0) > (sent or 0):
+                if p.get("feature_name_" + sfx) and p.get("feature_name_" + sfx) not in prev["areas"]:
+                    prev["areas"].append(str(p.get("feature_name_" + sfx)))
+                continue
+            areas = list(prev["areas"]) if prev else []
+            name = str(p.get("feature_name_" + sfx, "") or "")
+            if name and name not in areas:
+                areas.append(name)
+            best[key] = self._warning(
+                level, _type_from_names([str(p.get("alert_name_en", "") or "").lower()]),
+                event=_cap_first(p.get("alert_name_" + sfx)),
+                description=str(p.get("alert_text_" + sfx, "") or "").replace("\r\n", "\n").strip(),
+                onset=_ma_time(p.get("validity_datetime")) or sent, expires=expires, sent=sent, areas=areas,
+                sender="Environnement et Changement climatique Canada" if fr else "Environment and Climate Change Canada",
+                web="https://meteo.gc.ca/warnings/index_f.html" if fr else "https://weather.gc.ca/warnings/index_e.html",
+                language="fr-CA" if fr else "en-CA", severity=str(p.get("impact_" + sfx, "") or ""),
+                certainty=str(p.get("confidence_" + sfx, "") or ""), msgType=str(p.get("status_" + sfx, "") or ""),
+                identifier=str(key if isinstance(key, str) else fid))
+        return list(best.values())
+
     def warnings_data(self):
-        """Avertissements MeteoAlarm en cours ou à venir (niveau ≥ min_level, non expirés,
-        ni annulés, ni remplacés par une mise à jour) pour chaque lieu de [[meteoalarm]]."""
+        """Avertissements en cours ou à venir (niveau ≥ min_level, non expirés, ni annulés, ni
+        remplacés par une mise à jour) pour chaque lieu de [[meteoalarm]] (sources MeteoAlarm,
+        NWS, ECCC)."""
         o = self.meteoalarm
         if not o["enable"]:
             return {"enable": False}
         now = time.time()
-        feeds = {}
-        for c in sorted({loc["country"] for loc in o["locations"]}):
-            feeds[c] = self._ma_feed(c)
         st_lat, st_lon = self._coords()
         out = []
         for loc in o["locations"]:
-            if not (loc["regions"] or loc["areas"] or loc["point"]) and st_lat is not None and st_lon is not None:
-                loc = dict(loc, point=(st_lat, st_lon))     # coordonnées de la station
-            data, fetched, err = feeds[loc["country"]]
-            item = {"id": loc["id"], "title": loc["title"], "country": loc["country"]}
+            src = loc["source"]
+            point = loc["point"] or ((st_lat, st_lon) if st_lat is not None and st_lon is not None else None)
+            item = {"id": loc["id"], "title": loc["title"], "country": loc["country"], "source": src}
+            if src == "meteoalarm":
+                if not (loc["regions"] or loc["areas"] or loc["point"]) and point:
+                    loc = dict(loc, point=point)     # coordonnées de la station
+                url = METEOALARM_URL % urllib.parse.quote(loc["country"])
+                data, fetched, err = self._alert_feed(url, _ma_fetch, "MeteoAlarm (%s)" % loc["country"])
+                conv = (lambda d: self._meteoalarm_warnings(d, loc, now))
+            elif src == "nws":
+                if loc["regions"]:
+                    q = {"zone": ",".join(sorted(loc["regions"]))}
+                elif point:
+                    q = {"point": "%.4f,%.4f" % point}
+                else:
+                    q = None
+                if q is None:
+                    data, fetched, err = None, None, self.L("Errors", "station coordinates unknown")
+                else:
+                    data, fetched, err = self._alert_feed(NWS_URL + "?" + urllib.parse.urlencode(q),
+                                                          lambda u, t: _json_fetch(u, t, "application/geo+json"), "NWS")
+                conv = (lambda d: self._nws_warnings(d, now))
+            else:   # eccc
+                if not point:
+                    data, fetched, err = None, None, self.L("Errors", "station coordinates unknown")
+                else:
+                    lat, lon = point
+                    q = {"f": "json", "limit": "500",
+                         "bbox": "%.3f,%.3f,%.3f,%.3f" % (lon - 0.02, lat - 0.02, lon + 0.02, lat + 0.02)}
+                    data, fetched, err = self._alert_feed(ECCC_URL + "?" + urllib.parse.urlencode(q), _json_fetch, "ECCC")
+                conv = (lambda d: self._eccc_warnings(d, point, now))
             if data is None:
                 item["error"] = err or self.L("Common", "unavailable")
                 out.append(item)
@@ -1962,61 +2215,24 @@ class LiveJSON(SearchList):
             if err:
                 item["stale"] = True
                 item["warning"] = err
-            alerts = [w.get("alert") for w in data["warnings"] if isinstance(w, dict) and isinstance(w.get("alert"), dict)]
-            # alertes remplacées (mise à jour ou annulation) : identifiants cités dans « references »
-            replaced = set()
-            for a in alerts:
-                for ref in str(a.get("references", "") or "").split():
-                    parts = ref.split(",")
-                    if len(parts) >= 2:
-                        replaced.add(parts[1])
-            seen, found = set(), []
-            for a in alerts:
-                infos = [i for i in (a.get("info") or []) if isinstance(i, dict)]
-                if not infos or a.get("identifier") in replaced:
-                    continue
-                if str(a.get("status", "Actual")).lower() != "actual" or str(a.get("msgType", "")).lower() == "cancel":
-                    continue
-                level, typ = _ma_level_type(infos)
-                if level < o["min_level"]:
-                    continue
-                info = self._ma_info(infos)
-                expires = _ma_time(info.get("expires"))
-                if expires is not None and expires <= now:
-                    continue
-                areas = [ar for i in infos for ar in (i.get("area") or []) if isinstance(ar, dict)]
-                hit = [ar for ar in areas if _ma_area_match(loc, ar)]
-                if not hit:
-                    continue
-                onset = _ma_time(info.get("onset")) or _ma_time(info.get("effective")) or _ma_time(a.get("sent"))
-                key = (level, typ, onset, expires, str(info.get("event", "")))
-                if key in seen:
-                    continue
-                seen.add(key)
-                names = []
-                for ar in hit:
-                    n = str(ar.get("areaDesc", "")).strip()
-                    if n and n not in names:
-                        names.append(n)
-                found.append({
-                    "level": level, "type": typ, "type_id": METEOALARM_TYPES.get(typ, "other"),
-                    "event": str(info.get("event", "") or ""),
-                    "headline": str(info.get("headline", "") or ""),
-                    "description": str(info.get("description", "") or ""),
-                    "instruction": str(info.get("instruction", "") or ""),
-                    "onset": onset, "expires": expires, "sent": _ma_time(a.get("sent")),
-                    "areas": names, "sender": str(info.get("senderName", "") or a.get("sender", "") or ""),
-                    "web": str(info.get("web", "") or ""), "language": str(info.get("language", "") or ""),
-                    "severity": str(info.get("severity", "") or ""),
-                    "certainty": str(info.get("certainty", "") or ""),
-                    "urgency": str(info.get("urgency", "") or ""),
-                    "msgType": str(a.get("msgType", "") or ""),
-                    "identifier": str(a.get("identifier", "") or ""),
-                })
-            found.sort(key=lambda w: (-w["level"], w["onset"] or 0, w["type"]))
-            item["warnings"] = found
+            try:
+                found = conv(data)
+            except Exception as e:
+                log.error("livejson: alertes %s (%s) : données inattendues : %s", src, loc["id"], e)
+                item["error"] = self.L("Errors", "unexpected data")
+                out.append(item)
+                continue
+            seen, uniq = set(), []
+            for w in found:
+                key = (w["level"], w["type"], w["onset"], w["expires"], w["event"])
+                if key not in seen:
+                    seen.add(key)
+                    uniq.append(w)
+            uniq.sort(key=lambda w: (-w["level"], w["onset"] or 0, w["type"]))
+            item["warnings"] = uniq
             out.append(item)
         return {"enable": True, "version": VERSION, "generated": int(now), "source": "meteoalarm",
+                "sources": sorted({l["source"] for l in o["locations"]}),
                 "cache": o["cache"], "min_level": o["min_level"], "locations": out}
 
     def ensembles_data(self):

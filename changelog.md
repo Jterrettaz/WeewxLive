@@ -1,418 +1,433 @@
-# Journal des modifications — weewx-live
+# Change log — weewx-live
 
-Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
-version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
+*Version française : [changelog.fr.md](changelog.fr.md).*
+
+Summary of the changes in each version, from the most recent to the oldest (since version
+1.49). Skipped numbers are cancelled versions (see the end of the list).
+
+## 2.12
+
+- **Change log in English**: `changelog.md` is now in English, the French version becomes
+  `changelog.fr.md`; link to the other language at the top of each file. Both are kept up to
+  date at each version.
+
+## 2.11
+
+- **Weather warnings: United States and Canada.** New `source` option for a location of
+  `[[meteoalarm]]`: `meteoalarm` (default, Europe), `nws` (National Weather Service,
+  `api.weather.gov/alerts/active`, query by point or by NWS zones with `region`) or `eccc`
+  (Environment and Climate Change Canada, `weather-alerts` collection of MSC GeoMet, point
+  inside the alert regions). Same pills, same "Weather warnings" page; locations of different
+  sources are mixed and grouped.
+- NWS levels: Advisory / Watch yellow, Warning orange, Emergency or Extreme severity red;
+  ECCC: risk colour of the alert. Statements are not shown. Replaced, cancelled, ended or
+  expired alerts: ignored.
+- Two new phenomenon types: tornado and tropical cyclone (hurricane, tropical storm);
+  phenomenon recognition keywords extended to the English NWS / ECCC names ("Winter Storm",
+  "Wind Chill", "Red Flag", "Storm Surge"…), matched at the start of a word.
+- "Weather warnings" page: footer giving the sources used.
+- New texts in the 4 language files; README (English and French) and `skin.conf` /
+  `skin.fr.conf` completed.
 
 ## 2.10
 
-- **Documentation en anglais par défaut** : `README.md` est désormais en anglais (ancien
-  `README.eng.md`), la version française devient `README.fr.md` ; lien vers l'autre langue en
-  tête de chaque fichier. `skin.conf` a ses commentaires en anglais (ancien `skin.en.conf`),
-  la copie aux commentaires français devient `skins/WeewxLive/skin.fr.conf` (non lue par
-  weewx). Réglages inchangés, y compris la langue des pages (`lang = fr`).
-- Mise à jour : la réinstallation remplace `skin.conf` par la version anglaise et ajoute
-  `skin.fr.conf` ; l'ancien `skin.en.conf` peut être supprimé.
+- **Documentation in English by default**: `README.md` is now in English (formerly
+  `README.eng.md`), the French version becomes `README.fr.md`; link to the other language at
+  the top of each file. `skin.conf` has English comments (formerly `skin.en.conf`), the copy
+  with French comments becomes `skins/WeewxLive/skin.fr.conf` (not read by weewx). Settings
+  unchanged, including the page language (`lang = fr`).
+- Update: reinstalling replaces `skin.conf` with the English version and adds
+  `skin.fr.conf`; the old `skin.en.conf` can be deleted.
 
 ## 2.09
 
-- Tableau de bord, pastilles de vigilance : les lieux qui ont la même vigilance (même niveau,
-  même phénomène) sont regroupés dans une seule pastille, par exemple « Orages (Sciez, Val
-  d'Aoste) » en jaune au lieu de deux pastilles. Infobulle : fin de la vigilance pour chaque
-  lieu. Lien vers la section du lieu s'il n'y en a qu'un, sinon vers le haut de la page
-  « Vigilance météo ».
+- Dashboard, warning pills: locations with the same warning (same level, same phenomenon)
+  are grouped in a single pill, e.g. "Thunderstorms (Sciez, Aosta Valley)" in yellow instead
+  of two pills. Tooltip: end of the warning for each location. Link to the location's
+  section if there is only one, otherwise to the top of the "Weather warnings" page.
 
 ## 2.08
 
-- Page « Vigilance météo » : la pastille en haut de chaque avertissement indique aussi le
-  lieu (`title` du lieu dans `[[meteoalarm]]`), par exemple « Vigilance orange · Sciez »,
-  pour identifier le lieu concerné sans remonter jusqu'à l'en-tête de sa section.
+- "Weather warnings" page: the pill at the top of each warning also gives the location
+  (`title` of the location in `[[meteoalarm]]`), e.g. "Orange warning · Sciez", to identify
+  the location concerned without scrolling back to its section header.
 
 ## 2.07
 
-- Vigilance météo : nouvelles couleurs des niveaux, jaune `#f9e400`, orange `#f7a401`,
-  rouge `#e71919` (pastilles du tableau de bord, page « Vigilance météo »). Texte foncé sur
-  le jaune et l'orange, blanc sur le rouge (contraste ≥ 4,5:1).
+- Weather warnings: new level colours, yellow `#f9e400`, orange `#f7a401`, red `#e71919`
+  (dashboard pills, "Weather warnings" page). Dark text on yellow and orange, white on red
+  (contrast ≥ 4.5:1).
 
 ## 2.06
 
-- **Vigilance météo MeteoAlarm** (EUMETNET) : nouvelle section `[LiveJSON] [[meteoalarm]]`,
-  un ou plusieurs lieux, éventuellement dans des pays différents (`country` : nom anglais ou
-  code ISO ; lieu repéré par `region` = code de zone NUTS3 / EMMA_ID, `area` = nom de zone,
-  ou `latitude` / `longitude` dans les polygones des zones, à défaut les coordonnées de la
-  station). weewx télécharge le flux de chaque pays au plus toutes les 5 minutes (`cache`)
-  et publie `data/warnings.json` ; les pages le relisent toutes les 5 minutes.
-- **Tableau de bord** : pastilles des vigilances en cours (jaune, orange, rouge) en haut de
-  page, une par lieu et par phénomène (plusieurs niveaux possibles en même temps) ; rien en
-  l'absence de vigilance.
-- **Page « Vigilance météo »** (`vigilance.html`, menu « Prévisions », ouverte par un clic
-  sur une pastille) : pour chaque lieu, avertissements en cours et à venir avec niveau,
-  phénomène, période, description, conseils, zone, émetteur, gravité / certitude / urgence
-  et lien vers le service météorologique ; signification des niveaux.
-- Avertissements expirés, annulés ou remplacés : ignorés. Type de phénomène déduit du nom
-  quand le flux ne le donne pas (MétéoSuisse). Textes dans la langue des pages si le flux la
-  fournit, sinon en anglais.
-- Nouveaux textes (contexte `[[Warnings]]`, entrée de menu « Weather warnings ») dans les
-  4 fichiers de langue.
+- **MeteoAlarm weather warnings** (EUMETNET): new section `[LiveJSON] [[meteoalarm]]`, one or
+  more locations, possibly in different countries (`country`: English name or ISO code;
+  location identified by `region` = NUTS3 / EMMA_ID area code, `area` = area name, or
+  `latitude` / `longitude` inside the area polygons, otherwise the station coordinates).
+  weewx downloads the feed of each country at most every 5 minutes (`cache`) and publishes
+  `data/warnings.json`; the pages re-read it every 5 minutes.
+- **Dashboard**: pills of the warnings in force (yellow, orange, red) at the top of the
+  page, one per location and per phenomenon (several levels possible at the same time);
+  nothing when there is no warning.
+- **"Weather warnings" page** (`vigilance.html`, "Forecasts" menu, opened by a click on a
+  pill): for each location, warnings in progress and upcoming with level, phenomenon, period,
+  description, instructions, area, issuer, severity / certainty / urgency and link to the
+  weather service; meaning of the levels.
+- Expired, cancelled or replaced warnings: ignored. Phenomenon type derived from the name when
+  the feed does not give it (MeteoSwiss). Texts in the page language if the feed provides
+  it, otherwise in English.
+- New texts (`[[Warnings]]` context, "Weather warnings" menu entry) in the 4 language files.
 
 ## 2.05
 
-- **Correction pour weewx 5.0 à 5.3** (ex. 5.3.1) : le générateur `LiveCheetahGenerator`
-  ne se chargeait pas (« ImportError: cannot import name 'getFileName' from
-  'weeutil.weeutil' ») et le rapport WeewxLive n'était pas produit. `getFileName` n'existe
-  que depuis weewx 5.4 : livejson.py en contient désormais une copie, utilisée quand weewx ne
-  la fournit pas.
+- **Fix for weewx 5.0 to 5.3** (e.g. 5.3.1): the `LiveCheetahGenerator` generator did not load
+  ("ImportError: cannot import name 'getFileName' from 'weeutil.weeutil'") and the WeewxLive
+  report was not produced. `getFileName` only exists since weewx 5.4: livejson.py now contains
+  a copy of it, used when weewx does not provide it.
 
 ## 2.04
 
-- Tableau de bord, **Prévisions** : les jours sans données ne sont plus affichés. Au-delà de
-  leur échéance (Météo-France, MeteoSuisse ICON… 4 à 5 jours), certains modèles renvoient des
-  valeurs vides : seuls les jours disponibles apparaissent, sur toute la largeur du bloc, et
-  le titre indique leur nombre (« Prévisions 4 jours »). Le détail heure par heure d'un jour
-  absent du nouveau modèle se referme ; un modèle sans aucune donnée affiche « Prévisions
-  indisponibles pour ce modèle (réponse vide) ».
+- Dashboard, **Forecasts**: days without data are no longer shown. Beyond their range
+  (Météo-France, MeteoSwiss ICON… 4 to 5 days), some models return empty values: only the
+  available days appear, across the full width of the block, and the title gives their number
+  ("4-day forecast"). The hour-by-hour detail of a day missing from the new model closes; a
+  model without any data shows "Forecasts unavailable for this model (empty response)".
 
 ## 2.03
 
-- **Pages d'archives « jour » désactivées par défaut** : `[[archives]] day = false` dans
-  `skin.conf` (une page par journée de la base rendait la première génération longue et le
-  premier envoi FTP volumineux). L'entrée « Archives » ouvre alors la page du mois en cours,
-  le sélecteur de date propose « Mois » et « Année », le tableau climatologique mensuel n'a
-  plus de lien vers les jours. Pour les garder : `day = true`, de préférence dans
-  `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[archives]]]]`), sinon la mise à
-  jour les désactive. Les pages déjà générées restent en place.
-- README (français et anglais) : nouvelle section « Régler la langue dans `skin.conf` »
-  (priorités de weewx, étapes, effet des mises à jour).
+- **"Day" archive pages disabled by default**: `[[archives]] day = false` in `skin.conf` (one
+  page per day of the database made the first generation long and the first FTP upload
+  large). The "Archives" entry then opens the page of the current month, the date picker
+  offers "Month" and "Year", the monthly climatological table no longer links to the days. To
+  keep them: `day = true`, preferably in `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` →
+  `[[[[archives]]]]`), otherwise the update disables them. Pages already generated stay in
+  place.
+- README (French and English): new section "Setting the language in `skin.conf`" (weewx
+  priorities, steps, effect of updates).
 
 ## 2.02
 
-- **Documentation en anglais** incluse dans l'extension : `README.eng.md` (traduction du
-  README) et `skins/WeewxLive/skin.en.conf` (copie de `skin.conf` aux commentaires traduits,
-  réglages identiques ; non lue par weewx, à renommer en `skin.conf` pour l'utiliser). Tenues
-  à jour à chaque version, comme le README et `skin.conf`.
-- `skin.conf` : commentaire de l'option `lang` complété (de, it).
+- **Documentation in English** included in the extension: `README.eng.md` (translation of the
+  README) and `skins/WeewxLive/skin.en.conf` (copy of `skin.conf` with translated comments,
+  identical settings; not read by weewx, to be renamed `skin.conf` to use it). Kept up to date
+  at each version, like the README and `skin.conf`.
+- `skin.conf`: comment of the `lang` option completed (de, it).
 
 ## 2.01
 
-- **Pages en allemand et en italien** : nouveaux fichiers `lang/de.conf` et `lang/it.conf`
-  (mêmes clés que `fr.conf` et `en.conf`), choisis par `lang = de` ou `lang = it` dans
-  `[StdReport] [[WeewxLive]]`. Nombres et dates `de-DE` / `it-IT`, directions du vent,
-  phases de la lune, titres des mesures, temps prévu, carte Blitzortung dans la langue.
-  Traductions proposées, à relire.
+- **Pages in German and Italian**: new files `lang/de.conf` and `lang/it.conf` (same keys as
+  `fr.conf` and `en.conf`), chosen with `lang = de` or `lang = it` in `[StdReport]
+  [[WeewxLive]]`. Numbers and dates `de-DE` / `it-IT`, wind directions, moon phases,
+  measurement titles, forecast weather, Blitzortung map in the language. Suggested
+  translations, to be reviewed.
 
 ## 2.00
 
-- **Unités des paramètres supplémentaires** réglables dans `skin.conf`, avec des noms
-  d'unités weewx : section `[LiveJSON] [[unit_groups]]` (une unité par groupe weewx, ex.
-  `group_distance = mile`) et option `units` d'un paramètre ou d'un panneau groupé
-  (prioritaire). Valeurs converties par weewx, libellé affiché déduit de l'unité ; `unit`
-  reste un libellé seul. Groupes réglables : distance, énergie, degrés-jours, durées,
-  variation de pression.
-- Paramètres standard et groupes convertis dans le navigateur (température, vitesse, pluie,
-  intensité, pression, altitude, longueur) : publication métrique inchangée, unités par
-  défaut toujours réglées par `[[units]]` ; `units` ou `[[unit_groups]]` sur ces groupes :
-  ignoré, message dans le journal.
-- Réglages invalides (groupe ou unité inconnus, unité étrangère au groupe) : ignorés,
-  message dans le journal de weewx.
+- **Units of extra parameters** configurable in `skin.conf`, with weewx unit names: section
+  `[LiveJSON] [[unit_groups]]` (one unit per weewx group, e.g. `group_distance = mile`) and
+  `units` option of a parameter or grouped panel (takes precedence). Values converted by
+  weewx, displayed label derived from the unit; `unit` remains a label only. Configurable
+  groups: distance, energy, degree days, durations, pressure change.
+- Standard parameters and groups converted in the browser (temperature, speed, rain, rate,
+  pressure, altitude, length): metric publication unchanged, default units still set by
+  `[[units]]`; `units` or `[[unit_groups]]` on these groups: ignored, message in the log.
+- Invalid settings (unknown group or unit, unit not belonging to the group): ignored, message
+  in the weewx log.
 
 ## 1.99
 
-- Pages d'archives « jour » : panneaux réduits / développés mémorisés **séparément du tableau
-  de bord**, avec un seul état pour toutes les pages « jour » (clé `weewx-live:compact-day`
-  du navigateur). Réduire un panneau sur une journée le réduit sur toutes les autres, sans
-  changer le tableau de bord, et inversement.
-- Les choix déjà mémorisés du tableau de bord sont conservés ; sur les pages « jour », tous les
-  panneaux repartent développés (valeur par défaut) jusqu'au premier choix.
+- "Day" archive pages: collapsed / expanded panels remembered **separately from the
+  dashboard**, with a single state for all "day" pages (browser key
+  `weewx-live:compact-day`). Collapsing a panel on one day collapses it on all the others,
+  without changing the dashboard, and vice versa.
+- Choices already remembered for the dashboard are kept; on "day" pages, all panels start
+  expanded again (default value) until the first choice.
 
 ## 1.98
 
-- **Pages en plusieurs langues**, selon les directives weewx : textes dans le dossier `lang/`
-  du skin, un fichier par langue — `fr.conf` (français) et `en.conf` (anglais, traduction
-  proposée) ; langue choisie par l'option `lang` du rapport. L'installeur ajoute `lang = fr`
-  dans `weewx.conf` `[StdReport] [[WeewxLive]]` (prioritaire sur `[[Defaults]] lang = en` du
-  `weewx.conf` de weewx 5) ; `skin.conf` : `lang = fr`.
-- Tout est traduit : gabarits (`$lt`), scripts (`i18n.js`, généré : `window.WXL`), module
-  Python (titres des pages d'archives, noms des mois et des jours, phases de la lune, noms des
-  modèles et pays, messages d'erreur publiés). Nombres et dates selon la langue
-  (`intl_locale`), directions du vent et temps prévu traduits, carte Blitzortung dans la
-  langue choisie.
-- Pages `detail`, `extremes`, `ensembles`, `meteogram`, `units`, `admin` et `webcam` :
-  gabarits (`*.html.tmpl`, générés à chaque archive) au lieu de fichiers copiés.
-- Titres des paramètres : sans `title`, celui de la langue (`[Labels] [[Generic]]`) ;
-  `skin.conf` ne fixe plus les titres des 6 paramètres standard. Couches satellite EUMETSAT
-  sans libellé : libellé traduit.
-- Pages d'archives générées avant la 1.98 : `i18n.js` chargé par `nav.js` (textes dans la
-  langue choisie). Textes absents d'un fichier de langue : clé anglaise affichée, liste dans
+- **Pages in several languages**, following the weewx guidelines: texts in the skin's `lang/`
+  folder, one file per language — `fr.conf` (French) and `en.conf` (English, suggested
+  translation); language chosen with the report's `lang` option. The installer adds
+  `lang = fr` to `weewx.conf` `[StdReport] [[WeewxLive]]` (takes precedence over
+  `[[Defaults]] lang = en` of the weewx 5 `weewx.conf`); `skin.conf`: `lang = fr`.
+- Everything is translated: templates (`$lt`), scripts (`i18n.js`, generated:
+  `window.WXL`), Python module (archive page titles, month and day names, moon phases, model
+  and country names, published error messages). Numbers and dates according to the language
+  (`intl_locale`), wind directions and forecast weather translated, Blitzortung map in the
+  chosen language.
+- Pages `detail`, `extremes`, `ensembles`, `meteogram`, `units`, `admin` and `webcam`:
+  templates (`*.html.tmpl`, generated at each archive) instead of copied files.
+- Parameter titles: without `title`, the language's one (`[Labels] [[Generic]]`);
+  `skin.conf` no longer sets the titles of the 6 standard parameters. EUMETSAT satellite
+  layers without a label: translated label.
+- Archive pages generated before 1.98: `i18n.js` loaded by `nav.js` (texts in the chosen
+  language). Texts missing from a language file: English key shown, list in
   `window.WXL_MISSING`.
-- En français, pages identiques à la 1.97.
+- In French, pages identical to 1.97.
 
 ## 1.97
 
-- Pages d'archives (« jour », « mois », « année ») : titres des panneaux et des sections en
-  texte simple, sans lien vers `detail.html` (pages de la période en cours). Le tableau de
-  bord et les pages par période gardent leurs liens ; menu commun inchangé.
-- Pages d'archives déjà générées : inchangées tant qu'elles ne sont pas régénérées (supprimer
-  le dossier `archive/` de `HTML_ROOT` pour les refaire).
+- Archive pages ("day", "month", "year"): panel and section titles as plain text, without a
+  link to `detail.html` (pages of the current period). The dashboard and the period pages
+  keep their links; common menu unchanged.
+- Archive pages already generated: unchanged until they are regenerated (delete the
+  `archive/` folder of `HTML_ROOT` to rebuild them).
 
 ## 1.95
 
-- Nouvelle page **« Webcam »** (`webcam.html`, `webcam.js`, menu « Webcam ») : images et
-  vidéos l'une sous l'autre, configurées dans `[[webcam]]` (une sous-section par élément :
-  `url`, `title`, `caption`, `type`, `admin`, `refresh`, `autoplay`, `enable`).
-- `admin = true` : élément affiché seulement en mode admin ; menu « Webcam » seulement si le
-  visiteur peut voir au moins un élément.
-- Images rechargées périodiquement sans clignotement, heure du dernier chargement, ouverture
-  en grand ; message « indisponible » si le fichier est absent.
+- New **"Webcam"** page (`webcam.html`, `webcam.js`, "Webcam" menu): images and videos one
+  below the other, configured in `[[webcam]]` (one subsection per item: `url`, `title`,
+  `caption`, `type`, `admin`, `refresh`, `autoplay`, `enable`).
+- `admin = true`: item shown only in admin mode; "Webcam" menu only if the visitor can see at
+  least one item.
+- Images reloaded periodically without flicker, time of the last load, full-size view;
+  "unavailable" message if the file is missing.
 
 ## 1.94
 
-- Menu **« Éclairs »** : ouvre dans un nouvel onglet la carte Blitzortung centrée sur la
-  station (`https://maps.blitzortung.org/fr/#7/<latitude>/<longitude>`), sur toutes les
-  pages. Section `[[lightning]]` (`enable`, `zoom`) ; coordonnées de `[Station]` ou de
-  `[[forecast]]`.
+- **"Lightning"** menu: opens in a new tab the Blitzortung map centred on the station
+  (`https://maps.blitzortung.org/fr/#7/<latitude>/<longitude>`), on all pages. Section
+  `[[lightning]]` (`enable`, `zoom`); coordinates from `[Station]` or `[[forecast]]`.
 
 ## 1.93
 
-- **Légendes cliquables** sur les graphiques à plusieurs courbes : un clic (ou Entrée /
-  Espace) sur un élément de la légende masque la courbe, un second la réaffiche (élément
-  barré et grisé). Masquage temporaire, jusqu'au rechargement de la page.
-  - Tableau de bord et pages « jour » : vent (moyen / rafales), pluie (horaire / cumul),
-    panneaux groupés (une mesure), cumuls génériques ; « Soleil et Lune » (soleil, lune, jour).
-  - Pages de détail, par période, « mois » et « année » : chaque courbe de la légende.
-  - Ensembles : un modèle (ses membres), moyenne groupée, bande 10–90 %, séries de pluie.
-  - Météogramme : précipitations, averses, cumul ; neige ; nuages, isotherme ; température,
-    isotherme et vent en altitude ; vent moyen, rafales, direction.
-- Les courbes masquées sortent de l'échelle (ex. rafales masquées : axe ajusté au vent moyen)
-  et de l'infobulle.
-- `minichart.js` : `MiniChart.linkLegend(ul, graphique)`, attribut `data-s` des éléments de
-  légende (indices des séries).
+- **Clickable legends** on charts with several curves: a click (or Enter / Space) on a legend
+  item hides the curve, a second one shows it again (item struck through and greyed).
+  Temporary hiding, until the page is reloaded.
+  - Dashboard and "day" pages: wind (mean / gusts), rain (hourly / total), grouped panels (one
+    measurement), generic totals; "Sun and Moon" (sun, moon, daytime).
+  - Detail, period, "month" and "year" pages: each curve of the legend.
+  - Ensembles: a model (its members), combined mean, 10–90 % band, rain series.
+  - Meteogram: precipitation, showers, total; snow; clouds, isotherm; temperature, isotherm
+    and wind aloft; mean wind, gusts, direction.
+- Hidden curves leave the scale (e.g. gusts hidden: axis adjusted to the mean wind) and the
+  tooltip.
+- `minichart.js`: `MiniChart.linkLegend(ul, chart)`, `data-s` attribute of legend items
+  (series indices).
 
 ## 1.92
 
-- Tableau de bord : panneaux **réduits par défaut**. Un nouveau visiteur voit tous les
-  panneaux réduits ; un paramètre ajouté dans `skin.conf` apparaît réduit, y compris chez les
-  visiteurs ayant déjà choisi « Tout développer ». Les choix mémorisés (panneau développé
-  ou réduit) sont conservés ; pages « jour » : panneaux toujours développés par défaut.
+- Dashboard: panels **collapsed by default**. A new visitor sees all panels collapsed; a
+  parameter added in `skin.conf` appears collapsed, including for visitors who already chose
+  "Expand all". Remembered choices (panel expanded or collapsed) are kept; "day" pages: panels
+  always expanded by default.
 
 ## 1.91
 
-- **Mode admin** : option `admin = true` d'un paramètre ou d'un panneau groupé de
-  `[[parameters]]` ; ce paramètre n'est affiché qu'en mode admin (tableau de bord et liste
-  « Réorganiser », pages « jour », pages de détail, par période, « mois » et « année », menu
-  « Données »).
-- Nouvelle page **« Réglages → Admin »** (`admin.html`, `admin.js`) : entrée du mot de passe,
-  mémorisé par le navigateur, et bouton « Quitter le mode admin » ; menu « Admin (actif) ».
-- Mot de passe dans `[LiveJSON] [[admin]] password` ; seule son empreinte SHA-256 est
-  publiée (`window.WX_ADMIN` dans `wxtime.js`). Calcul de l'empreinte aussi sans
-  `crypto.subtle` (page servie en http sur le réseau local).
-- Simple masquage à l'affichage : les données restent dans les fichiers publiés et dans MQTT.
+- **Admin mode**: `admin = true` option of a parameter or grouped panel of `[[parameters]]`;
+  this parameter is only shown in admin mode (dashboard and "Rearrange" list, "day" pages,
+  detail, period, "month" and "year" pages, "Data" menu).
+- New **"Settings → Admin"** page (`admin.html`, `admin.js`): entry of the password,
+  remembered by the browser, and "Leave admin mode" button; "Admin (active)" menu.
+- Password in `[LiveJSON] [[admin]] password`; only its SHA-256 hash is published
+  (`window.WX_ADMIN` in `wxtime.js`). Hash also computed without `crypto.subtle` (page served
+  over http on the local network).
+- Simple hiding on display: the data stay in the published files and in MQTT.
 
 ## 1.90
 
-- `skin.conf` : section `[[units]]` livrée avec les unités métriques, chaque option suivie
-  de la liste des unités possibles ; `kmh` accepté pour `km/h`.
+- `skin.conf`: `[[units]]` section shipped with the metric units, each option followed by the
+  list of possible units; `kmh` accepted for `km/h`.
 
 ## 1.89
 
-- **Unités d'affichage** : `[LiveJSON] [[units]]` choisit les unités par défaut du site
-  (température °C/°F, vent km/h, m/s, mph, kn, pluie mm/in, intensité mm/h, in/h, pression
-  hPa, inHg, mmHg, kPa, altitude m/ft, neige cm/in). Les données restent métriques ; la
-  conversion se fait à l'affichage sur toutes les pages (valeurs, graphiques, infobulles,
-  tableaux climatologiques, records, prévisions, ensembles, météogramme).
-- Nouveau menu **« Réglages → Unités »** (`units.html`) : chaque visiteur choisit ses unités,
-  mémorisées par son navigateur.
-- Carte Windy affichée dans les unités choisies.
+- **Display units**: `[LiveJSON] [[units]]` chooses the site's default units (temperature
+  °C/°F, wind km/h, m/s, mph, kn, rain mm/in, rate mm/h, in/h, pressure hPa, inHg, mmHg, kPa,
+  altitude m/ft, snow cm/in). Data stay metric; conversion happens on display on all pages
+  (values, charts, tooltips, climatological tables, records, forecasts, ensembles, meteogram).
+- New **"Settings → Units"** menu (`units.html`): each visitor chooses their units, remembered
+  by their browser.
+- Windy map shown in the chosen units.
 
 ## 1.88
 
-- Tableaux climatologiques : **valeurs provisoires** marquées (italique et astérisque, heure
-  de passage en définitif dans l'infobulle) tant que la fenêtre du jour n'est pas close — Tn
-  jusqu'à 18 h UTC, Tx et pluie jusqu'au lendemain 6 h UTC (méthode `omm`) ; minuit (méthode
-  `civil`). Tableau annuel : mois en cours (et ligne « Année ») provisoires jusqu'à la clôture
-  de son dernier jour.
-- Méthode `omm` : le tableau du mois (ou de l'année) qui vient de se terminer est régénéré une
-  fois après le 1er à 6 h UTC, pour inscrire les valeurs définitives de son dernier jour.
+- Climatological tables: **provisional values** marked (italics and asterisk, time when the
+  value becomes final in the tooltip) as long as the day's window is not closed — Tn until
+  18:00 UTC, Tx and rain until 06:00 UTC the next day (`omm` method); midnight (`civil`
+  method). Yearly table: current month (and "Year" row) provisional until its last day is
+  closed.
+- `omm` method: the table of the month (or year) that has just ended is regenerated once after
+  the 1st at 06:00 UTC, to record the final values of its last day.
 
 ## 1.87
 
-- Ajout de ce journal des modifications (`changelog.md`), tenu à jour à chaque version.
+- Addition of this change log (`changelog.md`), kept up to date at each version.
 
 ## 1.86
 
-- **Tableaux climatologiques selon les règles horaires de l'OMM** (option) :
+- **Climatological tables according to the WMO hourly rules** (option):
   `[[archives]] climato_method = civil | omm`.
-  - `omm` (heures UTC) : Tn du jour J de J-1 18 h à J 18 h ; Tx et pluie de J 6 h à J+1 6 h ;
-    température moyenne = moyenne des 8 relevés trihoraires (0, 3 … 21 h) ; vent, humidité et
-    pression restent de 0 h à 24 h.
-  - Calcul sur les enregistrements d'archive (colonnes `lowOutTemp` / `highOutTemp` si elles
-    existent, sinon `outTemp`) ; tableaux mensuels et annuels (jours de gel, de pluie… comptés
-    sur ces mêmes valeurs).
-  - `civil` (défaut) : journées de 0 h à 24 h, inchangé. Méthode rappelée sous chaque tableau.
+  - `omm` (UTC hours): Tn of day D from D-1 18:00 to D 18:00; Tx and rain from D 06:00 to
+    D+1 06:00; mean temperature = mean of the 8 three-hourly readings (00, 03 … 21:00); wind,
+    humidity and pressure stay from 0:00 to 24:00.
+  - Computed on the archive records (`lowOutTemp` / `highOutTemp` columns if they exist,
+    otherwise `outTemp`); monthly and yearly tables (frost, rain days… counted on these same
+    values).
+  - `civil` (default): days from 0:00 to 24:00, unchanged. Method recalled below each table.
 
 ## 1.85
 
-- Option `[[mqtt]] temp_deltas` : `false` masque la ligne « Sur 1 h · Sur 24 h » du panneau
-  Température et ne lit plus `temp_1h_key` / `temp_24h_key`.
+- `[[mqtt]] temp_deltas` option: `false` hides the "Over 1 h · Over 24 h" line of the
+  Temperature panel and no longer reads `temp_1h_key` / `temp_24h_key`.
 
 ## 1.84
 
-- Page de détail Pluie, 7 jours : la courbe de cumul manquait (coupée en points isolés). Cumul
-  calculé heure par heure ; une courbe de cumul n'est plus jamais interrompue (option `maxGap`
-  par série dans MiniChart).
+- Rain detail page, 7 days: the cumulative curve was missing (cut into isolated points).
+  Total computed hour by hour; a cumulative curve is never interrupted any more (`maxGap`
+  option per series in MiniChart).
 
 ## 1.83
 
-- **Pluie et cumul sur deux échelles** : barres de pluie à gauche, cumul à droite (échelle
-  propre, alignée sur la grille). Tableau de bord, pages jour, pages de détail et d'archives,
-  paramètres ajoutés de type cumul.
+- **Rain and total on two scales**: rain bars on the left, total on the right (own scale,
+  aligned with the grid). Dashboard, day pages, detail and archive pages, added parameters of
+  total type.
 
 ## 1.82
 
-- `[LiveJSON] hours` s'applique enfin aux graphiques du tableau de bord (la page affichait
-  toujours 24 h) : graphiques, rose des vents et cumuls glissants (« Cumul … h »). Pages jour :
-  inchangées (minuit à minuit).
+- `[LiveJSON] hours` finally applies to the dashboard charts (the page always showed 24 h):
+  charts, wind rose and rolling totals ("Total … h"). Day pages: unchanged (midnight to
+  midnight).
 
 ## 1.81
 
-- Courbes de température (°C) des **panneaux groupés** (ex. température du sol) colorées selon
-  l'échelle des températures, distinguées par le trait (plein, tirets, pointillés) ; unité « °C »
-  reconnue aussi avec un espace.
+- Temperature (°C) curves of **grouped panels** (e.g. soil temperature) coloured according to
+  the temperature scale, distinguished by the line (solid, dashed, dotted); unit "°C" also
+  recognised with a space.
 
 ## 1.80
 
-- Tableau de bord : panneaux **développés en tête**, panneaux réduits regroupés en dessous.
+- Dashboard: **expanded panels first**, collapsed panels grouped below.
 
 ## 1.79
 
-- Graphiques des panneaux du tableau de bord ramenés à **184 px** de haut (150 px sur mobile).
+- Dashboard panel charts reduced to **184 px** high (150 px on mobile).
 
 ## 1.77
 
-- Météogramme : flèches de direction du vent plus grandes et plus épaisses, avec un liseré pour
-  rester lisibles sur les courbes.
+- Meteogram: larger and thicker wind direction arrows, with an outline to stay readable over
+  the curves.
 
 ## 1.74
 
-- Pages jour : liens « ‹ Jour précédent » / « Jour suivant › » (au lieu de « Veille » /
-  « Lendemain »).
+- Day pages: "‹ Previous day" / "Next day ›" links (instead of "Day before" / "Day after").
 
 ## 1.73
 
-- Pages jour : moyenne du jour aussi pour l'humidité, la pression et les paramètres ajoutés
-  (hors cumuls, groupes compris) ; tendance de pression et intensité de pluie instantanée retirées.
+- Day pages: daily mean also for humidity, pressure and added parameters (except totals,
+  groups included); pressure trend and instantaneous rain rate removed.
 
 ## 1.72
 
-- Pages jour : température et vent **moyens du jour** au lieu de la dernière mesure ; direction :
-  **vent dominant du jour** (secteur le plus fréquent) ; écarts 1 h / 24 h et rafale instantanée
-  retirés.
+- Day pages: **daily mean** temperature and wind instead of the last reading; direction:
+  **prevailing wind of the day** (most frequent sector); 1 h / 24 h changes and instantaneous
+  gust removed.
 
 ## 1.71
 
-- Correction de l'erreur « WXT is not defined » sur les pages d'archives générées avant 1.68 :
-  fonctions de date déplacées dans `nav.js` ; `wxtime.js` ne fournit plus que le fuseau.
+- Fix of the "WXT is not defined" error on archive pages generated before 1.68: date
+  functions moved to `nav.js`; `wxtime.js` now only provides the time zone.
 
 ## 1.70
 
-- Le rayonnement solaire n'est plus un paramètre standard (6 panneaux standard) ; il reste
-  possible comme paramètre ajouté (exemple commenté dans `skin.conf`).
+- Solar radiation is no longer a standard parameter (6 standard panels); it remains possible
+  as an added parameter (commented example in `skin.conf`).
 
 ## 1.69
 
-- Panneau Température : ligne bleue **« Durée du gel en cours »** quand la température est
-  négative (début du gel cherché dans toute l'archive, mise à jour chaque seconde et par MQTT).
+- Temperature panel: blue line **"Current frost duration"** when the temperature is negative
+  (start of the frost looked up in the whole archive, updated every second and via MQTT).
 
 ## 1.68
 
-- **Heure de la station sur toutes les pages**, quel que soit le fuseau du visiteur (fuseau
-  détecté sur le système weewx, ou `[LiveJSON] timezone`) ; Open-Meteo interrogé dans ce fuseau.
-- Météogramme : option `top_humidity` renommée `top_clouds` (l'ancien nom reste accepté).
+- **Station time on all pages**, whatever the visitor's time zone (time zone detected on the
+  weewx system, or `[LiveJSON] timezone`); Open-Meteo queried in that time zone.
+- Meteogram: `top_humidity` option renamed `top_clouds` (the old name is still accepted).
 
 ## 1.67
 
-- Revue complète du code et des commentaires : corrections (ordre des panneaux, réponses de
-  prévisions arrivant dans le désordre, membres des modèles à 3 h / 6 h dans Ensembles, page du
-  jour à minuit, horizons invalides, seuil de pluie), optimisations (fonction Open-Meteo commune,
-  caches) ; README avec sommaire et plages des options.
+- Complete review of the code and comments: fixes (panel order, forecast responses arriving
+  out of order, members of 3 h / 6 h models in Ensembles, day page at midnight, invalid
+  horizons, rain threshold), optimisations (common Open-Meteo function, caches); README with
+  table of contents and option ranges.
 
 ## 1.66
 
-- Fond des cartes RainViewer / EUMETSAT configurable (`[[basemap]]` : osm par défaut, esri,
-  opentopomap, carto avec clé d'API).
+- Configurable basemap for the RainViewer / EUMETSAT maps (`[[basemap]]`: osm by default,
+  esri, opentopomap, carto with API key).
 
 ## 1.65
 
-- Tableau de bord : cadres et panneaux **masquables** par le visiteur (mémorisé par le navigateur).
+- Dashboard: frames and panels **can be hidden** by the visitor (remembered by the browser).
 
 ## 1.64
 
-- Tableau de bord : panneaux de mesures réorganisables par le visiteur.
+- Dashboard: measurement panels can be rearranged by the visitor.
 
 ## 1.63
 
-- Tableau de bord : ordre des cadres configurable (`[[dashboard]] order`) et réorganisable par
-  le visiteur ; « Soleil et Lune » placé après les cartes radar et satellite.
+- Dashboard: configurable frame order (`[[dashboard]] order`), rearrangeable by the visitor;
+  "Sun and Moon" placed after the radar and satellite maps.
 
 ## 1.62
 
-- Météogramme : liste des modèles au-dessus de la ligne d'information, sans répéter le nom du
-  modèle.
+- Meteogram: model list above the information line, without repeating the model name.
 
 ## 1.61
 
-- Ensembles : horizon de 10 jours et un point par heure par défaut.
+- Ensembles: 10-day horizon and one point per hour by default.
 
 ## 1.59
 
-- Tableau de bord : choix du modèle des prévisions (5 modèles Open-Meteo).
+- Dashboard: choice of the forecast model (5 Open-Meteo models).
 
 ## 1.58
 
-- Météogramme : courbe du cumul de pluie et choix parmi 5 modèles.
+- Meteogram: rain total curve and choice among 5 models.
 
 ## 1.57
 
-- Météogramme : couverture nuageuse seule (humidité relative en altitude retirée).
+- Meteogram: cloud cover only (upper-air relative humidity removed).
 
 ## 1.56
 
-- Page **« Météogramme »** (Open-Meteo, sol et altitude), menu « Prévisions » ; pictogrammes
-  météo partagés (`wxicons.js`).
+- **"Meteogram"** page (Open-Meteo, ground and upper air), "Forecasts" menu; shared weather
+  icons (`wxicons.js`).
 
 ## 1.55
 
-- Fichiers du skin à la racine de `skins/WeewxLive` (plus de sous-dossier `live/`) ; dossier de
-  sortie au choix (`HTML_ROOT`).
+- Skin files at the root of `skins/WeewxLive` (no more `live/` subfolder); output folder of
+  your choice (`HTML_ROOT`).
 
 ## 1.54
 
-- Page des ensembles : titre « Prévisions - Ensembles ».
+- Ensembles page: title "Forecasts - Ensembles".
 
 ## 1.53
 
-- Ensembles : identifiants des modèles Open-Meteo corrigés (`ecmwf_ifs025`,
-  `google_weathernext2_ensemble`…), anciens noms convertis automatiquement.
+- Ensembles: Open-Meteo model identifiers fixed (`ecmwf_ifs025`,
+  `google_weathernext2_ensemble`…), old names converted automatically.
 
 ## 1.52
 
-- Ensembles : une variable refusée par un modèle est retirée de la requête ; version affichée.
+- Ensembles: a variable refused by a model is removed from the request; version shown.
 
 ## 1.51
 
-- Ensembles : section « Analyse écrite » retirée.
+- Ensembles: "Written analysis" section removed.
 
 ## 1.50
 
-- Ensembles : échéance limitée par modèle (erreur 400 d'ECMWF / Google), raison des erreurs
-  Open-Meteo affichée.
+- Ensembles: range limited per model (error 400 from ECMWF / Google), reason of Open-Meteo
+  errors shown.
 
 ## 1.49
 
-- Page **« Prévisions - Ensembles »** (API Ensemble d'Open-Meteo, modèles configurables),
-  nouveau menu « Prévisions ».
+- **"Forecasts - Ensembles"** page (Open-Meteo Ensemble API, configurable models), new
+  "Forecasts" menu.
 
-## Versions annulées
+## Cancelled versions
 
-- **1.60** (météogramme, lecture de l'ancien format) : annulée, retour à 1.59.
-- **1.75** et **1.76** (cumul de pluie MQTT, alias `rainDay`) : annulées, retour à 1.74.
-- **1.78** (widget de cartes meteoblue) : supprimée, retour à 1.77.
-- **1.96** (pluie de chaque relevé d'archive sur les graphiques 24 h, jour et 7 jours) : supprimée, retour à 1.95.
+- **1.60** (meteogram, reading of the old format): cancelled, back to 1.59.
+- **1.75** and **1.76** (MQTT rain total, `rainDay` alias): cancelled, back to 1.74.
+- **1.78** (meteoblue map widget): removed, back to 1.77.
+- **1.96** (rain of each archive record on the 24 h, day and 7-day charts): removed, back to 1.95.

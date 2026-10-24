@@ -2,10 +2,7 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.10.
-
-[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
-
+and does not need to be reachable from the internet. Version 2.12.
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -55,8 +52,9 @@ and does not need to be reachable from the internet. Version 2.10.
 - **Ensemble forecasts** ("Forecasts" → "Ensembles" menu, `ensembles.html`): all members of
   the Open-Meteo ensemble models (ECMWF, GFS, ICON, GEM, Google…), combined mean, rain and
   probability per day, model comparison, day-by-day table; models and horizons configurable.
-- **MeteoAlarm weather warnings** ("Forecasts" → "Weather warnings" menu, `vigilance.html`):
-  warnings of the national weather services for one or more locations, in one or more
+- **Weather warnings** ("Forecasts" → "Weather warnings" menu, `vigilance.html`): warnings of
+  the national weather services from MeteoAlarm (Europe), the National Weather Service (United
+  States) and Environment and Climate Change Canada, for one or more locations, in one or more
   countries; pills of the warnings in force (yellow, orange, red) at the top of the
   dashboard, full details on the "Weather warnings" page; updated every 5 minutes.
 - **Pages in French, English, German or Italian** (option `lang`, skin files `lang/fr.conf`,
@@ -100,7 +98,7 @@ router.
 |---|---|
 | `install.py` | installer for `weectl extension install` |
 | `README.fr.md` | French version of this README |
-| `changelog.md` | change log, version by version (in French) |
+| `changelog.md`, `changelog.fr.md` | change log, version by version (English, French) |
 | `bin/user/livejson.py` | weewx extension (SearchList): computes all JSON files and template values |
 | `skins/WeewxLive/skin.conf` | report configuration: displayed parameters, MQTT, forecasts, maps, extremes |
 | `skins/WeewxLive/skin.fr.conf` | copy of `skin.conf` with the comments in French (reference, not read by weewx) |
@@ -125,7 +123,7 @@ router.
 | `skins/WeewxLive/wxtime.js.tmpl` | station time zone (the date functions of all pages are in `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | "Settings → Units" page (units chosen by the visitor) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | "Webcam" page (images and videos from `[[webcam]]`) |
-| `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | MeteoAlarm weather warnings: dashboard pills and "Weather warnings" page ([Weather warnings](#weather-warnings-meteoalarm)) |
+| `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | MeteoAlarm weather warnings: dashboard pills and "Weather warnings" page ([Weather warnings](#weather-warnings-meteoalarm-nws-eccc)) |
 | `skins/WeewxLive/admin.html.tmpl`, `admin.js` | "Settings → Admin" page (entering and leaving [admin mode](#admin-mode-reserved-parameters)) |
 | `skins/WeewxLive/wxicons.js` | WMO weather codes and icons (dashboard forecasts, meteogram) |
 | `skins/WeewxLive/nav.js` | station time (date functions), units, admin mode, common menu; name, subtitle and logo of the static pages |
@@ -155,7 +153,7 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `data/astro.json` | sun and moon of the day (weewx almanac) | at each archive |
 | `data/meteogram.json` | Open-Meteo meteogram (ground and pressure levels, 5 models) | every 30 min, download at most once an hour per model |
 | `data/ensembles.json` | Open-Meteo ensemble forecasts (members) | every 30 min, download at most once every 3 h per model |
-| `data/warnings.json` | MeteoAlarm weather warnings of each location | at each archive, download at most once every 5 min per country |
+| `data/warnings.json` | weather warnings of each location (MeteoAlarm, NWS, ECCC) | at each archive, download at most once every 5 min per source (MeteoAlarm: per country) |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | archive pages | current period at each archive; past periods once |
 | `*.js`, `style.css`, `img/`, `vendor/` | copied files | at each archive (FTP only uploads changed files) |
 
@@ -519,7 +517,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.10
+SKIN_VERSION = 2.12
 
 lang = en          # fr, en, de or it
 ```
@@ -969,7 +967,7 @@ Coordinates: those of `[Station]` in `weewx.conf`, or `[[forecast]] latitude / l
         zoom = 7          # map zoom level (2 to 12)
 ```
 
-### Weather warnings (MeteoAlarm)
+### Weather warnings (MeteoAlarm, NWS, ECCC)
 
 [MeteoAlarm](https://meteoalarm.org) (EUMETNET) gathers the warnings of the European national
 weather services (Météo-France, MeteoSwiss, DWD, Aeronautica Militare…). weewx downloads the
@@ -1041,6 +1039,43 @@ pages re-read this file every 5 minutes.
   `archive_interval = 300`); with a longer interval, warnings are refreshed at the same pace.
 - Terms of use: data from MeteoAlarm / national weather services, source credited on the
   page; non-commercial use.
+
+#### United States (NWS) and Canada (ECCC)
+
+A location can use another source than MeteoAlarm with the `source` option; the pills, the
+"Weather warnings" page and the levels work the same way, and locations of different sources
+can be mixed.
+
+```ini
+    [[meteoalarm]]
+        [[[minneapolis]]]
+            title = Minneapolis
+            source = nws          # National Weather Service (United States)
+            latitude = 44.98
+            longitude = -93.27
+        [[[montreal]]]
+            title = Montréal
+            source = eccc         # Environment and Climate Change Canada
+            latitude = 45.50
+            longitude = -73.57
+```
+
+| `source` | Service | Location | Levels |
+|---|---|---|---|
+| `meteoalarm` (default) | [MeteoAlarm](https://meteoalarm.org), Europe | `country` + `region` / `area` / `latitude`, `longitude` | `awareness_level` of the warning (yellow, orange, red) |
+| `nws` | [National Weather Service](https://www.weather.gov/documentation/services-web-API) (`api.weather.gov/alerts/active`) | `latitude`, `longitude` (point query), or `region` = NWS zone or county codes (e.g. `MNZ060`, `MNC053`) | Advisory, Watch: yellow; Warning: orange; Emergency or `Extreme` severity: red (statements are not shown) |
+| `eccc` | [Environment and Climate Change Canada](https://api.weather.gc.ca/collections/weather-alerts) (MSC GeoMet, `weather-alerts`) | `latitude`, `longitude` (point inside the alert regions) | risk colour of the alert (yellow, orange, red; statements are not shown) |
+
+- Without `latitude` / `longitude` (and, for NWS, without `region`), the station coordinates
+  are used. `country` is not used by these two sources.
+- NWS: texts in English (event, headline, description, instructions); one request per location
+  and per `cache`, with a User-Agent identifying weewx-live, as required by the NWS.
+- ECCC: texts in French when the pages are in French, otherwise in English; "Severity" and
+  "Certainty" show the impact and the confidence given by ECCC; link to weather.gc.ca /
+  meteo.gc.ca.
+- Phenomenon derived from the warning name (e.g. "Winter Storm Warning": snow / ice; "Wind
+  Chill Advisory": low temperature). Two types exist only for these sources: tornado and
+  tropical cyclone (hurricane, tropical storm).
 
 ## 7. This day and this month over the years
 
