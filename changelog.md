@@ -5,6 +5,17 @@
 Summary of the changes in each version, from the most recent to the oldest (since version
 1.49). Skipped numbers are cancelled versions (see the end of the list).
 
+## 2.13
+
+- **Common footer on all pages** (`[LiveJSON] [[footer]]`), below each page's own footer:
+  station (`station`, otherwise the station name) and weewx software with its version
+  (`software`), disclaimer (`disclaimer_title`, paragraphs `disclaimer_1`, `disclaimer_2`…
+  in the order of their number, line after the first one), final warning in bold
+  (`warning`), copyright and contact address (`copyright`, `email`, `email_label`).
+  `enable = false`: no footer.
+- Rendered by `nav.js` from `config.json`: also shown on archive pages generated before this
+  version. Texts shown as plain text, whatever the page language.
+
 ## 2.12
 
 - **Change log in English**: `changelog.md` is now in English, the French version becomes

@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.12.
+et n'a pas besoin d'être joignable depuis internet. Version 2.13.
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -66,6 +66,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 2.12.
   s'ajoute avec un fichier de plus (voir [Langue des pages](#langue-des-pages-lang)).
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
+- **Pied de page commun** à toutes les pages (`[[footer]]`) : station, version de weewx,
+  clause de non-responsabilité, avertissement, copyright et contact.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
   au-delà), thème clair / sombre automatique, affichage mobile.
 
@@ -433,6 +435,42 @@ dans `skins/WeewxLive/img/` (copiée avec le site) et indiquez-la :
     logo_height = 48           # hauteur en pixels (16 à 200)
 ```
 
+### Pied de page (`[[footer]]`)
+
+Un pied de page commun à toutes les pages (tableau de bord, pages de détail, par période,
+d'archives et de climatologie, prévisions, ensembles, météogramme, vigilance, webcam,
+réglages) s'affiche sous le pied de page propre à chaque page : station et logiciel weewx,
+clause de non-responsabilité, avertissement final, copyright et contact.
+
+```ini
+[LiveJSON]
+    [[footer]]
+        enable = true                      # false : pas de pied de page commun
+        station = Station météo Davis Vantage Pro 2 plus   # vide : nom de la station
+        software = true                    # « - logiciel WeeWX v.5.5.2 »
+        disclaimer_title = Clause de non-responsabilité
+        disclaimer_1 = "Les données de ce site proviennent d'une station météo amateur."
+        disclaimer_2 = "Elles sont fournies à titre indicatif, sans garantie d'exactitude."
+        disclaimer_3 = "Pour les prévisions et vigilances officielles, consultez le service météorologique national."
+        warning = "Ne prenez aucune décision importante sur la seule base de ces informations."   # en gras
+        copyright = © weewx-live
+        email = webmaster@exemple.fr       # contact ("" : aucun)
+        email_label = Contact :
+```
+
+- Les paragraphes `disclaimer_1`, `disclaimer_2`… (autant que nécessaire) s'affichent dans
+  l'ordre de leur numéro, avec un trait après le premier ; `warning` termine la clause, en
+  gras.
+- Les textes sont affichés tels qu'écrits (texte simple, sans HTML), quelle que soit la langue
+  des pages ; les mettre entre guillemets s'ils contiennent des virgules. Une option vide
+  n'est pas affichée.
+- `software` : version du weewx qui génère le site, avec un lien vers weewx.com.
+- L'adresse électronique est visible dans les pages et dans `config.json` (comme toute adresse
+  publiée sur un site).
+- Les pages d'archives générées avant cette option lisent le pied de page dans `config.json` :
+  inutile de les refaire. Pour garder vos textes lors des mises à jour, placez-les dans
+  `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[footer]]]]`).
+
 ### Vérifier
 
 ```bash
@@ -526,7 +564,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.12
+SKIN_VERSION = 2.13
 
 lang = en          # fr, en, de ou it
 ```

@@ -85,7 +85,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.12"
+VERSION = "2.13"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -632,6 +632,37 @@ def _webcam(opts):
             "autoplay": to_bool(w.get("autoplay", False)),
         })
     return {"enable": to_bool(sec.get("enable", True)) and bool(items), "items": items}
+
+
+
+def _footer(opts):
+    """[[footer]] : pied de page commun à toutes les pages (nav.js) : nom de la station,
+    logiciel weewx et sa version, clause de non-responsabilité (titre, paragraphes
+    disclaimer_1, disclaimer_2… dans l'ordre de leur numéro, avertissement final), copyright
+    et adresse de contact. Textes de l'administrateur, affichés tels quels (sans HTML)."""
+    sec = opts.get("footer", {}) or {}
+    txt = lambda k: str(sec.get(k, "") or "").strip()
+    paras = []
+    for k in sec.keys():
+        m = re.match(r"^disclaimer_(\d+)$", str(k))
+        if m and txt(k):
+            paras.append((int(m.group(1)), txt(k)))
+    email = txt("email")
+    if email and not re.match(r"^[^@\s<>\"']+@[^@\s<>\"']+\.[^@\s<>\"']+$", email):
+        log.error("livejson: [[footer]] email « %s » invalide, ignoré", email)
+        email = ""
+    return {
+        "enable": to_bool(sec.get("enable", True)),
+        "station": txt("station"),
+        "software": to_bool(sec.get("software", True)),
+        "weewx_version": str(getattr(weewx, "__version__", "") or ""),
+        "disclaimer_title": txt("disclaimer_title"),
+        "disclaimers": [p for _n, p in sorted(paras)],
+        "warning": txt("warning"),
+        "copyright": txt("copyright"),
+        "email": email,
+        "email_label": txt("email_label"),
+    }
 
 
 # ----------------------------------------------------------------------
@@ -1292,6 +1323,8 @@ class LiveJSON(SearchList):
         self.meteogram = dict(opts.get("meteogram", {}))
         self.lightning = dict(opts.get("lightning", {}))
         self.webcam = _webcam(opts)
+        # pied de page commun ([[footer]])
+        self.footer = _footer(opts)
         # vigilance météo MeteoAlarm ([[meteoalarm]] : lieux suivis)
         self.meteoalarm = _meteoalarm(opts)
         self.dash_order = _dash_order(opts)
@@ -1513,6 +1546,8 @@ class LiveJSON(SearchList):
                           "zoom": _int(self.lightning.get("zoom"), 7, 2, 12)},
             # page « Webcam » : images et vidéos ([[webcam]]), éléments admin compris
             "webcam": self.webcam,
+            # pied de page commun à toutes les pages (nav.js) ; station vide : nom de la station
+            "footer": dict(self.footer, station=self.footer["station"] or self.station_label()),
             # vigilance météo MeteoAlarm : bandeau du tableau de bord, page vigilance.html
             "meteoalarm": {"enable": self.meteoalarm["enable"], "cache": self.meteoalarm["cache"],
                            "locations": [{"id": l["id"], "title": l["title"]} for l in self.meteoalarm["locations"]]},

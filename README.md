@@ -2,10 +2,7 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.12.
-
-[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
-
+and does not need to be reachable from the internet. Version 2.13.
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -65,6 +62,8 @@ and does not need to be reachable from the internet. Version 2.12.
   added with one more file (see [Page language](#page-language-lang)).
 - **"Extremes" page**: all-time records, rankings (days, months, showers) and longest frost,
   dry and wet spells, over the whole database.
+- **Common footer** on all pages (`[[footer]]`): station, weewx version, disclaimer, warning,
+  copyright and contact.
 - Temperatures coloured by value (blues ≤ 0 °C, greens from 0 to 10 °C, yellow → red above),
   automatic light / dark theme, mobile layout.
 
@@ -430,6 +429,39 @@ A logo can be shown to the left of the station name (all pages): put the image i
     logo_height = 48           # height in pixels (16 to 200)
 ```
 
+### Footer (`[[footer]]`)
+
+A footer common to all pages (dashboard, detail, period, archive and climatology pages,
+forecasts, ensembles, meteogram, warnings, webcam, settings) is shown below each page's own
+footer: station and weewx software, disclaimer, final warning, copyright and contact.
+
+```ini
+[LiveJSON]
+    [[footer]]
+        enable = true                      # false: no common footer
+        station = Davis Vantage Pro 2 plus weather station   # empty: station name
+        software = true                    # " - WeeWX software v.5.5.2"
+        disclaimer_title = Disclaimer
+        disclaimer_1 = "The data on this site come from an amateur weather station."
+        disclaimer_2 = "They are provided for information only, without any guarantee of accuracy."
+        disclaimer_3 = "For official forecasts and warnings, refer to the national weather service."
+        warning = "Do not make important decisions based on this information alone."   # in bold
+        copyright = © weewx-live
+        email = webmaster@example.com      # contact ("": none)
+        email_label = Contact:
+```
+
+- Paragraphs `disclaimer_1`, `disclaimer_2`… (as many as needed) are shown in the order of
+  their number, with a line after the first one; `warning` closes the disclaimer, in bold.
+- Texts are shown as written (plain text, no HTML), whatever the page language; put them in
+  quotes if they contain commas. An empty option is not shown.
+- `software`: version of the weewx that generates the site, with a link to weewx.com.
+- The email address is visible in the pages and in `config.json` (as any address published on
+  a website).
+- Archive pages generated before this option read the footer from `config.json`: no need to
+  rebuild them. To keep your texts across updates, put them in `weewx.conf`
+  (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[footer]]]]`).
+
 ### Check
 
 ```bash
@@ -520,7 +552,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.12
+SKIN_VERSION = 2.13
 
 lang = en          # fr, en, de or it
 ```

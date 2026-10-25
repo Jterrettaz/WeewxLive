@@ -5,6 +5,17 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.13
+
+- **Pied de page commun à toutes les pages** (`[LiveJSON] [[footer]]`), sous le pied de page
+  propre à chaque page : station (`station`, sinon le nom de la station) et logiciel weewx
+  avec sa version (`software`), clause de non-responsabilité (`disclaimer_title`, paragraphes
+  `disclaimer_1`, `disclaimer_2`… dans l'ordre de leur numéro, trait après le premier),
+  avertissement final en gras (`warning`), copyright et adresse de contact (`copyright`,
+  `email`, `email_label`). `enable = false` : pas de pied de page.
+- Affiché par `nav.js` d'après `config.json` : aussi sur les pages d'archives générées avant
+  cette version. Textes affichés en texte simple, quelle que soit la langue des pages.
+
 ## 2.12
 
 - **Journal des modifications en anglais** : `changelog.md` est désormais en anglais, la

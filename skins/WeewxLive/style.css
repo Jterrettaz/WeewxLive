@@ -905,3 +905,20 @@ html:not(.wx-admin) [data-admin] { display: none !important; }
 .wa-link { margin: 8px 0 0; font-size: 13px; }
 .wa-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; }
 .wa-legend li .wa-badge { margin-right: 6px; }
+
+/* ---------- Pied de page commun ([[footer]], nav.js) ---------- */
+.site-foot {
+  max-width: 1280px; margin: 8px auto 0; padding: 14px 16px 28px;
+  border-top: 1px solid var(--border); color: var(--text-3); font-size: 12px; line-height: 1.5;
+  text-align: center;
+}
+.site-foot p { margin: 0 0 6px; }
+.site-foot a { color: inherit; }
+.site-foot .sf-head { color: var(--text-2); font-size: 12.5px; }
+.site-foot .sf-disc { max-width: 900px; margin: 10px auto; }
+.site-foot .sf-disc h2 { font-size: 12.5px; margin: 0 0 6px; color: var(--text-2); font-weight: 650; }
+.site-foot hr { width: 120px; margin: 8px auto; border: 0; border-top: 1px solid var(--border); }
+.site-foot .sf-warn { color: var(--text-2); }
+.site-foot .sf-tail { margin-top: 10px; }
+/* le pied de page propre à chaque page reste au-dessus, sans marge basse */
+.foot:has(+ .site-foot) { padding-bottom: 8px; }

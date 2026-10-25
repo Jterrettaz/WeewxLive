@@ -497,6 +497,40 @@ if (!window.WXL && document.readyState === "loading") {
     window.weewxConfig.then((cfg) => { setArchives(cfg); setParams(cfg && cfg.parameters); });   // menu « Webcam » compris
   }
 
+  // ------------------------------------------------------------------
+  // Pied de page commun à toutes les pages ([LiveJSON] [[footer]], config.json) : station et
+  // logiciel weewx, clause de non-responsabilité, avertissement, copyright, contact.
+  // Pages d'archives dont la configuration intégrée n'a pas de pied de page (générées avant
+  // sa création) : lu dans config.json, donc toujours à jour.
+  function footer(f) {
+    if (!f || f.enable === false || document.getElementById("site-foot")) return;
+    const tc = (k, v) => (window.WXL ? WXL.t("Common", k, v) : k);
+    const soft = f.software && f.weewx_version
+      ? tc("{weewx} software v.{version}", { weewx: '<a href="https://weewx.com/" rel="noopener">WeeWX</a>', version: esc(f.weewx_version) })
+      : "";
+    const head = [f.station ? esc(f.station) : "", soft].filter(Boolean).join(" - ");
+    const paras = (f.disclaimers || []).map((p, i) => `<p>${esc(p)}</p>${i === 0 && f.disclaimers.length > 1 ? "<hr>" : ""}`).join("");
+    const disc = f.disclaimer_title || paras || f.warning
+      ? `<div class="sf-disc">${f.disclaimer_title ? `<h2>${esc(f.disclaimer_title)}</h2>` : ""}${paras}${f.warning ? `<p class="sf-warn"><strong>${esc(f.warning)}</strong></p>` : ""}</div>`
+      : "";
+    const mail = f.email ? `${f.email_label ? esc(f.email_label) + " " : ""}<a href="mailto:${esc(f.email)}">${esc(f.email)}</a>` : "";
+    const tail = [f.copyright ? esc(f.copyright) : "", mail].filter(Boolean).join(" · ");
+    if (!head && !disc && !tail) return;
+    const el = document.createElement("footer");
+    el.id = "site-foot"; el.className = "site-foot";
+    el.innerHTML = (head ? `<p class="sf-head">${head}</p>` : "") + disc + (tail ? `<p class="sf-tail">${tail}</p>` : "");
+    const feet = document.querySelectorAll("footer.foot");
+    const last = feet[feet.length - 1];
+    if (last) last.after(el); else document.body.appendChild(el);
+  }
+  function footerFrom(cfg) {
+    if (cfg && cfg.footer) return footer(cfg.footer);
+    fetch(BASE + "config.json?_=" + Math.floor(Date.now() / 60000), { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null)).then((c) => c && footer(c.footer)).catch(() => {});
+  }
+  const whenReady = (fn) => (document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", fn) : fn());
+  window.weewxConfig.then((cfg) => whenReady(() => footerFrom(cfg)));
+
   window.WeewxNav = { render, href, setParams, setCurrent, refreshAdmin, get current() { return current; } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);
   else render();
