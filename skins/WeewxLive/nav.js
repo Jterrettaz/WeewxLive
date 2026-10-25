@@ -308,6 +308,9 @@ if (!window.WXL && document.readyState === "loading") {
   const fcPage = FC_PAGES.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
   // lien « Éclairs » (rempli d'après la configuration : [[lightning]], coordonnées)
   let LIGHTNING = null;
+  // menu « À propos » ([[about]] enable, désactivé par défaut) : page d'information du site
+  const isAbout = /\/about\.html$/.test(location.pathname) || location.pathname === "about.html";
+  let ABOUT = isAbout ? "about.html" : null;
   // page « Webcam » (affichée dans le menu si [[webcam]] a un élément visible)
   const WEBCAM = entry("webcam", "Webcam", { page: "webcam.html" });
   const isWebcam = location.pathname.endsWith("/" + WEBCAM.page) || location.pathname === WEBCAM.page;
@@ -329,7 +332,7 @@ if (!window.WXL && document.readyState === "loading") {
   const demo = q.has("demo");
   const isDetail = /detail\.html$/.test(location.pathname);
   const extra = EXTRA.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
-  let current = climatoId || (isWebcam ? WEBCAM.id : null) || (fcPage ? fcPage.id : null) || (setPage ? setPage.id : null) || (isArchive ? "archives" : extra ? extra.id
+  let current = (isAbout ? "about" : null) || climatoId || (isWebcam ? WEBCAM.id : null) || (fcPage ? fcPage.id : null) || (setPage ? setPage.id : null) || (isArchive ? "archives" : extra ? extra.id
     : isDetail ? (q.get("period") ? "period:" + q.get("period") : q.get("p") || "outTemp") : "home");
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -352,6 +355,8 @@ if (!window.WXL && document.readyState === "loading") {
     // carte des éclairs : https://maps.blitzortung.org/<langue>/#zoom/latitude/longitude
     const lg = cfg && cfg.lightning, lat = cfg && cfg.latitude, lon = cfg && cfg.longitude;
     const wc = cfg && cfg.webcam;
+    const ab = cfg && cfg.about;
+    if (ab && ab.enable && ab.page) ABOUT = ab.page;
     hasWebcam = isWebcam || !!(wc && wc.enable && (wc.items || []).some((w) => WXA.visible(w)));
     if (lg && lg.enable !== false && Number.isFinite(lat) && Number.isFinite(lon)) {
       const bl = window.WXL ? WXL.t("Menu", "blitzortung_lang") : "fr";
@@ -424,7 +429,8 @@ if (!window.WXL && document.readyState === "loading") {
       (hasWebcam ? `<a href="${esc(href(WEBCAM.id))}"${current === WEBCAM.id ? ' aria-current="page"' : ""}>${esc(WEBCAM.label)}</a>` : "") +
       (LIGHTNING ? `<a class="ext-link" href="${esc(LIGHTNING)}" target="_blank" rel="noopener"
         title="${esc(tm("Real-time lightning map (Blitzortung), in a new tab"))}">${esc(tm("Lightning"))}<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5"/></svg><span class="sr"> ${esc(tm("(new tab)"))}</span></a>` : "") +
-      dropdown("dd-set", esc(tm("Settings")), SETTINGS, SETTINGS.map(item).join(""));
+      dropdown("dd-set", esc(tm("Settings")), SETTINGS, SETTINGS.map(item).join("")) +
+      (ABOUT ? `<a href="${esc(/^(https?:)?\/\//i.test(ABOUT) || ABOUT.startsWith("/") ? ABOUT : BASE + ABOUT)}"${isAbout ? ' aria-current="page"' : ""}>${esc(tm("About"))}</a>` : "");
     document.querySelectorAll("a[data-detail]").forEach((a) => (a.href = href(a.dataset.detail)));
 
     menus = [...nav.querySelectorAll(".dd")].map((dd) => {

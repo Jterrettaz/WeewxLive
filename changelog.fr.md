@@ -5,6 +5,17 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.15
+
+- **Menu et page « À propos »** (`[LiveJSON] [[about]]`, désactivé par défaut) : `enable = true`
+  ajoute une entrée « À propos » (dernière du menu, sur toutes les pages) qui ouvre
+  `about.html`, ou une autre page avec `page = …`. `about.html` est un exemple à adapter
+  (station, matériel, position, site, contact), en français et en anglais (la version de la
+  langue du site est affichée), avec des champs remplis d'après la configuration
+  (`data-cfg` : nom de la station, matériel, latitude, longitude) ; menu, logo et pied de page
+  commun comme sur les autres pages.
+- Une réinstallation remplace `about.html` : gardez une copie de votre version (voir README).
+
 ## 2.14
 
 - Pages d'archives, sélecteur de date : **calendrier dans la langue du site**. Le sélecteur

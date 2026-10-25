@@ -2,9 +2,7 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.14.
-
-[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
+and does not need to be reachable from the internet. Version 2.15.
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -64,6 +62,7 @@ and does not need to be reachable from the internet. Version 2.14.
   added with one more file (see [Page language](#page-language-lang)).
 - **"Extremes" page**: all-time records, rankings (days, months, showers) and longest frost,
   dry and wet spells, over the whole database.
+- Optional **"About"** menu and page (`[[about]]`, example `about.html` to adapt).
 - **Common footer** on all pages (`[[footer]]`): station, weewx version, disclaimer, warning,
   copyright and contact.
 - Temperatures coloured by value (blues ≤ 0 °C, greens from 0 to 10 °C, yellow → red above),
@@ -127,6 +126,7 @@ router.
 | `skins/WeewxLive/wxtime.js.tmpl` | station time zone (the date functions of all pages are in `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | "Settings → Units" page (units chosen by the visitor) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | "Webcam" page (images and videos from `[[webcam]]`) |
+| `skins/WeewxLive/about.html` | example "About" page, to adapt (["About" page](#about-page-about)) |
 | `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | MeteoAlarm weather warnings: dashboard pills and "Weather warnings" page ([Weather warnings](#weather-warnings-meteoalarm-nws-eccc)) |
 | `skins/WeewxLive/admin.html.tmpl`, `admin.js` | "Settings → Admin" page (entering and leaving [admin mode](#admin-mode-reserved-parameters)) |
 | `skins/WeewxLive/wxicons.js` | WMO weather codes and icons (dashboard forecasts, meteogram) |
@@ -464,6 +464,32 @@ footer: station and weewx software, disclaimer, final warning, copyright and con
   rebuild them. To keep your texts across updates, put them in `weewx.conf`
   (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[footer]]]]`).
 
+### "About" page (`[[about]]`)
+
+An **"About"** menu, not shown by default, opens a page of information about the station and
+the site. `about.html` is an **example** shipped with the skin (station, equipment, position,
+site, contact), meant to be adapted to your needs.
+
+```ini
+[LiveJSON]
+    [[about]]
+        enable = true          # default false: no "About" menu
+        page = about.html      # page opened by the menu (another page of the site, or https://…)
+```
+
+- Edit `skins/WeewxLive/about.html` (plain HTML): the menu, station name, logo and common
+  footer are added by `nav.js`, as on the other pages.
+- Two versions of the text: `<section data-lang="fr">` and `<section data-lang="en">`; the page
+  shows the one of the site language, otherwise the first one. Delete one, or add others
+  (`data-lang="de"`, `"it"`…).
+- Elements `data-cfg="stationName"`, `"hardware"`, `"latitude"`, `"longitude"` are filled from
+  the site configuration.
+- **Reinstalling the extension replaces `about.html`** (like `skin.conf`): keep a copy of your
+  version, or save it under another name in `skins/WeewxLive/` (e.g. `my-about.html`), add it to
+  `copy_always` and set `page = my-about.html`, in `weewx.conf` (`[[WeewxLive]]` →
+  `[[[LiveJSON]]]` → `[[[[about]]]]`, and `[[[CopyGenerator]]]` for `copy_always`).
+- `about.html` is published even when the menu is disabled (it is simply not linked).
+
 ### Check
 
 ```bash
@@ -554,7 +580,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.14
+SKIN_VERSION = 2.15
 
 lang = en          # fr, en, de or it
 ```

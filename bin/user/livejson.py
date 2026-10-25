@@ -85,7 +85,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.14"
+VERSION = "2.15"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -633,6 +633,14 @@ def _webcam(opts):
         })
     return {"enable": to_bool(sec.get("enable", True)) and bool(items), "items": items}
 
+
+
+def _about(opts):
+    """[[about]] : menu « À propos » (désactivé par défaut) ouvrant la page d'information du
+    site (about.html, exemple livré avec le skin, à adapter ; ou une autre page : page = …)."""
+    sec = opts.get("about", {}) or {}
+    page = _media_url(sec.get("page", "about.html")) or "about.html"
+    return {"enable": to_bool(sec.get("enable", False)), "page": page}
 
 
 def _footer(opts):
@@ -1323,7 +1331,8 @@ class LiveJSON(SearchList):
         self.meteogram = dict(opts.get("meteogram", {}))
         self.lightning = dict(opts.get("lightning", {}))
         self.webcam = _webcam(opts)
-        # pied de page commun ([[footer]])
+        # menu « À propos » ([[about]]) et pied de page commun ([[footer]])
+        self.about = _about(opts)
         self.footer = _footer(opts)
         # vigilance météo MeteoAlarm ([[meteoalarm]] : lieux suivis)
         self.meteoalarm = _meteoalarm(opts)
@@ -1546,6 +1555,8 @@ class LiveJSON(SearchList):
                           "zoom": _int(self.lightning.get("zoom"), 7, 2, 12)},
             # page « Webcam » : images et vidéos ([[webcam]]), éléments admin compris
             "webcam": self.webcam,
+            # menu « À propos » (désactivé par défaut) : page d'information du site
+            "about": self.about,
             # pied de page commun à toutes les pages (nav.js) ; station vide : nom de la station
             "footer": dict(self.footer, station=self.footer["station"] or self.station_label()),
             # vigilance météo MeteoAlarm : bandeau du tableau de bord, page vigilance.html

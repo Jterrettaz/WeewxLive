@@ -2,9 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.14.
-
-[DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
+et n'a pas besoin d'être joignable depuis internet. Version 2.15.
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -68,6 +66,7 @@ et n'a pas besoin d'être joignable depuis internet. Version 2.14.
   s'ajoute avec un fichier de plus (voir [Langue des pages](#langue-des-pages-lang)).
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
+- Menu et page **« À propos »** facultatifs (`[[about]]`, exemple `about.html` à adapter).
 - **Pied de page commun** à toutes les pages (`[[footer]]`) : station, version de weewx,
   clause de non-responsabilité, avertissement, copyright et contact.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
@@ -131,6 +130,7 @@ aucun port à ouvrir sur votre box.
 | `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
+| `skins/WeewxLive/about.html` | exemple de page « À propos », à adapter ([Page « À propos »](#page--à-propos--about)) |
 | `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | vigilance météo MeteoAlarm : pastilles du tableau de bord et page « Vigilance météo » ([Vigilance météo](#vigilance-météo-meteoalarm-nws-eccc)) |
 | `skins/WeewxLive/admin.html.tmpl`, `admin.js` | page « Réglages → Admin » (entrée et sortie du [mode admin](#mode-admin-paramètres-réservés)) |
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
@@ -473,6 +473,33 @@ clause de non-responsabilité, avertissement final, copyright et contact.
   inutile de les refaire. Pour garder vos textes lors des mises à jour, placez-les dans
   `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[footer]]]]`).
 
+### Page « À propos » (`[[about]]`)
+
+Un menu **« À propos »**, non affiché par défaut, ouvre une page d'information sur la station
+et le site. `about.html` est un **exemple** livré avec le skin (station, matériel, position,
+site, contact), à adapter selon vos besoins.
+
+```ini
+[LiveJSON]
+    [[about]]
+        enable = true          # défaut false : pas de menu « À propos »
+        page = about.html      # page ouverte par le menu (autre page du site, ou https://…)
+```
+
+- Modifier `skins/WeewxLive/about.html` (HTML simple) : le menu, le nom de la station, le logo
+  et le pied de page commun sont ajoutés par `nav.js`, comme sur les autres pages.
+- Deux versions du texte : `<section data-lang="fr">` et `<section data-lang="en">` ; la page
+  affiche celle de la langue du site, sinon la première. En supprimer une, ou en ajouter
+  d'autres (`data-lang="de"`, `"it"`…).
+- Les éléments `data-cfg="stationName"`, `"hardware"`, `"latitude"`, `"longitude"` sont remplis
+  d'après la configuration du site.
+- **Une réinstallation de l'extension remplace `about.html`** (comme `skin.conf`) : gardez une
+  copie de votre version, ou enregistrez-la sous un autre nom dans `skins/WeewxLive/` (ex.
+  `ma-page.html`), ajoutez-la à `copy_always` et indiquez `page = ma-page.html`, dans
+  `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` → `[[[[about]]]]`, et `[[[CopyGenerator]]]`
+  pour `copy_always`).
+- `about.html` est publiée même quand le menu est désactivé (elle n'est simplement pas liée).
+
 ### Vérifier
 
 ```bash
@@ -566,7 +593,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.14
+SKIN_VERSION = 2.15
 
 lang = en          # fr, en, de ou it
 ```
