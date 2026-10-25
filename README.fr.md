@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 2.13.
+et n'a pas besoin d'être joignable depuis internet. Version 2.14.
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -564,7 +564,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.13
+SKIN_VERSION = 2.14
 
 lang = en          # fr, en, de ou it
 ```
@@ -1194,7 +1194,8 @@ Sur ces pages, les titres des panneaux et des sections ne sont pas des liens ver
 détail (`detail.html`), qui montrent la période en cours et non la date archivée ; le menu
 commun reste disponible.
 
-En haut de chaque page : **« Historique de la station — choix de la date »** (calendrier) et
+En haut de chaque page : **« Historique de la station — choix de la date »** (calendrier dans la
+langue du site, utilisable au clavier : flèches, Page préc. / Page suiv., Début / Fin, Échap) et
 boutons **Jour / Mois / Année** qui ouvrent la page du jour, du mois ou de l'année contenant
 la date choisie (Entrée : même type de page que la page affichée). Le sélecteur est limité à
 la période couverte par la base ; une date sans page « jour » (antérieure à la limite `days`)

@@ -5,6 +5,19 @@
 Résumé des changements de chaque version, de la plus récente à la plus ancienne (depuis la
 version 1.49). Les numéros sautés correspondent à des versions annulées (voir en bas de liste).
 
+## 2.14
+
+- Pages d'archives, sélecteur de date : **calendrier dans la langue du site**. Le sélecteur
+  natif du navigateur suivait la langue du navigateur et non celle des pages (noms des jours
+  et des mois en français sur un site en anglais, par exemple). Il est remplacé par un bouton
+  affichant la date en toutes lettres et un calendrier dont les noms des mois et des jours
+  suivent la langue des pages (`intl_locale`) ; semaine commençant le lundi (le dimanche en
+  anglais des États-Unis). Dates hors des archives désactivées ; clavier : flèches, Page
+  préc. / Page suiv. (mois), Début / Fin, Échap ; double-clic sur un jour : ouvre la page du
+  même type.
+- S'applique aussi aux pages d'archives déjà générées (`archive.js` est recopié à chaque
+  archive).
+
 ## 2.13
 
 - **Pied de page commun à toutes les pages** (`[LiveJSON] [[footer]]`), sous le pied de page

@@ -2,7 +2,7 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.13.
+and does not need to be reachable from the internet. Version 2.14.
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -552,7 +552,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.13
+SKIN_VERSION = 2.14
 
 lang = en          # fr, en, de or it
 ```
@@ -1172,7 +1172,8 @@ On these pages, panel and section titles are not links to the detail pages (`det
 which show the current period and not the archived date; the common menu remains
 available.
 
-At the top of each page: **"Station history — pick a date:"** (calendar) and **Day / Month /
+At the top of each page: **"Station history — pick a date:"** (calendar in the site language,
+keyboard-usable: arrows, Page Up / Page Down, Home / End, Esc) and **Day / Month /
 Year** buttons that open the page of the day, month or year containing the chosen date
 (Enter: same page type as the page shown). The picker is limited to the period covered by
 the database; a date without a "day" page (older than the `days` limit) shows a message

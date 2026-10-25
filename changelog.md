@@ -5,6 +5,17 @@
 Summary of the changes in each version, from the most recent to the oldest (since version
 1.49). Skipped numbers are cancelled versions (see the end of the list).
 
+## 2.14
+
+- Archive pages, date picker: **calendar in the site language**. The browser's native date
+  picker followed the browser language, not the page language (French day and month names on
+  an English site, for example). It is replaced by a button showing the date in words and a
+  calendar whose month and day names follow the page language (`intl_locale`); first day of the
+  week Monday (Sunday in US English). Dates outside the archives are disabled; keyboard: arrows,
+  Page Up / Page Down (month), Home / End, Esc; double click on a day opens the page of the
+  same type.
+- Also applies to archive pages already generated (`archive.js` is copied at each archive).
+
 ## 2.13
 
 - **Common footer on all pages** (`[LiveJSON] [[footer]]`), below each page's own footer:
