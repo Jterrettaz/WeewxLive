@@ -85,7 +85,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "2.15"
+VERSION = "1.0"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -635,6 +635,22 @@ def _webcam(opts):
 
 
 
+def _model_names(opts):
+    """[[model_names]] : noms des modèles Open-Meteo dans les listes (prévisions du tableau de
+    bord, météogramme, ensembles), une ligne par modèle : identifiant = nom affiché."""
+    sec = opts.get("model_names", {}) or {}
+    out = {}
+    for k in sec.keys():
+        if isinstance(sec[k], dict):
+            continue
+        mid, name = str(k).strip().lower(), str(sec[k] or "").strip()
+        if not ENSEMBLE_MODEL_RE.match(mid) or not name:
+            log.error("livejson: [[model_names]] « %s » ignoré (identifiant ou nom invalide)", k)
+            continue
+        out[mid] = name
+    return out
+
+
 def _about(opts):
     """[[about]] : menu « À propos » (désactivé par défaut) ouvrant la page d'information du
     site (about.html, exemple livré avec le skin, à adapter ; ou une autre page : page = …)."""
@@ -1033,6 +1049,14 @@ ENSEMBLE_MODELS = {
     "bom_access_global_ensemble": ("ACCESS", "BOM ACCESS-GE", "Australia", 10),
     "meteoswiss_icon_ch1": ("CH1", "MeteoSuisse ICON-CH1", "Switzerland", 1.5),
     "meteoswiss_icon_ch2": ("CH2", "MeteoSuisse ICON-CH2", "Switzerland", 5),
+    # identifiants de la documentation d'Open-Meteo (mêmes modèles)
+    "meteoswiss_icon_ch1_ensemble": ("CH1", "MeteoSuisse ICON-CH1", "Switzerland", 1.5),
+    "meteoswiss_icon_ch2_ensemble": ("CH2", "MeteoSuisse ICON-CH2", "Switzerland", 5),
+    "dwd_icon_seamless_eps": ("ICON", "DWD ICON EPS", "Germany", 7.5),
+    "dwd_icon_global_eps": ("ICON", "DWD ICON EPS Global", "Germany", 7.5),
+    "dwd_icon_eu_eps": ("ICON-EU", "DWD ICON EPS Europe", "Germany", 5),
+    "dwd_icon_d2_eps": ("ICON-D2", "DWD ICON EPS D2", "Germany", 2),
+    "cmc_gem_geps": ("GEM", "ECCC GEPS", "Canada", 16),
 }
 # anciens identifiants (versions 1.49 à 1.52, erronés) -> identifiants Open-Meteo
 ENSEMBLE_ALIASES = {
@@ -1076,6 +1100,145 @@ METEOGRAM_MODELS = {
     "ecmwf_ifs025": "ECMWF IFS", "gfs_seamless": "NOAA GFS", "gem_seamless": "ECCC GEM",
     "meteoswiss_icon_ch1": "MeteoSuisse ICON-CH1", "meteoswiss_icon_ch2": "MeteoSuisse ICON-CH2",
     "ukmo_seamless": "Met Office UKMO (UK 2 km, then global 10 km)",
+}
+
+# Noms des modèles Open-Meteo, d'après la documentation d'Open-Meteo (open-meteo.com/en/docs,
+# /en/docs/ensemble-api ; site open-meteo-website, octobre 2026) et les alias de l'API.
+# Utilisés quand ni [[model_names]] (skin.conf), ni [Texts] [[Models]] (langue), ni
+# METEOGRAM_MODELS ne donnent de nom.
+OPEN_METEO_MODEL_NAMES = {
+    # prévisions (API forecast)
+    'best_match': 'Best match',
+    'ecmwf_ifs': 'ECMWF IFS HRES 9km',
+    'ecmwf_ifs025': 'ECMWF IFS 0.25°',
+    'ecmwf_aifs025_single': 'ECMWF AIFS 0.25° Single',
+    'cma_grapes_global': 'CMA GRAPES Global',
+    'bom_access_global': 'BOM ACCESS Global',
+    'ncep_gfs_seamless': 'NCEP GFS Seamless',
+    'ncep_gfs_global': 'NCEP GFS Global 0.11°/0.25°',
+    'ncep_hrrr_conus': 'NCEP HRRR U.S. Conus',
+    'ncep_nbm_conus': 'NCEP NBM U.S. Conus',
+    'ncep_nam_conus': 'NCEP NAM U.S. Conus',
+    'ncep_aigfs025': 'NCEP AIGFS 0.25°',
+    'ncep_hgefs025_ensemble_mean': 'NCEP HGEFS 0.25° Ensemble Mean',
+    'jma_seamless': 'JMA Seamless',
+    'jma_msm': 'JMA MSM',
+    'jma_gsm': 'JMA GSM',
+    'kma_seamless': 'KMA Seamless',
+    'kma_ldps': 'KMA LDPS',
+    'kma_gdps': 'KMA GDPS',
+    'dwd_icon_seamless': 'DWD ICON Seamless',
+    'dwd_icon_global': 'DWD ICON Global',
+    'dwd_icon_global_native': 'DWD ICON Global Native',
+    'dwd_aicon_global_native': 'DWD AICON Global Native',
+    'dwd_icon_eu': 'DWD ICON EU',
+    'dwd_icon_eu_native': 'DWD ICON EU Native',
+    'dwd_icon_d2': 'DWD ICON D2',
+    'dwd_icon_d2_native': 'DWD ICON D2 Native',
+    'dwd_icon_d2_ruc_native': 'DWD ICON D2 RUC Native',
+    'cmc_gem_seamless': 'GEM Seamless',
+    'cmc_gem_gdps': 'GEM Global',
+    'cmc_gem_rdps': 'GEM Regional',
+    'cmc_gem_hrdps': 'GEM HRDPS Continental',
+    'cmc_gem_hrdps_west': 'GEM HRDPS West',
+    'meteofrance_seamless': 'Météo-France Seamless',
+    'meteofrance_arpege_world': 'Météo-France ARPEGE World',
+    'meteofrance_arpege_europe': 'Météo-France ARPEGE Europe',
+    'meteofrance_arome_france': 'Météo-France AROME France',
+    'meteofrance_arome_france_hd': 'Météo-France AROME France HD',
+    'italia_meteo_arpae_icon_2i': 'ItaliaMeteo ARPAE ICON 2I',
+    'metno_seamless': 'MET Norway Nordic Seamless (with ECMWF)',
+    'metno_nordic': 'MET Norway Nordic',
+    'knmi_seamless': 'KNMI Seamless (with ECMWF)',
+    'knmi_harmonie_arome_europe': 'KNMI Harmonie AROME Europe',
+    'knmi_harmonie_arome_netherlands': 'KNMI Harmonie AROME Netherlands',
+    'dmi_seamless': 'DMI Seamless (with ECMWF)',
+    'dmi_harmonie_arome_europe': 'DMI Harmonie AROME Europe',
+    'ukmo_seamless': 'UK Met Office Seamless',
+    'ukmo_global_deterministic_10km': 'UK Met Office Global 10km',
+    'ukmo_uk_deterministic_2km': 'UK Met Office UK 2km',
+    'meteoswiss_icon_seamless': 'MeteoSwiss ICON Seamless',
+    'meteoswiss_icon_ch1': 'MeteoSwiss ICON CH1',
+    'meteoswiss_icon_ch2': 'MeteoSwiss ICON CH2',
+    'geosphere_seamless': 'GeoSphere Seamless (with ECMWF)',
+    'geosphere_arome_austria': 'GeoSphere AROME Austria',
+    'chmi_aladin_seamless': 'CHMI Aladin Seamless',
+    'chmi_aladin_central_europe_2km': 'CHMI Aladin Central Europe 2km',
+    'chmi_aladin_cz_1km': 'CHMI Aladin CZ 1km',
+    # ensembles (API ensemble)
+    'dwd_icon_seamless_eps': 'DWD ICON EPS Seamless',
+    'dwd_icon_global_eps': 'DWD ICON EPS Global',
+    'dwd_icon_global_eps_native': 'DWD ICON EPS Global Native',
+    'dwd_icon_eu_eps': 'DWD ICON EPS EU',
+    'dwd_icon_eu_eps_native': 'DWD ICON EPS EU Native',
+    'dwd_icon_d2_eps': 'DWD ICON EPS D2',
+    'dwd_icon_d2_eps_native': 'DWD ICON EPS D2 Native',
+    'ncep_gefs_seamless': 'GFS Ensemble Seamless',
+    'ncep_gefs025': 'GFS Ensemble 0.25°',
+    'ncep_gefs05': 'GFS Ensemble 0.5°',
+    'ncep_aigefs025': 'AIGEFS 0.25°',
+    'ecmwf_ifs025_ensemble': 'ECMWF IFS 0.25° Ensemble',
+    'ecmwf_ifs_europe_ensemble': 'ECMWF IFS 9 km (O1280) Europe Ensemble',
+    'ecmwf_aifs025_ensemble': 'ECMWF AIFS 0.25° Ensemble',
+    'ecmwf_aifs_europe_ensemble': 'ECMWF AIFS 31 km (N320) Europe Ensemble',
+    'ukmo_global_ensemble_20km': 'UK MetOffice Global 20km',
+    'ukmo_uk_ensemble_2km': 'UK MetOffice UK 2km',
+    'gem_global_ensemble': 'GEM Global Ensemble',
+    'meteoswiss_icon_ch1_ensemble': 'MeteoSwiss ICON CH1',
+    'meteoswiss_icon_ch2_ensemble': 'MeteoSwiss ICON CH2',
+    'google_weathernext2_ensemble': 'Google WeatherNext 2 Ensemble',
+    # alias de l'API et variantes
+    'gfs_global': 'NCEP GFS Global 0.11°/0.25°',
+    'gfs025': 'NCEP GFS 0.25°',
+    'gfs013': 'NCEP GFS 0.13°',
+    'gfs05': 'NCEP GFS 0.5°',
+    'gfs_hrrr': 'NCEP HRRR U.S. Conus',
+    'gfs_graphcast025': 'NCEP GFS GraphCast 0.25°',
+    'ncep_seamless': 'NCEP Seamless',
+    'ncep_gfs025': 'NCEP GFS 0.25°',
+    'ncep_gfs013': 'NCEP GFS 0.13°',
+    'ncep_gfs_graphcast025': 'NCEP GFS GraphCast 0.25°',
+    'ncep_hrrr_conus_15min': 'NCEP HRRR U.S. Conus (15 min)',
+    'ncep_rrfs_seamless': 'NCEP RRFS Seamless',
+    'ncep_rrfs_conus': 'NCEP RRFS U.S. Conus',
+    'ncep_rrfs_north_america': 'NCEP RRFS North America',
+    'ncep_rrfs_conus_15min': 'NCEP RRFS U.S. Conus (15 min)',
+    'ncep_aigefs025_ensemble_mean': 'NCEP AIGEFS 0.25° Ensemble Mean',
+    'meteofrance_arpege_seamless': 'Météo-France ARPEGE Seamless',
+    'meteofrance_arome_seamless': 'Météo-France AROME Seamless',
+    'meteofrance_arome_france0025': 'Météo-France AROME France 0.025°',
+    'meteofrance_arpege_world025': 'Météo-France ARPEGE World 0.25°',
+    'meteofrance_arome_france_15min': 'Météo-France AROME France (15 min)',
+    'meteofrance_arome_france_hd_15min': 'Météo-France AROME France HD (15 min)',
+    'arpege_seamless': 'Météo-France ARPEGE Seamless',
+    'arpege_world': 'Météo-France ARPEGE World',
+    'arpege_europe': 'Météo-France ARPEGE Europe',
+    'arome_seamless': 'Météo-France AROME Seamless',
+    'arome_france': 'Météo-France AROME France',
+    'arome_france_hd': 'Météo-France AROME France HD',
+    'jma_msm_upper_level': 'JMA MSM (upper levels)',
+    'gem_global': 'GEM Global',
+    'gem_regional': 'GEM Regional',
+    'gem_hrdps_continental': 'GEM HRDPS Continental',
+    'gem_hrdps_west': 'GEM HRDPS West',
+    'icon_eu': 'DWD ICON EU',
+    'icon_d2': 'DWD ICON D2',
+    'dwd_icon': 'DWD ICON',
+    'dwd_icon_d2_15min': 'DWD ICON D2 (15 min)',
+    'dwd_icon_d2_ruc_native_15min': 'DWD ICON D2 RUC Native (15 min)',
+    'dwd_icon_d2_native_15min': 'DWD ICON D2 Native (15 min)',
+    'ecmwf_ifs04': 'ECMWF IFS 0.4°',
+    'ecmwf_aifs025': 'ECMWF AIFS 0.25°',
+    'arpae_cosmo_seamless': 'ARPAE COSMO Seamless',
+    'arpae_cosmo_2i': 'ARPAE COSMO 2I',
+    'arpae_cosmo_2i_ruc': 'ARPAE COSMO 2I RUC',
+    'arpae_cosmo_5m': 'ARPAE COSMO 5M',
+    'icon_seamless_eps': 'DWD ICON EPS Seamless',
+    'icon_global_eps': 'DWD ICON EPS Global',
+    'icon_eu_eps': 'DWD ICON EPS EU',
+    'icon_d2_eps': 'DWD ICON EPS D2',
+    'cmc_gem_geps': 'GEM Global Ensemble',
+    'bom_access_global_ensemble': 'BOM ACCESS Global Ensemble',
 }
 # modèles proposés par défaut (liste déroulante de la page ; le premier est affiché) ;
 # METEOGRAM_MODELS sert aussi aux libellés des modèles des prévisions du tableau de bord ;
@@ -1333,6 +1496,8 @@ class LiveJSON(SearchList):
         self.webcam = _webcam(opts)
         # menu « À propos » ([[about]]) et pied de page commun ([[footer]])
         self.about = _about(opts)
+        # noms des modèles Open-Meteo choisis par le propriétaire du site ([[model_names]])
+        self.model_names = _model_names(opts)
         self.footer = _footer(opts)
         # vigilance météo MeteoAlarm ([[meteoalarm]] : lieux suivis)
         self.meteoalarm = _meteoalarm(opts)
@@ -1619,9 +1784,13 @@ class LiveJSON(SearchList):
         }
 
     def _model_label(self, m):
-        """Nom d'un modèle Open-Meteo : [Texts] [[Models]] (clé : identifiant), sinon le nom
-        de METEOGRAM_MODELS, sinon l'identifiant."""
-        return self.L("Models", m, METEOGRAM_MODELS.get(m, m))
+        """Nom d'un modèle Open-Meteo affiché dans les listes : [LiveJSON] [[model_names]] du
+        propriétaire du site, sinon [Texts] [[Models]] (fichier de langue), sinon
+        METEOGRAM_MODELS, sinon le nom de la documentation d'Open-Meteo
+        (OPEN_METEO_MODEL_NAMES), sinon l'identifiant."""
+        if m in self.model_names:
+            return self.model_names[m]
+        return self.L("Models", m, METEOGRAM_MODELS.get(m) or OPEN_METEO_MODEL_NAMES.get(m, m))
 
     def _basemap(self):
         """Fond des cartes RainViewer / EUMETSAT : fournisseur et clé (CARTO)."""
@@ -2294,9 +2463,12 @@ class LiveJSON(SearchList):
             return {"error": self.L("Errors", "no model configured")}
         models = []
         for m in o["models"]:
-            short, label, origin, _d = ENSEMBLE_MODELS.get(m, (m.upper()[:8], m, "", o["days"]))
+            name = OPEN_METEO_MODEL_NAMES.get(m, m)
+            # modèle inconnu de l'extension : nom de la documentation d'Open-Meteo, bouton court
+            short, label, origin, _d = ENSEMBLE_MODELS.get(
+                m, (name if len(name) <= 12 else m.upper()[:8], name, "", o["days"]))
             # pays d'origine et suffixe « (AI) » des modèles d'IA traduits ([[Models]])
-            label = label.replace("(AI)", self.L("Models", "(AI)"))
+            label = self.model_names.get(m) or label.replace("(AI)", self.L("Models", "(AI)"))
             info = {"id": m, "short": short, "label": label, "origin": self.L("Models", origin) if origin else ""}
             data, fetched, err = self._ens_fetch(m, lat, lon, o["days"], o)
             if data is None:

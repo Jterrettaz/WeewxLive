@@ -375,6 +375,7 @@ if (!window.WXL && document.readyState === "loading") {
 
   const CHEVRON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg>';
   let menus = [];   // menus déroulants affichés : [{ dd, btn, list, links }]
+  let mOpen = false;   // petits écrans : menu complet affiché (bouton « Menu »)
 
   function open(st, focusFirst, last) {
     menus.forEach((o) => o !== st && close(o, false));
@@ -392,9 +393,25 @@ if (!window.WXL && document.readyState === "loading") {
     if (refocus) st.btn.focus();
   }
   // écouteurs globaux : enregistrés une seule fois (le menu est reconstruit après la config)
-  document.addEventListener("click", (e) => menus.forEach((st) => { if (!st.dd.contains(e.target)) close(st, false); }));
+  document.addEventListener("click", (e) => {
+    menus.forEach((st) => { if (!st.dd.contains(e.target)) close(st, false); });
+    // petits écrans : un clic hors du menu complet le referme
+    const nav = document.getElementById("menu");
+    if (mOpen && nav && !nav.contains(e.target)) {
+      mOpen = false; nav.classList.remove("m-open");
+      const t = nav.querySelector(".menu-toggle");
+      if (t) t.setAttribute("aria-expanded", "false");
+    }
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    const nav = document.getElementById("menu");
+    if (mOpen && nav && !menus.some((st) => !st.list.hidden)) {
+      mOpen = false; nav.classList.remove("m-open");
+      const t = nav.querySelector(".menu-toggle");
+      if (t) { t.setAttribute("aria-expanded", "false"); t.focus(); }
+      return;
+    }
     menus.forEach((st) => { if (!st.list.hidden) close(st, st.dd.contains(document.activeElement)); });
   });
 
@@ -404,7 +421,7 @@ if (!window.WXL && document.readyState === "loading") {
     return `
       <div class="dd">
         <button type="button" class="dd-btn${cur ? " active" : ""}" aria-expanded="false" aria-controls="${id}">
-          ${label}${cur ? `<span class="dd-cur"> · ${esc(cur.label)}</span>` : ""}${CHEVRON}
+          ${label}${cur && esc(cur.label) !== label ? `<span class="dd-cur"> · ${esc(cur.label)}</span>` : ""}${CHEVRON}
         </button>
         <ul class="dd-list" id="${id}" hidden>${body}</ul>
       </div>`;
@@ -414,23 +431,38 @@ if (!window.WXL && document.readyState === "loading") {
     const nav = document.getElementById("menu");
     if (!nav) return;
     const item = (d) => `<li><a href="${esc(href(d.id))}"${d.id === current ? ' aria-current="page"' : ""}>${esc(d.label)}</a></li>`;
+    // « Données » : pages de détail des paramètres ; « Historique » : pages par période
+    // (24 h, 7, 30, 365 jours), puis « Archives » et « Extrêmes »
+    const HIST_EXTRA = ["archives", "extremes"].map((id) => EXTRA.find((e) => e.id === id)).filter(Boolean);
+    const all = [HOME, ...DATA, ...PERIOD_PAGES, ...EXTRA, ...CLIMATO, ...FORECAST, ...SETTINGS, WEBCAM];
+    const curItem = current === "about" ? { label: tm("About") } : all.find((d) => d.id === current);
     nav.innerHTML = `
+      <button type="button" class="menu-toggle" aria-expanded="${mOpen}" aria-controls="menu-items">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>${esc(tm("Menu"))}${curItem ? `<span class="menu-cur"> · ${esc(curItem.label)}</span>` : ""}
+      </button>
+      <div class="menu-items" id="menu-items">
       <a href="${href("home")}"${current === "home" ? ' aria-current="page"' : ""}>${esc(HOME.label)}</a>` +
-      dropdown("dd-data", esc(tm("Data")), [...PERIOD_PAGES, ...DATA, ...EXTRA], `
-          <li class="dd-head" role="presentation">${esc(tm("All parameters"))}</li>
+      dropdown("dd-data", esc(tm("Data")), DATA, DATA.map(item).join("")) +
+      dropdown("dd-hist", esc(tm("History")), [...PERIOD_PAGES, ...HIST_EXTRA], `
           ${PERIOD_PAGES.map(item).join("")}
-          <li class="dd-sep" role="separator"></li>
-          <li class="dd-head" role="presentation">${esc(tm("By parameter"))}</li>
-          ${DATA.map(item).join("")}
-          <li class="dd-sep" role="separator"></li>
-          ${EXTRA.map(item).join("")}`) +
+          ${HIST_EXTRA.length ? '<li class="dd-sep" role="separator"></li>' + HIST_EXTRA.map(item).join("") : ""}`) +
       (CLIMATO.length ? dropdown("dd-climato", esc(tm("Climatology")), CLIMATO, CLIMATO.map(item).join("")) : "") +
       (FORECAST.length ? dropdown("dd-fc", esc(tm("Forecasts")), FORECAST, FORECAST.map(item).join("")) : "") +
       (hasWebcam ? `<a href="${esc(href(WEBCAM.id))}"${current === WEBCAM.id ? ' aria-current="page"' : ""}>${esc(WEBCAM.label)}</a>` : "") +
       (LIGHTNING ? `<a class="ext-link" href="${esc(LIGHTNING)}" target="_blank" rel="noopener"
         title="${esc(tm("Real-time lightning map (Blitzortung), in a new tab"))}">${esc(tm("Lightning"))}<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M5 2H2v8h8V7M7 2h3v3M10 2L5.5 6.5"/></svg><span class="sr"> ${esc(tm("(new tab)"))}</span></a>` : "") +
       dropdown("dd-set", esc(tm("Settings")), SETTINGS, SETTINGS.map(item).join("")) +
-      (ABOUT ? `<a href="${esc(/^(https?:)?\/\//i.test(ABOUT) || ABOUT.startsWith("/") ? ABOUT : BASE + ABOUT)}"${isAbout ? ' aria-current="page"' : ""}>${esc(tm("About"))}</a>` : "");
+      (ABOUT ? `<a href="${esc(/^(https?:)?\/\//i.test(ABOUT) || ABOUT.startsWith("/") ? ABOUT : BASE + ABOUT)}"${isAbout ? ' aria-current="page"' : ""}>${esc(tm("About"))}</a>` : "") +
+      "</div>";
+    nav.classList.toggle("m-open", mOpen);
+    // petits écrans : un seul bouton « Menu » qui affiche ou masque le menu complet
+    const tog = nav.querySelector(".menu-toggle");
+    tog.addEventListener("click", () => {
+      mOpen = !mOpen;
+      nav.classList.toggle("m-open", mOpen);
+      tog.setAttribute("aria-expanded", String(mOpen));
+      if (mOpen) { const a = nav.querySelector(".menu-items a, .menu-items .dd-btn"); if (a) a.focus(); }
+    });
     document.querySelectorAll("a[data-detail]").forEach((a) => (a.href = href(a.dataset.detail)));
 
     menus = [...nav.querySelectorAll(".dd")].map((dd) => {

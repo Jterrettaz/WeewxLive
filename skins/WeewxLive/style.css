@@ -481,6 +481,40 @@ button.fc-day:focus-visible, .fh-close:focus-visible { outline: 2px solid var(--
 .legend i.midmark { width: 10px; height: 2px; background: var(--text); vertical-align: 3px; }
 
 /* ---------- Menus déroulants (« Données », « Climatologie », « Prévisions ») ---------- */
+/* bouton « Menu » des petits écrans (masqué sur les écrans larges) */
+.menu-items { display: contents; }
+.menu-toggle { display: none; }
+@media (max-width: 760px) {
+  .menu-toggle {
+    display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px;
+    font: inherit; font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer;
+    background: var(--surface); border: 1px solid var(--border);
+  }
+  .menu-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  .menu-toggle .menu-cur { font-weight: 400; color: var(--text-2); max-width: 55vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .menu-toggle[aria-expanded="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .menu-toggle[aria-expanded="true"] .menu-cur { color: inherit; opacity: .75; }
+  .menu-items { display: none; }
+  /* menu ouvert : panneau vertical, chaque menu déroulant affiché comme une section */
+  .menu.m-open .menu-items {
+    display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%;
+    margin-top: 6px; padding: 8px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+    max-height: calc(100vh - 120px); overflow-y: auto;
+  }
+  .menu.m-open .menu-items > a { border-radius: 8px; padding: 8px 10px; }
+  .menu.m-open .dd { border-top: 1px solid var(--border); padding-top: 4px; margin-top: 4px; }
+  .menu.m-open .dd-btn {
+    pointer-events: none; padding: 6px 10px 2px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--text-3); background: none; border: 0;
+  }
+  .menu.m-open .dd-btn svg, .menu.m-open .dd-btn .dd-cur { display: none; }
+  .menu.m-open .dd-list, .menu.m-open .dd-list[hidden] {
+    display: block; position: static; min-width: 0; padding: 0 0 2px; border: 0; box-shadow: none;
+    background: none; max-height: none; overflow: visible;
+  }
+  .menu.m-open .dd-list a { padding: 8px 10px; }
+}
 .dd { position: relative; }
 .dd-btn {
   display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px 6px 12px; border-radius: 999px;

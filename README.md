@@ -2,7 +2,7 @@
 
 Weather website for a **Davis Vantage Pro 2** station (or any station) run by **weewx**,
 that can be published on **static** web hosting: the weewx server stays on the local network
-and does not need to be reachable from the internet. Version 2.15.
+and does not need to be reachable from the internet. Version 1.0.
 
 **Requirements: weewx 4.6 or later** (weewx 4.6 to 4.10, weewx 5), under Python 3.
 
@@ -34,7 +34,7 @@ and does not need to be reachable from the internet. Version 2.15.
     current month, compared with current values.
 - **One page per parameter** ("Data" menu or panel title): statistics and chart over
   **24 h, 7 days, 30 days, 365 days and 730 days**, one below the other.
-- **One page per period** (top of the "Data" menu): last 24 hours, last 7, 30 and 365 days,
+- **One page per period** ("History" menu): last 24 hours, last 7, 30 and 365 days,
   with one section per parameter (statistics and chart).
 - **Archives** (`archive/day-YYYY-MM-DD.html`, `month-YYYY-MM.html`, `year-YYYY.html`): one
   page per day (all dashboard panels; **disabled by default**, `day = true` to enable them),
@@ -62,6 +62,10 @@ and does not need to be reachable from the internet. Version 2.15.
   added with one more file (see [Page language](#page-language-lang)).
 - **"Extremes" page**: all-time records, rankings (days, months, showers) and longest frost,
   dry and wet spells, over the whole database.
+- **Common menu**: Dashboard, "Data" (detail page of each configured parameter), "History"
+  (last 24 hours, 7, 30 and 365 days, Archives, Extremes), Climatology, Forecasts, Webcam,
+  Lightning, Settings; on smartphones and narrow screens (760 px or less), a single "Menu"
+  button that shows the full menu.
 - Optional **"About"** menu and page (`[[about]]`, example `about.html` to adapt).
 - **Common footer** on all pages (`[[footer]]`): station, weewx version, disclaimer, warning,
   copyright and contact.
@@ -162,9 +166,8 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `*.js`, `style.css`, `img/`, `vendor/` | copied files | at each archive (FTP only uploads changed files) |
 
 Archive pages of past periods are generated only once: after a weewx-live update they keep
-the old layout (they remain usable, in browser time for those older than version 1.68). To
-rebuild them, delete the `archive/` folder of `HTML_ROOT`: weewx regenerates it over the
-following archives (this can take several minutes with many years of data).
+the old layout (they remain usable). To rebuild them, delete the `archive/`
+folder of `HTML_ROOT`: weewx regenerates it over the following archives (this can take several minutes with many years of data).
 
 The extremes of the day come from the weewx daily summaries (they include peaks measured
 between two archives). Units are converted by weewx itself, whatever the unit system of the
@@ -200,30 +203,6 @@ section by hand.
 **Update**: reinstalling replaces `skin.conf` and the skin files (including `minichart.js`).
 Put your settings in `weewx.conf` (see
 [Keeping your settings across updates](#keeping-your-settings-across-updates-weewxconf)).
-
-**Updating from a version older than 2.10**: `skin.conf` now has English comments (same
-settings); the French-commented copy is `skin.fr.conf` and the old `skin.en.conf` can be
-deleted.
-
-**Updating from a version older than 2.03**: "day" archive pages are now disabled by
-default (`[[archives]] day = false`). To keep producing them, add `day = true` to
-`weewx.conf` (see [Archives](#archives-day-month-year-pages)).
-
-**Updating from a version older than 1.98**: the pages `detail.html`, `extremes.html`,
-`ensembles.html`, `meteogram.html`, `units.html`, `admin.html` and `webcam.html` are now
-templates (`*.html.tmpl`); the old `*.html` files in `skins/WeewxLive/` are no longer used and
-can be deleted. The installer adds `lang = fr` to `[[WeewxLive]]` (see
-[Page language](#page-language-lang)).
-
-**Updating from a version older than 1.55** (skin files moved from `skins/WeewxLive/live/` to
-`skins/WeewxLive/`):
-
-1. set `HTML_ROOT` in `[[WeewxLive]]` of `weewx.conf` (see
-   [Output folder](#output-folder-html_root));
-2. move your own files: `live/img/` (logo) to `skins/WeewxLive/img/`,
-   `live/vendor/mqtt.min.js` to `skins/WeewxLive/vendor/`;
-3. delete the old `skins/WeewxLive/live/` folder (it is no longer used);
-4. restart weewx.
 
 ## 2. Upload to the web host
 
@@ -263,8 +242,7 @@ WeewxLive folder along with the rest (Seasons skin, etc.).
 
 ### Output folder (`HTML_ROOT`)
 
-Since version 1.55 the skin files are at the root of `skins/WeewxLive/` (there is no `live/`
-subfolder any more): weewx therefore generates the pages **at the root of the report's
+The skin files are at the root of `skins/WeewxLive/`: weewx therefore generates the pages **at the root of the report's
 `HTML_ROOT`**. The installer does not set this folder; choose it in `weewx.conf`:
 
 ```ini
@@ -272,7 +250,7 @@ subfolder any more): weewx therefore generates the pages **at the root of the re
     HTML_ROOT = public_html            # common folder (Seasons, FTP…)
     [[WeewxLive]]
         skin = WeewxLive
-        HTML_ROOT = public_html/live   # same address as before 1.55: …/live/
+        HTML_ROOT = public_html/live   # pages under …/live/
 ```
 
 - Without `HTML_ROOT` in `[[WeewxLive]]`, the pages are written directly in the common
@@ -559,7 +537,7 @@ guidelines: `fr.conf` (French), `en.conf` (English), `de.conf` (German) and `it.
   `title` written in `skin.conf` or `weewx.conf` is shown as is, whatever the language;
   added parameters without `title` also get the weewx title of their column (e.g.
   `soilTemp1`: "Soil temperature 1").
-- German and Italian translations (2.01): suggestions to be reviewed. Wind directions are
+- German and Italian translations: suggestions to be reviewed. Wind directions are
   abbreviated according to the language (German: O = Ost, east; Italian: O = ovest, west).
 - **Adding a language**: copy `en.conf` to `<code>.conf` (e.g. `es.conf`, `nl.conf`),
   translate the values (to the right of `=`, without touching the keys or the
@@ -580,7 +558,7 @@ The language can also be set in `skin.conf`, with the `lang` option at the top o
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 2.15
+SKIN_VERSION = 1.0
 
 lang = en          # fr, en, de or it
 ```
@@ -716,7 +694,7 @@ The list of parameters of the dashboard, the detail pages and the "Data" menu is
   changed. Changing their aggregate turns them into a generic panel.
 - Deleting a subsection (or `enable = false`) removes the parameter everywhere. Without any
   subsection, the 6 standard parameters are shown.
-- Solar radiation is no longer a standard parameter (version 1.70): to show it, add it as an
+- Solar radiation is not a standard parameter: to show it, add it as an
   extra parameter (commented example `[[[radiation]]]` in `skin.conf`: `aggregate = max`,
   `color = --sun`).
 - `color`: name of a CSS variable of the theme (`--temp`, `--wind`, `--rain`, `--sun`,
@@ -890,6 +868,20 @@ model whose download failed appears as "(unavailable)". If `days` exceeds a mode
 data (beyond the model's range: Météo-France, MeteoSwiss ICON… 4 to 5 days) are not shown
 and the block title gives the number of available days ("4-day forecast"); not all models
 provide precipitation probability or UV index (values then missing).
+
+**Model names** (drop-down lists of the forecasts and the meteogram, Ensembles page): any
+Open-Meteo model identifier can be used in `models` (e.g. `ncep_hrrr_conus`, `kma_seamless`,
+`knmi_seamless`). Its displayed name is, in this order: the one given in `[[model_names]]`, the
+one of the language file (`[Texts] [[Models]]`), a built-in name for the models offered by
+default, otherwise the name of the Open-Meteo documentation (all the forecast and ensemble
+models, e.g. `ncep_hrrr_conus`: "NCEP HRRR U.S. Conus"), otherwise the identifier itself.
+
+```ini
+[LiveJSON]
+    [[model_names]]
+        ncep_hrrr_conus = HRRR Conus     # identifier = displayed name
+        icon_seamless = ICON (DWD)
+```
 
 **Forecast cache** (1 hour by default, `cache` in seconds in `[[forecast]]`): weewx downloads
 the forecasts of each model at most once per period and publishes them all in
@@ -1178,8 +1170,7 @@ per measurement, fast even on a Raspberry Pi. Regeneration frequencies: `stale_a
 
 ### Period pages (all parameters)
 
-`detail.html?period=24h` (or `7d`, `30d`, `365d`), at the top of the "Data" menu ("All
-parameters"): one section per parameter, identical to that of the detail page for this
+`detail.html?period=24h` (or `7d`, `30d`, `365d`), in the "History" menu: one section per parameter, identical to that of the detail page for this
 period (statistics then chart), with quick links to each section at the top of the page.
 The title of each section leads to the parameter's detail page. The data come from the same
 files `data/p24h.json`… (only one file read per page).
@@ -1187,7 +1178,7 @@ files `data/p24h.json`… (only one file read per page).
 ### Archives (day, month, year pages)
 
 Static pages generated in `archive/` (sections `[[SummaryByDay]]`, `[[SummaryByMonth]]` and
-`[[SummaryByYear]]` of `skin.conf`), reached through the **"Archives"** entry of the "Data"
+`[[SummaryByYear]]` of `skin.conf`), reached through the **"Archives"** entry of the "History"
 menu (page of the current day, or of the month / year if day pages are disabled):
 
 | Page | Template | Content |
@@ -1222,7 +1213,7 @@ not already exist).
         days = 0          # "day" pages produced going back from today (0 = all, default)
 ```
 
-**"Day" pages disabled by default** (since 2.03): with `day = false`, the "Archives" entry
+**"Day" pages disabled by default**: with `day = false`, the "Archives" entry
 opens the page of the current month, the date picker offers "Month" and "Year", and the day
 icon of the monthly climatological table does not appear. To enable them, set `day = true`
 in `[[archives]]`, preferably in `weewx.conf` (`[[WeewxLive]]` → `[[[LiveJSON]]]` →
@@ -1237,9 +1228,6 @@ some time and the first FTP upload will be large; later generations only produce
 the day. To limit it, for example, to the last 365 days: `days = 365`. These options are
 applied by the skin generator (`user.livejson.LiveCheetahGenerator`, the weewx Cheetah
 generator with these options), declared in `[Generators]` of `skin.conf`.
-
-The old `[[day_pages]]` section (`enable`, `days`, versions 1.41-1.42) is still recognised;
-the old `days/` folder of those versions can be deleted from the server.
 
 ### Monthly climatology
 
@@ -1317,7 +1305,7 @@ are in `livejson.py` (`CLIMATO_ICE_C`, `CLIMATO_HEAT_C`, `CLIMATO_HEAVY_MM`, `FR
 
 ## 9. "Extremes" page (station records)
 
-**Data → Extremes** (`extremes.html`): calculations made by weewx over **the whole
+**History → Extremes** (`extremes.html`): calculations made by weewx over **the whole
 database** (`data/extremes.json`, at most once an hour).
 
 - **All-time records**: lowest / highest temperature, lowest / highest pressure, strongest
@@ -1389,9 +1377,7 @@ more), `icon_seamless_eps` (DWD ICON EPS, 40, 7.5 d), `icon_eu_eps` (40, 5 d), `
 WeatherNext 2, AI, 64, 15 d), `ukmo_global_ensemble_20km` (Met Office, 18, 8 d),
 `ukmo_uk_ensemble_2km` (5 d), `bom_access_global_ensemble` (BOM, 18, 10 d), `ncep_gefs025`,
 `ncep_gefs05`, `ncep_aigefs025`, `ecmwf_ifs_europe_ensemble`, `meteoswiss_icon_ch1`,
-`meteoswiss_icon_ch2`… (full list in the Open-Meteo documentation). The wrong identifiers of
-versions 1.49 to 1.52 (`ecmwf_ifs_025`, `weathernext_ensemble_2`…) are converted
-automatically. A model unknown to the extension is accepted and shown under its identifier.
+`meteoswiss_icon_ch2`… (full list in the Open-Meteo documentation). A model unknown to the extension is accepted and shown under its identifier.
 More models = more members to draw and a larger `ensembles.json`.
 
 Each model is requested at most up to its own range (`days` is limited for each one); if
@@ -1503,6 +1489,6 @@ const TEMP_STEPS = {
   `[[WeewxLive]]` before `[[FTP]]` / `[[RSYNC]]` by hand (see section 1).
 - Missing sensor (no solar sensor, etc.): the matching card stays at "--".
 - Accessibility: charts announced as images with a description, keyboard-usable menu
-  (arrows, Home / End, Esc), banners announced to screen readers.
+  (arrows, Home / End, Esc; "Menu" button on narrow screens, closed by Esc), banners announced to screen readers.
 - Out-of-range configuration values are brought back within their bounds (e.g. `top`,
   `zoom`, `frame_delay`); configuration errors are written to the weewx log (`livejson:`).
