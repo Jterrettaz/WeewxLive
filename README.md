@@ -76,6 +76,8 @@ and does not need to be reachable from the internet. Version 1.0.
 
 ![Monthly climatology and meteogram](images/climatology-meteogram.jpg)
 
+![Temperature detail page: 24 hours, 7, 30, 365 and 730 days](images/detail-temperature.jpg)
+
 **Contents**: [Contents](#contents) · [1. Install](#1-install-the-extension) ·
 [2. Upload](#2-upload-to-the-web-host) · [3. MQTT](#3-real-time-mqtt-optional) ·
 [4. Configure the page](#4-configure-the-page) ·

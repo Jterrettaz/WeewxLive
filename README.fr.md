@@ -80,6 +80,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.0.
 
 ![Climatologie mensuelle et météogramme](images/climatology-meteogram.jpg)
 
+![Page de détail de la température : 24 heures, 7, 30, 365 et 730 jours](images/detail-temperature.jpg)
+
 **Sommaire** : [Contenu](#contenu) · [1. Installer](#1-installer-lextension) ·
 [2. Envoi](#2-envoi-vers-lhébergement-web) · [3. MQTT](#3-temps-réel--mqtt-facultatif) ·
 [4. Configurer la page](#4-configurer-la-page) ·
