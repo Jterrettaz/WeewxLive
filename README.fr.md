@@ -76,20 +76,9 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.0.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
   au-delà), thème clair / sombre automatique, affichage mobile.
 
-```
- Réseau local                              │  Internet
-                                           │
- Vantage Pro 2 ─► weewx ─┬─ weewx-mqtt ────┼──► broker MQTT (wss) ──────┐
-                         │   (sortant)     │      (facultatif)          │ temps réel
-                         │                 │                            ▼
-                         └─ rapport        │                       navigateur
-                            WeewxLive ─► FTP/RSYNC ─► hébergement web ──┘
-                            (JSON à chaque │   (sortant)   index.html
-                             archive)      │               data/*.json
-```
+![Tableau de bord, thèmes clair et sombre](images/dashboard.jpg)
 
-Toutes les connexions partent du serveur weewx vers l'extérieur (FTP/rsync, MQTT) :
-aucun port à ouvrir sur votre box.
+![Climatologie mensuelle et météogramme](images/climatology-meteogram.jpg)
 
 **Sommaire** : [Contenu](#contenu) · [1. Installer](#1-installer-lextension) ·
 [2. Envoi](#2-envoi-vers-lhébergement-web) · [3. MQTT](#3-temps-réel--mqtt-facultatif) ·

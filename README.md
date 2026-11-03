@@ -72,20 +72,9 @@ and does not need to be reachable from the internet. Version 1.0.
 - Temperatures coloured by value (blues ≤ 0 °C, greens from 0 to 10 °C, yellow → red above),
   automatic light / dark theme, mobile layout.
 
-```
- Local network                             │  Internet
-                                           │
- Vantage Pro 2 ─► weewx ─┬─ weewx-mqtt ────┼──► MQTT broker (wss) ──────┐
-                         │   (outgoing)    │      (optional)            │ real time
-                         │                 │                            ▼
-                         └─ report         │                         browser
-                            WeewxLive ─► FTP/RSYNC ─► web hosting ──────┘
-                            (JSON at each  │   (outgoing)  index.html
-                             archive)      │               data/*.json
-```
+![Dashboard, light and dark themes](images/dashboard.jpg)
 
-All connections go out from the weewx server (FTP/rsync, MQTT): no port to open on your
-router.
+![Monthly climatology and meteogram](images/climatology-meteogram.jpg)
 
 **Contents**: [Contents](#contents) · [1. Install](#1-install-the-extension) ·
 [2. Upload](#2-upload-to-the-web-host) · [3. MQTT](#3-real-time-mqtt-optional) ·
