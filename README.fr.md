@@ -2,7 +2,7 @@
 
 Site météo pour une station **Davis Vantage Pro 2** (ou toute station) pilotée par **weewx**,
 publiable sur un hébergement web **statique** : le serveur weewx reste sur le réseau local
-et n'a pas besoin d'être joignable depuis internet. Version 1.0.
+et n'a pas besoin d'être joignable depuis internet. Version 1.1.
 
 **Prérequis : weewx 4.6 ou plus récent** (weewx 4.6 à 4.10, weewx 5), sous Python 3.
 
@@ -10,7 +10,7 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.0.
 
 - **Tableau de bord** : pour chaque paramètre configuré, valeur actuelle, minimum et maximum
   du jour (avec l'heure) et graphique sur 24 h (durée réglable : `hours`). Mise à jour **en temps réel par MQTT**, ou à
-  **chaque archive weewx** si MQTT est désactivé.
+  **chaque archive weewx** si MQTT est désactivé (réglage par défaut).
   - Panneaux spécialisés : température (écarts sur 1 h et 24 h, durée du gel en cours), vent (boussole, rafales),
     direction du vent (rose des vents et graphique de la direction sur 24 h), pluie (barres
     horaires + courbe de cumul, sur une seconde échelle à droite), humidité, pression (tendance sur 3 h).
@@ -51,7 +51,7 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.0.
   horaire au sol et en altitude, modèle au choix (par défaut ICON, Météo-France, ECMWF, GFS
   et Met Office) : temps, température, nuages selon l'altitude, précipitations et cumul,
   neige, température et vent en altitude (isotherme 0 °C), vent et rafales.
-- **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`) : tous
+- **Prévisions d'ensemble** (menu « Prévisions » → « Ensembles », `ensembles.html`, désactivées par défaut) : tous
   les membres des modèles d'ensemble d'Open-Meteo (ECMWF, GFS, ICON, GEM, Google…), moyenne
   groupée, pluie et probabilité par jour, comparaison des modèles, tableau jour après jour ;
   modèles et horizons configurables.
@@ -75,6 +75,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.0.
   clause de non-responsabilité, avertissement, copyright et contact.
 - Températures colorées selon leur valeur (bleus ≤ 0 °C, verts de 0 à 10 °C, jaune → rouge
   au-delà), thème clair / sombre automatique, affichage mobile.
+
+Voir [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 
 ![Tableau de bord, thèmes clair et sombre](images/dashboard.jpg)
 
@@ -134,6 +136,7 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.0.
 | `skins/WeewxLive/style.css` | thème (clair / sombre) |
 | `skins/WeewxLive/data/*.json.tmpl`, `config.json.tmpl` | gabarits des fichiers JSON |
 | `skins/WeewxLive/vendor/leaflet/` | bibliothèque de cartes Leaflet 1.9.4 (RainViewer / EUMETSAT) |
+| `skins/WeewxLive/images/logo.png` | logo d'exemple, affiché par défaut ([Logo](#logo)) |
 | `skins/WeewxLive/img/`, `vendor/mqtt.min.js` | à créer soi-même : logo ([Logo](#logo)) et copie locale de mqtt.js ([mqtt.js en local](#mqttjs-en-local-recommandé)) |
 
 weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
@@ -199,6 +202,12 @@ avec weewx 4, déplacez la section à la main.
 **Mise à jour** : la réinstallation remplace `skin.conf` et les fichiers du skin (dont
 `minichart.js`). Placez vos réglages dans `weewx.conf` (voir
 [Conserver ses réglages](#conserver-ses-réglages-lors-des-mises-à-jour-weewxconf)).
+Avant de copier le nouveau `skin.conf`, l'installeur renomme l'ancien en
+`skin.conf.AAAAMMJJHHMM` (date et heure de l'installation) s'il diffère du nouveau : les
+réglages précédents ne sont jamais perdus ; comparez les deux fichiers et reportez les
+réglages utiles (de préférence dans `weewx.conf`). Les anciennes copies ne sont pas
+supprimées, pas même par `weectl extension uninstall`, qui laisse aussi `skin.conf` dans
+`skins/WeewxLive/` : supprimez-les à la main quand elles ne servent plus.
 
 ## 2. Envoi vers l'hébergement web
 
@@ -336,6 +345,8 @@ curl -L -o skins/WeewxLive/vendor/mqtt.min.js https://unpkg.com/mqtt@5/dist/mqtt
 
 ### Sans MQTT (mise à jour à chaque archive)
 
+C'est le réglage par défaut de `skin.conf` :
+
 ```ini
     [[mqtt]]
         enable = false
@@ -397,8 +408,10 @@ Le sous-titre des pages est le modèle de station déclaré par weewx (`[Station
 
 ### Logo
 
-Un logo peut s'afficher à gauche du nom de la station (toutes les pages) : déposez l'image
-dans `skins/WeewxLive/img/` (copiée avec le site) et indiquez-la :
+Un logo peut s'afficher à gauche du nom de la station (toutes les pages). Par défaut,
+`skin.conf` affiche le logo d'exemple fourni avec weewx-live (`logo = images/logo.png`,
+150 × 75 px). Ce fichier est remplacé à chaque mise à jour : déposez votre propre logo dans
+`skins/WeewxLive/img/` (copié avec le site) et indiquez-le (`logo = ""` : pas de logo) :
 
 ```ini
     logo = img/logo.png        # ou une adresse https://…
@@ -562,7 +575,7 @@ fichier (avant `[LiveJSON]`) :
 
 ```ini
 SKIN_NAME = WeewxLive
-SKIN_VERSION = 1.0
+SKIN_VERSION = 1.1
 
 lang = en          # fr, en, de ou it
 ```
@@ -1375,6 +1388,9 @@ et pression (un point toutes les `step` heures) et les valeurs journalières de 
 (max., min., pluie, vent max., pression moyenne, jour local de la station) : environ 1 Mo
 pour les 5 modèles par défaut (207 membres) avec `step = 1`, 400 Ko avec `step = 3`. Le
 navigateur fait tous les calculs, selon les modèles cochés et l'horizon.
+
+La page est **désactivée par défaut** (`enable = false` dans `skin.conf` : pas d'entrée
+« Ensembles » dans le menu ni de téléchargement) ; `enable = true` l'active :
 
 ```ini
     [[ensembles]]
