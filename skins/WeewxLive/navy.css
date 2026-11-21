@@ -1,0 +1,51 @@
+/* WeewxLive Navy Edition — sZg29A */
+
+/* Jawny motyw Navy, niezależny od ustawień systemu */
+:root[data-theme="navy"] {
+  color-scheme: dark;
+
+  --bg: #0d1320;
+  --surface: #172133;
+  --grid: #30435f;
+
+  --text: #edf3ff;
+  --text-2: #b8c8df;
+  --text-3: #9daec8;
+  --border: #283750;
+
+  --ok: #45c6a0;
+  --warn: #f5bc60;
+  --bad: #ff7180;
+
+  --temp: #ff966c;
+  --wind: #80b9ff;
+  --gust: #ffba79;
+  --rain: #64a9ff;
+  --rainsum: #45c6a0;
+  --sun: #ffd16f;
+  --hum: #45c6a0;
+  --press: #b5a3ff;
+  --frost: #8ad9ff;
+}
+
+
+/* Explicit light mode overrides the operating system preference */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f4f1;
+  --surface: #fcfcfb;
+  --grid: #e6e5e0;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --text-3: #706f69;
+  --border: #e3e2dc;
+  --temp: #eb6834;
+  --wind: #2a78d6;
+  --gust: #eb6834;
+  --rain: #2a78d6;
+  --rainsum: #1baf7a;
+  --sun: #eda100;
+  --hum: #1baf7a;
+  --press: #4a3aa7;
+  --frost: #1f62c4;
+}
