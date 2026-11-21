@@ -518,14 +518,14 @@ frame has no disable option).
 ### Page language (`lang`)
 
 Page texts are in the skin's `lang/` folder, one file per language, following the weewx
-guidelines: `fr.conf` (French), `en.conf` (English), `de.conf` (German) and `it.conf`
-(Italian). The language is chosen in `weewx.conf`, in the report section:
+guidelines: `fr.conf` (French), `en.conf` (English), `de.conf` (German), `it.conf`
+(Italian) and `pl.conf` (Polish). The language is chosen in `weewx.conf`, in the report section:
 
 ```ini
 [StdReport]
     [[WeewxLive]]
         skin = WeewxLive
-        lang = en          # fr, en, de or it
+        lang = en          # fr, en, de, it or pl
 ```
 
 - The installer adds `lang = fr` to this section (also on an update, if the option is
@@ -535,7 +535,7 @@ guidelines: `fr.conf` (French), `en.conf` (English), `de.conf` (German) and `it.
 - Everything is translated: menus, titles, panels, charts and tooltips, tables, messages,
   day and month names, wind directions (O / W for west), moon phases, forecast weather,
   forecast model names and error messages. Numbers and dates follow the language
-  (`intl_locale`: `fr-FR`, `en-GB`, `de-DE`, `it-IT`).
+  (`intl_locale`: `fr-FR`, `en-GB`, `de-DE`, `it-IT`, `pl-PL`).
 - Titles of the standard parameters: without a `title` option in `[[parameters]]`, those of
   the language (`[Labels] [[Generic]]` of the file: "Température" / "Temperature"…). A
   `title` written in `skin.conf` or `weewx.conf` is shown as is, whatever the language;
