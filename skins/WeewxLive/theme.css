@@ -1,0 +1,145 @@
+/* weewx-live — color themes (imported via style.css).
+ *
+ * Each theme has an identifier (lowercase letters, numbers, “-” or “_”):
+ *   - its colors here, in light mode and dark mode (example below);
+ *   - its name in each language file, lang/*.conf: [Texts] [[Themes]] <identifier>;
+ *   - offered to visitors if it appears in skin.conf [LiveJSON] [[appearance]] themes.
+ * Theme and mode (automatic / light / dark) are applied to the page root by
+ * theme.js: attributes data-palette=“<identifier>” and data-theme=‘light’ | “dark” (not present in
+ * automatic mode: device setting, prefers-color-scheme). On the “Settings →
+ * Appearance" page, the box of each theme carries the same attributes, so it is shown in
+ * that theme's colours (background, text, border).
+ *
+ * The “classic” theme (below) is the base: it defines all variables and
+ * also applies without attributes (pages without JavaScript). Another theme can
+ * redefine only some of them; the other values remain those of “classic”.
+ *
+ * New “myid” theme: copy the block from an existing theme (three selectors: light,
+ * automatic dark, custom dark), replace the identifier and colors, then add
+ * “myid” to [[appearance]] themes and “myid = ‘My Name’” to [[Themes]] in the language files.
+ * Personal copy: A new theme.css file for the skin is republished with each release.
+ *
+
+* Variables:
+ *   --bg, --surface        page background, frame background
+ *   --grid, --border       chart gridlines, borders
+ *   --text, --text-2, --text-3   text: primary, secondary, low-contrast (contrast ≥ 4.5:1
+ *                          on --surface)
+ *   --ok, --warn, --bad    statuses (connection, alerts)
+ *   --temp, --wind, --gust, --rain, --rainsum, --sun, --hum, --press, --frost   series
+ * (the colors of the temperature scales are those of minichart.js) */
+
+
+/* ---------- Classique (thème de base) ---------- */
+:root, [data-palette] {
+  color-scheme: light;
+  --bg: #f4f4f1; --surface: #fcfcfb; --grid: #e6e5e0; --text: #0b0b0b;
+  --text-2: #52514e; --text-3: #706f69; --border: #e3e2dc; --ok: #1a8a4a; --warn: #c98500;
+  --bad: #d03b3b; --temp: #eb6834; --wind: #2a78d6; --gust: #eb6834; --rain: #2a78d6;
+  --rainsum: #1baf7a; --sun:  #eda100; --hum:  #1baf7a; --press:#4a3aa7;
+  --frost:#1f62c4;   /* ligne « Durée du gel en cours » */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]), [data-palette]:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111110; --surface: #1a1a19; --grid: #2c2c2a; --text: #ffffff;
+    --text-2: #c3c2b7; --text-3: #8d8c84; --border: #2a2a28;
+    --temp: #d95926; --wind: #3987e5; --gust: #d95926; --rain: #3987e5; --rainsum: #199e70;
+    --sun: #c98500; --hum: #199e70; --press: #9085e9; --frost: #6aa6f2;
+  }
+}
+:root[data-theme="dark"], [data-palette][data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111110; --surface: #1a1a19; --grid: #2c2c2a; --text: #ffffff;
+  --text-2: #c3c2b7; --text-3: #8d8c84; --border: #2a2a28;
+  --temp: #d95926; --wind: #3987e5; --gust: #d95926; --rain: #3987e5; --rainsum: #199e70;
+  --sun: #c98500; --hum: #199e70; --press: #9085e9; --frost: #6aa6f2;
+}
+
+/* ---------- Navy  ---------- */
+[data-palette="navy"] {
+  --bg: #edf2f6; --surface: #fbfdfe; --grid: #dce5ec; --text: #0f1d2a;
+  --text-2: #3b5063; --text-3: #56697b; --border: #d3dee7;
+  --temp: #e2572b; --wind: #1f6fd1; --gust: #e2572b; --rain: #1f6fd1; --rainsum: #0f9a73;
+  --sun: #d99000; --hum: #0f9a73; --press: #5646c0; --frost: #1f62c4;
+}
+@media (prefers-color-scheme: dark) {
+  [data-palette="navy"]:not([data-theme="light"]) {
+    --bg: #0b1622; --surface: #112131; --grid: #1f3346; --text: #f2f7fb;
+    --text-2: #b6c6d5; --text-3: #8499ac; --border: #1c2f42;
+    --temp: #ef6a3a; --wind: #4f9cf2; --gust: #ef6a3a; --rain: #4f9cf2; --rainsum: #22b39a;
+    --sun: #e3ad22; --hum: #22b39a; --press: #9c92f2; --frost: #6fa9f3;
+  }
+}
+[data-palette="navy"][data-theme="dark"] {
+  --bg: #0b1622; --surface: #112131; --grid: #1f3346; --text: #f2f7fb;
+  --text-2: #b6c6d5; --text-3: #8499ac; --border: #1c2f42;
+  --temp: #ef6a3a; --wind: #4f9cf2; --gust: #ef6a3a; --rain: #4f9cf2; --rainsum: #22b39a;
+  --sun: #e3ad22; --hum: #22b39a; --press: #9c92f2; --frost: #6fa9f3;
+}
+
+/* ---------- Alpage : verts des pâturages, neutres chauds ---------- */
+[data-palette="alpage"] {
+  --bg: #f2f1e8; --surface: #fbfaf4; --grid: #e3e1d4; --text: #1d3a1b;
+  --text-2: #4b5843; --text-3: #656e5d; --border: #dfdccd; --ok: #2e8a3a;
+  --temp: #de582a; --wind: #2d6dbe; --gust: #de582a; --rain: #2d6dbe; --rainsum: #3b9638;
+  --sun: #d49600; --hum: #3b9638; --press: #6a4a9f; --frost: #2a60b6;
+}
+@media (prefers-color-scheme: dark) {
+  [data-palette="alpage"]:not([data-theme="light"]) {
+    --bg: #0f130d; --surface: #171c14; --grid: #283024; --text: #f3f6ee;
+    --text-2: #c1c8b5; --text-3: #8d9683; --border: #262e21; --ok: #5cb85c;
+    --temp: #e8683a; --wind: #5190e0; --gust: #e8683a; --rain: #5190e0; --rainsum: #6abf58;
+    --sun: #dcae2a; --hum: #6abf58; --press: #a690e8; --frost: #79aef0;
+  }
+}
+[data-palette="alpage"][data-theme="dark"] {
+  --bg: #0f130d; --surface: #171c14; --grid: #283024; --text: #f3f6ee;
+  --text-2: #c1c8b5; --text-3: #8d9683; --border: #262e21; --ok: #5cb85c;
+  --temp: #e8683a; --wind: #5190e0; --gust: #e8683a; --rain: #5190e0; --rainsum: #6abf58;
+  --sun: #dcae2a; --hum: #6abf58; --press: #a690e8; --frost: #79aef0;
+}
+
+/* ---------- Ardoise : gris bleutés ---------- */
+[data-palette="slate"] {
+  --bg: #eef0f3; --surface: #fbfbfc; --grid: #e0e3e8; --text: #1e2733;
+  --text-2: #485362; --text-3: #626d7b; --border: #dadee4;
+  --temp: #e95d28; --wind: #2563eb; --gust: #e95d28; --rain: #2563eb; --rainsum: #109c6c;
+  --sun: #e09c00; --hum: #109c6c; --press: #5145b8; --frost: #1f5fd0;
+}
+@media (prefers-color-scheme: dark) {
+  [data-palette="slate"]:not([data-theme="light"]) {
+    --bg: #0e1117; --surface: #161b22; --grid: #262d38; --text: #e6e9ee;
+    --text-2: #b3bbc7; --text-3: #8a93a0; --border: #242b35;
+    --temp: #f0703a; --wind: #4c8df0; --gust: #f0703a; --rain: #4c8df0; --rainsum: #22b585;
+    --sun: #f0b020; --hum: #22b585; --press: #9b90f0; --frost: #6aa6f2;
+  }
+}
+[data-palette="slate"][data-theme="dark"] {
+  --bg: #0e1117; --surface: #161b22; --grid: #262d38; --text: #e6e9ee;
+  --text-2: #b3bbc7; --text-3: #8a93a0; --border: #242b35;
+  --temp: #f0703a; --wind: #4c8df0; --gust: #f0703a; --rain: #4c8df0; --rainsum: #22b585;
+  --sun: #f0b020; --hum: #22b585; --press: #9b90f0; --frost: #6aa6f2;
+}
+
+/* ---------- Forest  ---------- */
+[data-palette="forest"] {
+  --bg: #e9efe7; --surface: #f8fbf6; --grid: #d9e3d6; --text: #0f2019;
+  --text-2: #3a5046; --text-3: #4f665b; --border: #d0dccd;
+  --temp: #c8532a; --wind: #2a68a8; --gust: #c8532a; --rain: #2a68a8; --rainsum: #2c8259;
+  --sun: #a87800; --hum: #2c8259; --press: #6a4b9c; --frost: #285ea6;
+}
+@media (prefers-color-scheme: dark) {
+  [data-palette="forest"]:not([data-theme="light"]) {
+    --bg: #0a1410; --surface: #111e18; --grid: #213128; --text: #eef6f1;
+    --text-2: #bdd0c5; --text-3: #8ea79a; --border: #1d2c24;
+    --temp: #e8693a; --wind: #4f92dc; --gust: #e8693a; --rain: #4f92dc; --rainsum: #4fb886;
+    --sun: #d9a21f; --hum: #4fb886; --press: #a68fe3; --frost: #7ab0ec;
+  }
+}
+[data-palette="forest"][data-theme="dark"] {
+  --bg: #0a1410; --surface: #111e18; --grid: #213128; --text: #eef6f1;
+    --text-2: #bdd0c5; --text-3: #8ea79a; --border: #1d2c24;
+    --temp: #e8693a; --wind: #4f92dc; --gust: #e8693a; --rain: #4f92dc; --rainsum: #4fb886;
+    --sun: #d9a21f; --hum: #4fb886; --press: #a68fe3; --frost: #7ab0ec;
+}

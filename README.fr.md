@@ -26,11 +26,13 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.1.
     un élément de la légende masque la courbe correspondante, un second clic la réaffiche.
     L'échelle et l'infobulle s'adaptent ; tout réapparaît au rechargement de la page.
   - **Soleil et Lune** : lever / coucher du soleil et de la lune, durée du jour et écart avec
-    la veille, phase de la lune, courbes de hauteur et position actuelle.
+    la veille, phase de la lune, courbes de hauteur et position actuelle, et course du soleil
+    dans le ciel (aujourd'hui, 21 juin, équinoxe, 21 décembre, et lune du lever au coucher).
   - **Prévisions Open-Meteo** (7 jours, détail heure par heure, modèle au choix parmi 5),
     **radar** et **satellite** (cartes Windy, ou RainViewer / EUMETSAT).
   - Ordre des cadres choisi par l'administrateur ; chaque visiteur peut **réorganiser** et
-    **masquer** cadres et panneaux.
+    **masquer** cadres et panneaux, et enregistrer ces dispositions en **profils** pour passer
+    de l'une à l'autre.
   - **Ce jour et ce mois au fil des ans** : records de chaque année pour la date du jour et le
     mois en cours, comparés aux valeurs actuelles.
 - **Une page par paramètre** (menu « Données » ou titre d'un panneau) : statistiques et
@@ -61,8 +63,8 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.1.
   plusieurs lieux, dans un ou plusieurs pays ; pastilles des vigilances en cours (jaune, orange, rouge) en haut du
   tableau de bord, détail complet sur la page « Vigilance météo » ; mise à jour toutes les
   5 minutes.
-- **Pages en français, anglais, allemand ou italien** (option `lang`, fichiers `lang/fr.conf`,
-  `en.conf`, `de.conf` et `it.conf` du skin, selon les directives weewx) ; une autre langue
+- **Pages en français, anglais, allemand, italien ou polonais** (option `lang`, fichiers `lang/fr.conf`,
+  `en.conf`, `de.conf`,`it.conf` et `pl.conf` du skin, selon les directives weewx) ; une autre langue
   s'ajoute avec un fichier de plus (voir [Langue des pages](#langue-des-pages-lang)).
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
@@ -126,6 +128,8 @@ Voir [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 | `skins/WeewxLive/meteogram.html.tmpl`, `meteogram.js` | page « Météogramme » |
 | `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
+| `skins/WeewxLive/appearance.html.tmpl`, `appearance.js` | page « Réglages → Apparence » (mode clair / sombre et thème de couleurs choisis par le visiteur, [Apparence](#apparence--mode-clair--sombre-et-thèmes-de-couleurs-appearance)) |
+| `skins/WeewxLive/theme.js.tmpl` | apparence par défaut du site, appliquée dans le `<head>` de chaque page (`theme.js`) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
 | `skins/WeewxLive/about.html` | exemple de page « À propos », à adapter ([Page « À propos »](#page--à-propos--about)) |
 | `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | vigilance météo MeteoAlarm : pastilles du tableau de bord et page « Vigilance météo » ([Vigilance météo](#vigilance-météo-meteoalarm-nws-eccc)) |
@@ -133,7 +137,8 @@ Voir [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 | `skins/WeewxLive/wxicons.js` | codes météo WMO et pictogrammes (prévisions du tableau de bord, météogramme) |
 | `skins/WeewxLive/nav.js` | heure de la station (fonctions de date), unités, mode admin, menu commun ; nom, sous-titre et logo des pages statiques |
 | `skins/WeewxLive/minichart.js` | moteur de graphiques canvas + échelles de couleur des températures |
-| `skins/WeewxLive/style.css` | thème (clair / sombre) |
+| `skins/WeewxLive/style.css` | styles des pages |
+| `skins/WeewxLive/theme.css` | thèmes de couleurs, clairs et sombres (importé par `style.css`) |
 | `skins/WeewxLive/data/*.json.tmpl`, `config.json.tmpl` | gabarits des fichiers JSON |
 | `skins/WeewxLive/vendor/leaflet/` | bibliothèque de cartes Leaflet 1.9.4 (RainViewer / EUMETSAT) |
 | `skins/WeewxLive/images/logo.png` | logo d'exemple, affiché par défaut ([Logo](#logo)) |
@@ -148,7 +153,8 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `config.json` | configuration de la page | à chaque archive |
 | `wxtime.js` | fuseau horaire de la station ([Heure de la station](#heure-de-la-station)) | à chaque archive |
 | `i18n.js` | textes de la langue choisie ([Langue des pages](#langue-des-pages-lang)) | à chaque archive |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html`, `webcam.html`, `vigilance.html` | pages traduites (gabarits) | à chaque archive |
+| `theme.js` | apparence par défaut ([Apparence](#apparence--mode-clair--sombre-et-thèmes-de-couleurs-appearance)) | à chaque archive |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `appearance.html`, `admin.html`, `webcam.html`, `vigilance.html` | pages traduites (gabarits) | à chaque archive |
 | `data/history.json` | séries 24 h, extrêmes et cumuls du jour | à chaque archive |
 | `data/p24h.json` | page de détail, 24 h | à chaque archive |
 | `data/p7d.json` | 7 jours | 30 min max. |
@@ -161,7 +167,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `data/warnings.json` | vigilance météo de chaque lieu (MeteoAlarm, NWS, ECCC) | à chaque archive, téléchargement au plus une fois par 5 min et par source (MeteoAlarm : par pays) |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
-| `*.js`, `style.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
+| `*.js`, `style.css`, `theme.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
 Les pages d'archives des périodes passées ne sont générées qu'une fois : après une mise à
 jour de weewx-live, elles gardent l'ancienne présentation (elles restent utilisables). Pour
@@ -515,8 +521,9 @@ Identifiants : `parameters` (mesures), `forecast` (prévisions), `maps` (radar e
 Chaque **visiteur** peut ensuite réorganiser le tableau de bord : bouton **« Réorganiser »**
 (en haut, à côté de « Tout réduire »). Les cadres se replient en une liste : **↑ Monter** /
 **↓ Descendre** sur chaque cadre et, dans « Mesures de la station », sur chaque **panneau de
-mesures** (température, vent, pluie…). Chaque cadre et chaque panneau a aussi un bouton
-**« Masquer »** (« Afficher » pour le faire réapparaître) : un élément masqué n'est plus
+mesures** (température, vent, pluie…). Chaque panneau a aussi un bouton **« Développer »** /
+**« Réduire »** (comme la flèche en haut à droite du panneau). Chaque cadre et chaque panneau
+a aussi un bouton **« Masquer »** (« Afficher » pour le faire réapparaître) : un élément masqué n'est plus
 affiché sur le tableau de bord (un cadre radar et satellite masqué n'est pas chargé). Puis
 **« Terminer »**. Ordres et éléments masqués sont mémorisés par son navigateur et appliqués
 dès le chargement ; **« Par défaut »** revient aux ordres de l'administrateur
@@ -526,18 +533,63 @@ Pour retirer un élément pour tous les visiteurs : `enable = false` dans `[[for
 `[[radar]]`, `[[satellite]]`, `[[astro]]` ou dans le paramètre de `[[parameters]]` (le cadre
 « au fil des ans » n'a pas d'option de désactivation).
 
+**Profils** : pendant la réorganisation, la disposition en cours (ordres, éléments masqués et
+état réduit / développé de chaque panneau) peut être enregistrée sous un nom : champ **« Nom du profil »**, puis **« Enregistrer le
+profil »** (nom existant : **« Mettre à jour le profil »** ; **« Supprimer le profil »**
+l'efface). Dès qu'un profil existe, une liste **« Profil »** apparaît en haut du tableau de
+bord : choisir un profil l'applique aussitôt ; **« Disposition de la station »** revient à
+celle de l'administrateur. Les profils sont mémorisés par le navigateur du visiteur ; toute
+modification ultérieure de la disposition (y compris réduire ou développer un panneau)
+désélectionne le profil (« Disposition personnalisée »).
+
+L'administrateur peut aussi proposer des **profils de la station** à tous les visiteurs,
+affichés dans la même liste (« Profils de la station », à côté de « Mes profils »), dans
+`skin.conf` :
+
+```ini
+    [[dashboard]]
+        order = parameters, forecast, maps, astro, climate
+        [[[profiles]]]
+            [[[[essentiel]]]]
+                title    = Essentiel              # nom dans la liste (voir ci-dessous)
+                blocks   = parameters, forecast   # cadres affichés, dans cet ordre (autres masqués)
+                panels   = outTemp, wind, rain    # panneaux affichés, dans cet ordre (autres masqués)
+                expanded = outTemp                # panneaux développés (autres réduits)
+```
+
+`blocks` / `panels` absents : tous les éléments, dans l'ordre par défaut ; `expanded` absent :
+tous les panneaux réduits. Sans `title`, le nom vient du fichier de langue, `[Texts]
+[[Profiles]]` (clé : nom de la sous-section), pour suivre la langue du site, par exemple dans
+`lang/en.conf` :
+
+```ini
+    [[Profiles]]
+        essentiel = "Essential"
+```
+
+Si ni l'un ni l'autre n'est donné, le nom de la sous-section est affiché.
+
+**Profils d'exemple** (`editable = true` dans la sous-section du profil) : au lieu d'un profil
+de la station en lecture seule, le profil est copié une fois dans les profils du visiteur
+(« Mes profils »), qui peut l'appliquer, le mettre à jour ou le supprimer comme les siens. Le
+navigateur retient les profils d'exemple déjà copiés : un profil supprimé ne revient pas, et un
+exemple ajouté plus tard est copié une fois. Il n'est pas copié si le visiteur a déjà un profil
+du même nom. Une fois copié, il ne suit plus `skin.conf` (un changement ultérieur n'atteint que
+les nouveaux visiteurs), et son nom reste dans la langue du site au moment de la copie. Les identifiants inconnus sont signalés dans le journal de weewx et
+ignorés.
+
 ### Langue des pages (`lang`)
 
 Les textes des pages sont dans le dossier `lang/` du skin, un fichier par langue, selon les
-directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (allemand) et
-`it.conf` (italien). La langue se choisit dans
+directives de weewx : `fr.conf` (français), `en.conf` (anglais), `de.conf` (allemand) ,
+`it.conf` (italien) et `pl.conf` (polonais). La langue se choisit dans
 `weewx.conf`, section du rapport :
 
 ```ini
 [StdReport]
     [[WeewxLive]]
         skin = WeewxLive
-        lang = fr          # fr, en, de ou it
+        lang = fr          # fr, en, de, it ou pl
 ```
 
 - L'installeur ajoute `lang = fr` à cette section (aussi lors d'une mise à jour, si l'option
@@ -632,6 +684,42 @@ et les couleurs des températures restent calculés sur les valeurs métriques.
 Les 6 paramètres standard sont toujours publiés dans ces unités métriques : leur unité par
 défaut se règle uniquement ici, par `[[units]]` (une option `units` sur un paramètre standard
 est ignorée et signalée dans le journal).
+
+### Apparence : mode clair / sombre et thèmes de couleurs (`[[appearance]]`)
+
+Toutes les pages existent en version claire et sombre, dans plusieurs **thèmes de couleurs**
+(`theme.css`) : `classic` (Classique, par défaut), `navy` (Léman, bleus du lac), `alpage`
+(Alpage, verts des pâturages), `slate` (Ardoise, gris bleutés),`forest` (brun forêt). L'apparence par défaut du site
+se règle dans `skin.conf` :
+
+```ini
+[LiveJSON]
+    [[appearance]]
+        mode   = auto        # auto (suit le réglage de l'appareil), light (clair), dark (sombre)
+        theme  = classic     # thème de couleurs du site
+        themes = classic, leman, alpage, slate, forest   # thèmes proposés aux visiteurs, dans cet ordre
+```
+
+Chaque **visiteur** peut choisir les siens : menu **« Réglages → Apparence »**
+(`appearance.html`), où la case de chaque thème est dans les couleurs de ce thème (fond,
+texte, bordure) et dans le mode affiché, mémorisé par son navigateur ; **« Revenir à l'apparence du site »** efface ce choix. Le choix est appliqué par
+`theme.js` (généré, chargé dans le `<head>` de chaque page, avant l'affichage).
+
+Le **nom** de chaque thème vient des fichiers de langue, `[Texts] [[Themes]]` (clé :
+identifiant du thème), par exemple dans `lang/fr.conf` :
+
+```ini
+    [[Themes]]
+        classic = "Classique"
+        slate   = "Ardoise"
+```
+
+**Ajouter un thème** : copier le bloc d'un thème existant dans `theme.css` (trois sélecteurs :
+clair, sombre automatique, sombre choisi), changer son identifiant (`[data-palette="montheme"]`)
+et ses couleurs, ajouter `montheme` à `themes` et `montheme = "Mon thème"` à `[[Themes]]` de
+chaque fichier de langue. Les variables sont décrites en tête de `theme.css` ; un thème peut
+n'en redéfinir qu'une partie (les autres gardent les valeurs de `classic`). Attention : une
+réinstallation de l'extension remplace `theme.css`, gardez une copie de vos thèmes.
 
 ### Unités des paramètres supplémentaires (`[[unit_groups]]`, `units`)
 
@@ -855,14 +943,23 @@ pour aujourd'hui :
 - **Lune** : heures de lever et de coucher (« — » s'il n'y en a pas ce jour-là), phase avec
   son dessin et pourcentage éclairé, position actuelle ;
 - un **graphique** de la hauteur du soleil et de la lune de 0 h à 24 h, avec l'horizon, la
-  période de jour (fond) et la position actuelle de chacun (point), actualisé chaque minute.
+  période de jour (fond) et la position actuelle de chacun (point), actualisé chaque minute ;
+- à sa droite, la **course du soleil dans le ciel** : direction (azimut, avec les points
+  cardinaux) en bas et hauteur à gauche, sur un fond de ciel. Elle montre la course du jour
+  (tirets blancs, avec les heures pleines), celles du 21 juin, de l'équinoxe de mars et du
+  21 décembre de l'année, la lune du lever au coucher (le passage en cours, sinon le
+  prochain), et la position actuelle du soleil et de la lune (dessinée avec sa phase
+  actuelle) ; une note indique quand l'un
+  d'eux est sous l'horizon. Le sud est au centre (le nord dans l'hémisphère sud). Sur les
+  écrans étroits, les deux graphiques sont l'un sous l'autre.
 
 Les calculs sont faits par **l'almanach de weewx** (`weewx.almanac`, le même que `$almanac`
 dans les gabarits, avec PyEphem) pour la latitude, la longitude et l'altitude de la station
 (`[Station]` de `weewx.conf`, ou `latitude`/`longitude` de `[[forecast]]`), en tenant compte de
 la température et de la pression actuelles (réfraction). Ils sont publiés dans
 `data/astro.json` à chaque archive : levers, couchers et passages au méridien, durée du jour
-de la veille, phase de la lune, hauteurs et azimuts toutes les 10 minutes ; la page en
+de la veille, phase de la lune, hauteurs et azimuts toutes les 10 minutes, courses du soleil
+aux solstices et à l'équinoxe (calculées une fois par an) et passage de la lune ; la page en
 déduit la position actuelle. Les journées et les heures sont celles de la station
 (voir [Heure de la station](#heure-de-la-station)).
 

@@ -25,11 +25,12 @@ and does not need to be reachable from the internet. Version 1.1.
     matching curve, a second click shows it again. The scale and tooltip adapt; everything
     reappears when the page is reloaded.
   - **Sun and Moon**: sunrise / sunset and moonrise / moonset, day length and change from the
-    previous day, moon phase, altitude curves and current position.
+    previous day, moon phase, altitude curves and current position, and the sun path in the
+    sky (today, 21 June, equinox, 21 December, and the moon from rise to set).
   - **Open-Meteo forecasts** (7 days, hour-by-hour detail, choice of 5 models), **radar** and
     **satellite** (Windy maps, or RainViewer / EUMETSAT).
   - Frame order chosen by the administrator; each visitor can **rearrange** and **hide**
-    frames and panels.
+    frames and panels, and save these layouts as **profiles** to switch between them.
   - **This day and this month over the years**: records of each year for today's date and the
     current month, compared with current values.
 - **One page per parameter** ("Data" menu or panel title): statistics and chart over
@@ -57,8 +58,8 @@ and does not need to be reachable from the internet. Version 1.1.
   States) and Environment and Climate Change Canada, for one or more locations, in one or more
   countries; pills of the warnings in force (yellow, orange, red) at the top of the
   dashboard, full details on the "Weather warnings" page; updated every 5 minutes.
-- **Pages in French, English, German or Italian** (option `lang`, skin files `lang/fr.conf`,
-  `en.conf`, `de.conf` and `it.conf`, following the weewx guidelines); another language is
+- **Pages in French, English, German, Italian or Polish** (option `lang`, skin files `lang/fr.conf`,
+  `en.conf`, `de.conf`, `it.conf`,`pl.conf` following the weewx guidelines); another language is
   added with one more file (see [Page language](#page-language-lang)).
 - **"Extremes" page**: all-time records, rankings (days, months, showers) and longest frost,
   dry and wet spells, over the whole database.
@@ -122,6 +123,8 @@ See skin [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 | `skins/WeewxLive/meteogram.html.tmpl`, `meteogram.js` | "Meteogram" page |
 | `skins/WeewxLive/wxtime.js.tmpl` | station time zone (the date functions of all pages are in `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | "Settings → Units" page (units chosen by the visitor) |
+| `skins/WeewxLive/appearance.html.tmpl`, `appearance.js` | "Settings → Appearance" page (light / dark mode and colour theme chosen by the visitor, [Appearance](#appearance-light--dark-mode-and-colour-themes-appearance)) |
+| `skins/WeewxLive/theme.js.tmpl` | default appearance of the site, applied in the `<head>` of every page (`theme.js`) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | "Webcam" page (images and videos from `[[webcam]]`) |
 | `skins/WeewxLive/about.html` | example "About" page, to adapt (["About" page](#about-page-about)) |
 | `skins/WeewxLive/vigilance.html.tmpl`, `warnings.js` | MeteoAlarm weather warnings: dashboard pills and "Weather warnings" page ([Weather warnings](#weather-warnings-meteoalarm-nws-eccc)) |
@@ -129,7 +132,8 @@ See skin [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 | `skins/WeewxLive/wxicons.js` | WMO weather codes and icons (dashboard forecasts, meteogram) |
 | `skins/WeewxLive/nav.js` | station time (date functions), units, admin mode, common menu; name, subtitle and logo of the static pages |
 | `skins/WeewxLive/minichart.js` | canvas chart engine + temperature colour scales |
-| `skins/WeewxLive/style.css` | theme (light / dark) |
+| `skins/WeewxLive/style.css` | page styles |
+| `skins/WeewxLive/theme.css` | colour themes, light and dark (imported by `style.css`) |
 | `skins/WeewxLive/data/*.json.tmpl`, `config.json.tmpl` | JSON file templates |
 | `skins/WeewxLive/vendor/leaflet/` | Leaflet 1.9.4 map library (RainViewer / EUMETSAT) |
 | `skins/WeewxLive/images/logo.png` | example logo, shown by default ([Logo](#logo)) |
@@ -144,7 +148,8 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `config.json` | page configuration | at each archive |
 | `wxtime.js` | station time zone ([Station time](#station-time)) | at each archive |
 | `i18n.js` | texts of the chosen language ([Page language](#page-language-lang)) | at each archive |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `admin.html`, `webcam.html`, `vigilance.html` | translated pages (templates) | at each archive |
+| `theme.js` | default appearance ([Appearance](#appearance-light--dark-mode-and-colour-themes-appearance)) | at each archive |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `appearance.html`, `admin.html`, `webcam.html`, `vigilance.html` | translated pages (templates) | at each archive |
 | `data/history.json` | 24 h series, extremes and totals of the day | at each archive |
 | `data/p24h.json` | detail page, 24 h | at each archive |
 | `data/p7d.json` | 7 days | 30 min max. |
@@ -157,7 +162,7 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `data/ensembles.json` | Open-Meteo ensemble forecasts (members) | every 30 min, download at most once every 3 h per model |
 | `data/warnings.json` | weather warnings of each location (MeteoAlarm, NWS, ECCC) | at each archive, download at most once every 5 min per source (MeteoAlarm: per country) |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | archive pages | current period at each archive; past periods once |
-| `*.js`, `style.css`, `img/`, `vendor/` | copied files | at each archive (FTP only uploads changed files) |
+| `*.js`, `style.css`, `theme.css`, `img/`, `vendor/` | copied files | at each archive (FTP only uploads changed files) |
 
 Archive pages of past periods are generated only once: after a weewx-live update they keep
 the old layout (they remain usable). To rebuild them, delete the `archive/`
@@ -505,7 +510,8 @@ the end.
 Each **visitor** can then rearrange the dashboard: **"Rearrange"** button (at the top, next
 to "Collapse all"). Frames fold into a list: **↑ Move up** / **↓ Move down** on each frame
 and, in "Station measurements", on each **measurement panel** (temperature, wind, rain…).
-Each frame and each panel also has a **"Hide"** button ("Show" to bring it back): a hidden
+Each panel also has an **"Expand"** / **"Collapse"** button (same as the arrow at the top
+right of the panel). Each frame and each panel also has a **"Hide"** button ("Show" to bring it back): a hidden
 item is no longer shown on the dashboard (a hidden radar and satellite frame is not loaded).
 Then **"Done"**. Orders and hidden items are remembered by the visitor's browser and applied
 as soon as the page loads; **"Default"** returns to the administrator's orders
@@ -514,6 +520,49 @@ and shows everything again. Moving the radar and satellite frame reloads the Win
 remove an item for all visitors: `enable = false` in `[[forecast]]`, `[[radar]]`,
 `[[satellite]]`, `[[astro]]` or in the parameter of `[[parameters]]` (the "over the years"
 frame has no disable option).
+
+**Profiles**: while rearranging, the current layout (orders, hidden items and expanded /
+collapsed state of each panel) can be saved
+under a name: **"Profile name"** field, then **"Save as profile"** (an existing name:
+**"Update profile"**; **"Delete profile"** removes it). As soon as a profile exists, a
+**"Profile"** list appears at the top of the dashboard: choosing a profile applies it at once;
+**"Station layout"** returns to the administrator's layout. Profiles are remembered by the
+visitor's browser; any later change to the layout (including collapsing or expanding a
+panel) deselects the profile ("Custom layout").
+
+The administrator can also offer **station profiles** to all visitors, shown in the same list
+("Station profiles", next to "My profiles"), in `skin.conf`:
+
+```ini
+    [[dashboard]]
+        order = parameters, forecast, maps, astro, climate
+        [[[profiles]]]
+            [[[[essential]]]]
+                title    = Essential              # name in the list (see below)
+                blocks   = parameters, forecast   # frames shown, in this order (others hidden)
+                panels   = outTemp, wind, rain    # panels shown, in this order (others hidden)
+                expanded = outTemp                # panels expanded (others collapsed)
+```
+
+Missing `blocks` / `panels`: all items, in the default order; missing `expanded`: all panels
+collapsed. Without `title`, the name comes from the language file, `[Texts] [[Profiles]]`
+(key: name of the sub-section), so that it follows the language of the site, e.g. in
+`lang/fr.conf`:
+
+```ini
+    [[Profiles]]
+        essential = "Essentiel"
+```
+
+If neither is given, the name of the sub-section is shown.
+
+**Example profiles** (`editable = true` in the profile's sub-section): instead of a read-only
+station profile, the profile is copied once into the visitor's own profiles ("My profiles"),
+where they can apply, update or delete it like their own. The browser remembers which example
+profiles it has copied: a deleted one does not come back, and an example added later is
+copied once. It is not copied if the visitor already has a profile with the same name. Once
+copied, it no longer follows `skin.conf` (later changes only reach new visitors), and its name
+stays in the language of the site at the time of the copy. Unknown identifiers are reported in the weewx log and ignored.
 
 ### Page language (`lang`)
 
@@ -619,6 +668,42 @@ computed on the metric values.
 The 6 standard parameters are always published in these metric units: their default unit is
 set only here, with `[[units]]` (a `units` option on a standard parameter is ignored and
 reported in the log).
+
+### Appearance: light / dark mode and colour themes (`[[appearance]]`)
+
+All pages exist in a light and a dark version, in several **colour themes** (`theme.css`):
+`classic` (default), `navy` (lake blues), `alpage` (pasture greens), `slate` (bluish greys),`forest` (forest brown)  .
+The site's default appearance is set in `skin.conf`:
+
+```ini
+[LiveJSON]
+    [[appearance]]
+        mode   = auto        # auto (follows the device setting), light, dark
+        theme  = classic     # colour theme of the site
+        themes = classic, leman, alpage, slate, forest   # themes offered to visitors, in this order
+```
+
+Each **visitor** can choose their own: **"Settings → Appearance"** menu (`appearance.html`),
+where the box of each theme is shown in that theme's colours (background, text, border) in
+the current mode, remembered by their browser; **"Restore the
+site's appearance"** clears that choice. The choice is applied by `theme.js` (generated, loaded
+in the `<head>` of every page, before display).
+
+The **name** of each theme comes from the language files, `[Texts] [[Themes]]` (key: theme
+identifier), e.g. in `lang/en.conf`:
+
+```ini
+    [[Themes]]
+        classic = "Classic"
+        leman   = "Léman"
+```
+
+**Adding a theme**: copy the block of an existing theme in `theme.css` (three selectors:
+light, automatic dark, chosen dark), change its identifier (`[data-palette="mytheme"]`) and
+its colours, add `mytheme` to `themes` and `mytheme = "My theme"` to `[[Themes]]` of each
+language file. The variables are listed at the top of `theme.css`; a theme may redefine only
+some of them (the others keep the `classic` values). Note: reinstalling the extension
+replaces `theme.css`, keep a copy of your themes.
 
 ### Units of extra parameters (`[[unit_groups]]`, `units`)
 
@@ -838,14 +923,22 @@ A dashboard frame (after radar and satellite, in the default order) gives for to
 - **Moon**: moonrise and moonset times ("—" if there is none that day), phase with its
   drawing and percentage illuminated, current position;
 - a **chart** of the altitude of the sun and moon from 0:00 to 24:00, with the horizon, the
-  daytime period (background) and the current position of each (dot), updated every minute.
+  daytime period (background) and the current position of each (dot), updated every minute;
+- to its right, the **sun path in the sky**: direction (azimuth, with the cardinal points) at
+  the bottom and altitude on the left, on a sky background. It shows today's path (dashed
+  white, with the full hours), the paths of 21 June, the March equinox and 21 December of the
+  year, the moon from rise to set (the current pass, otherwise the next one), and the current
+  position of the sun and moon (drawn with its current phase); a note says when one of them is below the horizon. South is
+  in the middle (north in the southern hemisphere). On narrow screens, the two charts are
+  stacked.
 
 The calculations are done by the **weewx almanac** (`weewx.almanac`, the same as `$almanac`
 in templates, with PyEphem) for the station's latitude, longitude and altitude (`[Station]`
 of `weewx.conf`, or `latitude`/`longitude` of `[[forecast]]`), taking the current temperature
 and pressure into account (refraction). They are published in `data/astro.json` at each
 archive: rises, sets and meridian transits, previous day's length, moon phase, altitudes and
-azimuths every 10 minutes; the page derives the current position from them. Days and times
+azimuths every 10 minutes, sun paths of the solstices and equinox (computed once a year)
+and the moon's pass; the page derives the current position from them. Days and times
 are the station's (see [Station time](#station-time)).
 
 PyEphem is installed with weewx 5 (dependency of the package and of the pip installation).

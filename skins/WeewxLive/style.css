@@ -1,55 +1,6 @@
-:root {
-  color-scheme: light;
-  --bg: #f4f4f1;
-  --surface: #fcfcfb;
-  --grid: #e6e5e0;
-  --text: #0b0b0b;
-  --text-2: #52514e;
-  --text-3: #706f69;   /* contraste ≥ 4,5:1 sur --surface */
-  --border: #e3e2dc;
-  --ok: #1a8a4a;
-  --warn: #c98500;
-  --bad: #d03b3b;
-
-  /* séries (palette de référence validée, mode clair) */
-  --temp: #eb6834;
-  --wind: #2a78d6;
-  --gust: #eb6834;
-  --rain: #2a78d6;
-  --rainsum: #1baf7a;
-  --sun:  #eda100;
-  --hum:  #1baf7a;
-  --press:#4a3aa7;
-  --frost:#1f62c4;   /* ligne « Durée du gel en cours » */
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #111110;
-    --surface: #1a1a19;
-    --grid: #2c2c2a;
-    --text: #ffffff;
-    --text-2: #c3c2b7;
-    --text-3: #8d8c84;
-    --border: #2a2a28;
-    --temp: #d95926;
-    --wind: #3987e5;
-    --gust: #d95926;
-    --rain: #3987e5;
-    --rainsum: #199e70;
-    --sun:  #c98500;
-    --hum:  #199e70;
-    --press:#9085e9;
-    --frost:#6aa6f2;
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #111110; --surface: #1a1a19; --grid: #2c2c2a; --text: #ffffff;
-  --text-2: #c3c2b7; --text-3: #8d8c84; --border: #2a2a28;
-  --temp: #d95926; --wind: #3987e5; --gust: #d95926; --rain: #3987e5; --rainsum: #199e70;
-  --sun: #c98500; --hum: #199e70; --press: #9085e9; --frost: #6aa6f2;
-}
+/* Couleurs de base (fond, textes, séries) : thèmes de couleurs de theme.css, en mode clair et
+   sombre (choix du visiteur : page « Réglages → Apparence », theme.js). */
+@import url("theme.css");
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -460,6 +411,26 @@ button.fc-day:focus-visible, .fh-close:focus-visible { outline: 2px solid var(--
   border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer;
 }
 .grid-tools button:hover { color: var(--text); }
+/* profils du tableau de bord (layout.js) : liste « Profil », à gauche des boutons */
+.grid-tools { flex-wrap: wrap; align-items: center; }
+.prof-pick { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; color: var(--text-2); min-width: 0; }
+.prof-pick[hidden] { display: none; }
+.prof-pick select, .prof-edit input {
+  font: inherit; font-size: 13px; color: var(--text); background: var(--surface); min-width: 0; max-width: 60vw;
+  border: 1px solid var(--border); border-radius: 8px; padding: 3px 8px;
+}
+.prof-pick select:focus-visible, .prof-edit input:focus-visible, .prof-edit button:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+/* enregistrement / suppression des profils, en réorganisation */
+.prof-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; max-width: 760px; margin: 0 auto 10px; padding: 8px 16px; }
+.prof-edit[hidden] { display: none; }
+.prof-edit label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.prof-edit input { flex: 1 1 160px; max-width: 260px; }
+.prof-edit button {
+  font: inherit; font-size: 12px; color: var(--text-2); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer;
+}
+.prof-edit button:hover:not(:disabled) { color: var(--text); }
+.prof-edit button:disabled { opacity: .5; cursor: default; }
 
 /* ---------- Ce jour et ce mois au fil des ans ---------- */
 .climate { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
@@ -614,6 +585,31 @@ i.tgrad.ln-2 { -webkit-mask: repeating-linear-gradient(90deg, #000 0 2px, transp
   .astro-chart { height: 180px; }
 }
 .astro-side[hidden] { display: none; }
+/* deux graphiques côte à côte : hauteur sur la journée, course du soleil dans le ciel */
+.astro-side { flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 18px 24px; }
+.astro-pane { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; }
+.astro-pane[hidden] { display: none; }
+.sunpath { width: 100%; min-height: 210px; }
+.sunpath svg { display: block; max-width: 100%; height: auto; }
+.sp-grid path { stroke: rgba(255, 255, 255, .28); stroke-width: 1; }
+.sp-axis text { font-size: 12px; fill: var(--text-3); }
+.sp-axis .sp-card { font-weight: 650; fill: var(--text-2); }
+.sp-horizon { stroke: var(--text-2); stroke-width: 1.5; }
+.sp-now { stroke: #1d2433; stroke-width: 2; }
+.sp-moon-ring { fill: none; stroke: rgba(255, 255, 255, .85); stroke-width: 2; }   /* contour de la lune (phase) */
+.sp-lab, .sp-hour { font-size: 13px; font-weight: 700; paint-order: stroke; stroke: rgba(20, 40, 120, .75); stroke-width: 3px; stroke-linejoin: round; }
+.sp-hour { font-size: 12px; fill: #fff; }
+/* ciel : bleu vif en haut, clair à l'horizon (plus sombre en mode sombre) */
+.sp-sky-top { stop-color: #1f3fd6; }
+.sp-sky-bot { stop-color: #b9d8fb; }
+.sp-sky { fill: #2f55d9; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sp-sky-top { stop-color: #13256e; } :root:not([data-theme="light"]) .sp-sky-bot { stop-color: #4f76b8; } }
+:root[data-theme="dark"] .sp-sky-top { stop-color: #13256e; }
+:root[data-theme="dark"] .sp-sky-bot { stop-color: #4f76b8; }
+.sp-note { margin: 4px 0 0 40px; font-size: 12px; color: var(--text-3); }
+.sp-note[hidden] { display: none; }
+.sp-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.sp-legend svg { width: 30px; height: 12px; flex: none; }
 
 /* ---------- Menu « Données » : intitulés de groupes ---------- */
 .dd-head { padding: 6px 10px 2px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
@@ -840,6 +836,8 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
   content: var(--wx-hidden-label, " (masqué)"); font-weight: 400; color: var(--text-3); }   /* texte : layout.js */
 .dash-sub li.is-hidden { opacity: .6; }
 .dash-bar .dash-hide, .dash-sub .dash-hide { min-width: 5.6em; }
+.dash-sub .dash-expand { min-width: 6.6em; }
+.dash-expand[aria-pressed="true"] { border-color: var(--text-3); font-weight: 600; }
 .dash-hide[aria-pressed="true"] { background: var(--text) !important; color: var(--bg) !important; border-color: var(--text) !important; }
 /* fond de carte sans version sombre (OpenStreetMap, OpenTopoMap) : assombri en thème sombre ;
    seule la première couche (le fond) est filtrée, pas le radar ni le satellite */
@@ -868,6 +866,29 @@ a.cm-day:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; bo
 @media (max-width: 640px) {
   .u-row { grid-template-columns: 1fr; }
 }
+
+/* Page « Réglages → Apparence » (appearance.html) : mode et thème de couleurs (theme.css) ;
+   la case de chaque thème est dans ses propres couleurs (data-palette, appearance.js) */
+.ap-card { max-width: 960px; }
+.appearance-page .p-last { margin-left: 0; max-width: 960px; }
+.ap-set { border: 0; margin: 0 0 18px; padding: 0; min-width: 0; }
+.ap-set legend { font-weight: 650; font-size: 15px; padding: 0; margin-bottom: 10px; }
+.ap-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+.ap-opt {
+  position: relative; display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  color: var(--text);   /* case d'un thème (data-palette) : couleurs de ce thème */
+}
+/* case d'un thème : fond de la page de ce thème (plus distinct que celui des cadres) */
+.ap-opt[data-palette] { background: var(--bg); }
+.ap-opt:hover { border-color: var(--text-3); }
+.ap-opt:has(input:checked) { border: 2px solid var(--text); padding: 11px 13px; }
+.ap-opt input { margin: 3px 0 0; accent-color: var(--text); flex: none; }
+.ap-opt input:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+.ap-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ap-body b { font-size: 15px; font-weight: 600; }
+.ap-body small { color: var(--text-3); font-size: 13px; }
+.ap-site { font-weight: 400; font-size: 13px; color: var(--text-3); }
 
 /* Mode admin (nav.js, WXA) : éléments réservés masqués hors mode admin */
 html:not(.wx-admin) [data-admin] { display: none !important; }
