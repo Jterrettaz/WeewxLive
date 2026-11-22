@@ -20,11 +20,12 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
                            (archive/climato-AAAA-MM.html, climato-AAAA.html)
   $livejson_period.p24h …  JSON : pages de détail (24 h, 7, 30, 365 et 730 jours)
   $livejson_params, $livejson_station, $livejson_logo, $livejson_hardware,
-  $livejson_dash_order, $livejson_refresh, $livejson_fc_days : valeurs pour les gabarits
+  $livejson_dash_order, $livejson_dash_profiles, $livejson_refresh, $livejson_fc_days : valeurs pour les gabarits
                            HTML (index.html.tmpl, pages d'archives)
   $livejson_tz             fuseau horaire de la station, chaîne JSON (wxtime.js.tmpl)
   $livejson_units          unités d'affichage par défaut, objet JSON (wxtime.js.tmpl)
   $livejson_admin          empreinte du mot de passe admin, chaîne JSON ou null (wxtime.js.tmpl)
+  $livejson_appearance     mode et thème de couleurs par défaut, objet JSON (theme.js.tmpl)
   $livejson_i18n           script des textes de la langue choisie (i18n.js.tmpl)
   $livejson_lang, $livejson_months, $lt("Contexte", "clé", nom=valeur) : langue de la page,
                            noms des mois et textes échappés pour le HTML (gabarits)
@@ -1270,6 +1271,51 @@ def _dash_order(opts):
     return order + [b for b in DASH_BLOCKS if b not in order]
 
 
+# courses du soleil aux solstices et à l'équinoxe (astro.json), par (année, latitude, longitude)
+_SUN_PATHS = {}
+
+
+def _dash_profiles(opts, panel_ids, L=None):
+    """Profils de disposition du tableau de bord proposés par la station ([[dashboard]]
+    [[[profiles]]], une sous-section par profil) : [{"id": sous-section, "n": nom, "b": cadres,
+    "p": panneaux, "x": panneaux développés, "e": profil d'exemple (option editable : copié
+    une fois dans les profils du visiteur, qui peut le modifier ou le supprimer)}]. b / p : identifiants affichés, dans cet ordre (les autres sont
+    masqués) ; None si l'option est absente (ordre par défaut, tout affiché). x : panneaux
+    développés (les autres réduits ; absent : tous réduits). Identifiants inconnus ignorés.
+    Nom : option title, sinon [Texts] [[Profiles]] <sous-section> du fichier de langue (L),
+    sinon le nom de la sous-section."""
+    sec = (opts.get("dashboard", {}) or {}).get("profiles", {}) or {}
+    out, names = [], set()
+
+    def ids(conf, opt, known, what, name):
+        if opt not in conf:
+            return None
+        res = []
+        for x in _as_list(conf.get(opt)):
+            k = x.lower() if opt == "blocks" else x
+            if k not in known:
+                log.error("livejson: [[dashboard]] [[[profiles]]] %s : %s « %s » inconnu (%s)",
+                          name, what, x, ", ".join(known))
+            elif k not in res:
+                res.append(k)
+        return res
+
+    for key, conf in sec.items():
+        if not isinstance(conf, dict):
+            log.error("livejson: [[dashboard]] [[[profiles]]] %s : sous-section [[[[%s]]]] attendue", key, key)
+            continue
+        name = str(conf.get("title", "") or (L("Profiles", key, default=key) if L else key)).strip()[:40]
+        if not name or name in names:
+            log.error("livejson: [[dashboard]] [[[profiles]]] %s : nom vide ou en double, ignoré", key)
+            continue
+        names.add(name)
+        out.append({"id": str(key), "e": to_bool(conf.get("editable", False)),
+                    "n": name, "b": ids(conf, "blocks", list(DASH_BLOCKS), "cadre", key),
+                    "p": ids(conf, "panels", list(panel_ids), "panneau", key),
+                    "x": ids(conf, "expanded", list(panel_ids), "panneau", key) or []})
+    return out
+
+
 # unités d'affichage par défaut ([LiveJSON] [[units]]) : option -> (grandeur de nav.js (WXU),
 # {nom accepté (minuscules) : libellé affiché}). Les données restent métriques ; la conversion
 # se fait dans le navigateur, et chaque visiteur peut choisir les siennes (Réglages → Unités).
@@ -1306,6 +1352,36 @@ def _display_units(opts):
             continue
         out[g] = u
     return out
+
+
+APPEARANCE_MODES = ("auto", "light", "dark")
+# thèmes de couleurs fournis (theme.css), proposés par défaut
+APPEARANCE_THEMES = ("classic", "leman", "alpage", "slate")
+_THEME_ID_RE = re.compile(r"^[a-z0-9_-]+$")
+
+
+def _appearance(opts):
+    """Apparence par défaut des pages ([[appearance]]) : {"mode", "theme", "themes"} pour
+    theme.js (window.WX_APPEARANCE). Identifiants de thèmes : ceux de theme.css."""
+    sec = opts.get("appearance", {}) or {}
+    mode = str(sec.get("mode", "auto") or "auto").strip().lower()
+    if mode not in APPEARANCE_MODES:
+        log.error("livejson: [[appearance]] mode = %s : valeur inconnue (%s)", mode, ", ".join(APPEARANCE_MODES))
+        mode = "auto"
+    themes = []
+    for t in (_as_list(sec.get("themes")) or list(APPEARANCE_THEMES)):
+        t = t.lower()
+        if not _THEME_ID_RE.match(t):
+            log.error("livejson: [[appearance]] themes : identifiant « %s » invalide (a-z, 0-9, - et _)", t)
+        elif t not in themes:
+            themes.append(t)
+    theme = str(sec.get("theme", "") or "").strip().lower() or (themes[0] if themes else "classic")
+    if not _THEME_ID_RE.match(theme):
+        log.error("livejson: [[appearance]] theme = %s : identifiant invalide", theme)
+        theme = themes[0] if themes else "classic"
+    if theme not in themes:
+        themes.insert(0, theme)          # thème du site toujours proposé
+    return {"mode": mode, "theme": theme, "themes": themes}
 
 
 def _as_list(v):
@@ -1504,6 +1580,8 @@ class LiveJSON(SearchList):
         self.dash_order = _dash_order(opts)
         # unités d'affichage par défaut ([[units]]) : window.WX_UNITS (wxtime.js) et config.json
         self.display_units = _display_units(opts)
+        # apparence par défaut ([[appearance]]) : window.WX_APPEARANCE (theme.js)
+        self.appearance = _appearance(opts)
         self.arch = _archive_options(opts)
         ext = opts.get("extremes", {})
         self.ext_top = _int(ext.get("top"), 10, 3, 50)
@@ -1513,6 +1591,8 @@ class LiveJSON(SearchList):
         cov = _to_float(ext.get("min_day_coverage"), 0.75)
         self.ext_cover = min(1.0, max(0.0, cov / 100.0 if cov > 1 else cov))
         self._setup_params(opts)
+        # profils de disposition proposés par la station (index.html.tmpl, data-profiles)
+        self.dash_profiles = _dash_profiles(opts, [p["id"] for p in self.params], self.L)
         self.admin_hash = _admin_hash(opts, self.params)
 
     def _setup_params(self, opts):
@@ -1610,6 +1690,8 @@ class LiveJSON(SearchList):
             "livejson_hardware": html.escape(self.hardware_label()),
             # ordre des cadres du tableau de bord (index.html.tmpl)
             "livejson_dash_order": self.dash_order,
+            # profils de disposition de la station (JSON échappé pour un attribut HTML)
+            "livejson_dash_profiles": html.escape(json.dumps(self.dash_profiles, ensure_ascii=False, separators=(",", ":")), quote=True),
             "livejson_refresh": self.page_refresh,
             # méthode des tableaux climatologiques (civil / omm), sous-titre des pages climato
             "livejson_climato_method": self.arch["climato_method"],
@@ -1623,6 +1705,8 @@ class LiveJSON(SearchList):
             "livejson_admin": json.dumps(self.admin_hash),
             # unités d'affichage par défaut (wxtime.js.tmpl), objet JSON
             "livejson_units": json.dumps(self.display_units, ensure_ascii=True),
+            # apparence par défaut (theme.js.tmpl), objet JSON
+            "livejson_appearance": json.dumps(self.appearance, ensure_ascii=True),
             "livejson_fc_days": self._fc_days(),
             "livejson_config_inline": _Lazy(lambda: self._dump(self.config()).replace("</", "<\\/")),
             # $livejson_period.p7d, etc.
@@ -3342,6 +3426,43 @@ class LiveJSON(SearchList):
                     curve["sun"].append(_round(s_.alt, 2)); curve["sunAz"].append(_round(s_.az, 1))
                     curve["moon"].append(_round(m_.alt, 2)); curve["moonAz"].append(_round(m_.az, 1))
                 out["curve"] = curve
+                # course du soleil au 21 juin, à l'équinoxe de mars et au 21 décembre de l'année
+                # (diagramme azimut / hauteur) : [azimut, hauteur] toutes les 10 min, soleil
+                # au-dessus de l'horizon
+                year = datetime.date.fromtimestamp(stop).year
+                # calculées une fois par an et par lieu (cache du module : les extensions sont
+                # recréées à chaque rapport)
+                ckey = (year, round(lat, 3), round(lon, 3))
+                paths = dict(_SUN_PATHS.get(ckey) or {})
+                for key, (mo, dd) in (() if paths else (("june", (6, 21)), ("equinox", (3, 20)), ("december", (12, 21)))):
+                    span = archiveDaySpan(int(time.mktime(datetime.datetime(year, mo, dd, 12).timetuple())))
+                    pts = []
+                    for t in range(int(span.start), int(span.stop) + 1, step):
+                        s_ = alm(almanac_time=t).sun
+                        if s_.alt >= -0.5:
+                            pts.append([_round(s_.az, 1), _round(s_.alt, 2)])
+                    paths[key] = pts
+                _SUN_PATHS.clear()
+                _SUN_PATHS[ckey] = paths
+                out["paths"] = paths
+                # passage de la lune du lever au coucher : en cours à l'heure du rapport, sinon
+                # le prochain (sinon le dernier), recherché sur ± 30 h (pas de 10 min)
+                samples = []
+                for t in range(int(stop) - 30 * 3600, int(stop) + 30 * 3600 + 1, step):
+                    m_ = alm(almanac_time=t).moon
+                    samples.append((t, m_.az, m_.alt))
+                runs, cur = [], None
+                for t, az, alt in samples:
+                    if alt >= -0.5:
+                        cur = cur if cur is not None else []
+                        cur.append((t, az, alt))
+                    elif cur:
+                        runs.append(cur); cur = None
+                if cur:
+                    runs.append(cur)
+                run = next((r for r in runs if r[0][0] <= stop <= r[-1][0]), None) \
+                    or next((r for r in runs if r[0][0] > stop), None) or (runs[-1] if runs else None)
+                out["moonPath"] = [[_round(az, 1), _round(alt, 2)] for _t, az, alt in run] if run else []
             else:
                 rise, sset = raw(alm.sunrise), raw(alm.sunset)
                 prise, pset = raw(prev.sunrise), raw(prev.sunset)

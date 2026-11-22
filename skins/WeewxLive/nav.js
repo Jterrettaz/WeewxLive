@@ -21,6 +21,12 @@ if (!window.WXL && document.readyState === "loading") {
   const src = (document.currentScript && document.currentScript.src) || "";
   document.write('<script src="' + src.replace(/nav\.js(\?.*)?$/, "") + 'i18n.js"><\/script>');
 }
+// Apparence (window.WXS, theme.js généré par weewx, chargé dans le <head>) : les pages
+// d'archives générées avant l'ajout des thèmes ne le chargent pas ; il est alors ajouté ici.
+if (!window.WXS && document.readyState === "loading") {
+  const src = (document.currentScript && document.currentScript.src) || "";
+  document.write('<script src="' + src.replace(/nav\.js(\?.*)?$/, "") + 'theme.js"><\/script>');
+}
 
 (function () {
   "use strict";
@@ -265,7 +271,8 @@ if (!window.WXL && document.readyState === "loading") {
  * « Webcam » (images et vidéos de [[webcam]], webcam.html ; seulement si un élément est
  * visible par le visiteur, éléments admin compris), lien « Éclairs » (carte Blitzortung
  * centrée sur la station, nouvel onglet ; [[lightning]]),
- * « Réglages » (« Unités » : unités choisies par le visiteur, units.html ; « Admin » : mode
+ * « Réglages » (« Unités » : unités choisies par le visiteur, units.html ; « Apparence » :
+ * mode clair / sombre et thème de couleurs, appearance.html ; « Admin » : mode
  * admin, admin.html). Paramètres réservés à l'admin (skin.conf admin = true) : seulement en
  * mode admin (WXA).
  * Fournit la configuration aux autres scripts (window.weewxConfig : intégrée à la page ou
@@ -317,6 +324,7 @@ if (!window.WXL && document.readyState === "loading") {
   let hasWebcam = isWebcam;
   // menu « Réglages » (toujours présent) : choix du visiteur, mémorisés par son navigateur
   const SETTINGS = [entry("set:units", "Units", { page: "units.html" }),
+                    entry("set:appearance", "Appearance", { page: "appearance.html" }),
                     entry("set:admin", () => tm(WXA.active() ? "Admin (active)" : "Admin"), { page: "admin.html" })];
   const setPage = SETTINGS.find((e) => location.pathname.endsWith("/" + e.page) || location.pathname === e.page);
 

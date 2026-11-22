@@ -1,5 +1,12 @@
 # Installeur weewx-live :  weectl extension install weewx-live.zip
+import filecmp
+import os
+import shutil
+import time
+
 from weecfg.extension import ExtensionInstaller
+# dossier de l'extension décompressée (contient skins/WeewxLive/skin.conf)
+_HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def loader():
@@ -9,7 +16,7 @@ def loader():
 class WeewxLiveInstaller(ExtensionInstaller):
     def __init__(self):
         super(WeewxLiveInstaller, self).__init__(
-            version="1.0",
+            version="1.2",
             name="weewx-live",
             description="Tableau de bord météo temps réel (MQTT ou archive), pages de détail, archives, "
                         "records et prévisions Open-Meteo, en JSON statique",
@@ -29,7 +36,6 @@ class WeewxLiveInstaller(ExtensionInstaller):
                 ("bin/user", ["bin/user/livejson.py"]),
                 # un tuple par dossier : compatible weewx 4 et 5
                 ("skins/WeewxLive", [
-                    "skins/WeewxLive/skin.conf",
                     "skins/WeewxLive/skin.fr.conf",
                     "skins/WeewxLive/index.html.tmpl",
                     "skins/WeewxLive/panels.inc",
@@ -55,6 +61,10 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/wxicons.js",
                     "skins/WeewxLive/units.html.tmpl",
                     "skins/WeewxLive/units.js",
+                    "skins/WeewxLive/appearance.html.tmpl",
+                    "skins/WeewxLive/appearance.js",
+                    "skins/WeewxLive/theme.js.tmpl",
+                    "skins/WeewxLive/theme.css",
                     "skins/WeewxLive/admin.html.tmpl",
                     "skins/WeewxLive/admin.js",
                     "skins/WeewxLive/webcam.html.tmpl",
@@ -75,6 +85,7 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/lang/en.conf",
                     "skins/WeewxLive/lang/de.conf",
                     "skins/WeewxLive/lang/it.conf",
+                    "skins/WeewxLive/lang/pl.conf",
                 ]),
                 ("skins/WeewxLive/archive", [
                     "skins/WeewxLive/archive/header.inc",
@@ -106,3 +117,33 @@ class WeewxLiveInstaller(ExtensionInstaller):
                 ]),
             ],
         )
+    def configure(self, engine):
+        """skin.conf : l'ancien fichier, s'il existe et diffère du nouveau, est renommé en
+        skin.conf.AAAAMMJJHHMM, puis le nouveau est copié (weewx 4 et 5 copient les fichiers
+        de la liste « files » avant d'appeler configure(), d'où la copie faite ici)."""
+        def say(msg, level=2):
+            out = getattr(engine, "printer", None)
+            if out is not None:
+                out.out(msg, level=level)                 # weewx 5
+            elif getattr(engine, "logger", None) is not None:
+                engine.logger.log(msg, level=level)       # weewx 4
+        roots = getattr(engine, "root_dict", {}) or {}
+        skin_root = roots.get("SKIN_DIR") or roots.get("SKIN_ROOT")
+        if not skin_root:
+            say("weewx-live : dossier des skins introuvable, skin.conf non copié", level=0)
+            return False
+        src = os.path.join(_HERE, "skins", "WeewxLive", "skin.conf")
+        dst = os.path.join(skin_root, "WeewxLive", "skin.conf")
+        dry = getattr(engine, "dry_run", False)
+        if os.path.exists(dst) and not filecmp.cmp(src, dst, shallow=False):
+            backup = dst + "." + time.strftime("%Y%m%d%H%M")
+            if os.path.exists(backup):                    # deux installations dans la même minute
+                backup = dst + "." + time.strftime("%Y%m%d%H%M%S")
+            say("%s the previous skin.conf as %s" % ("Fake saving" if dry else "Saving", backup), level=0)
+            if not dry:
+                os.replace(dst, backup)
+        say("Copying from '%s' to '%s'" % (src, dst), level=3)
+        if not dry:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy(src, dst)
+        return False

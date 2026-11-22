@@ -1,0 +1,71 @@
+## weewx-live — apparence des pages (mode clair / sombre, thème de couleurs), chargé dans le
+## <head> de chaque page (avant l'affichage) ; réglages du site : [LiveJSON] [[appearance]]
+/* weewx-live — apparence par défaut du site ([LiveJSON] [[appearance]]) */
+window.WX_APPEARANCE = $livejson_appearance;
+#raw
+/* weewx-live — apparence (WXS) : mode et thème de couleurs (theme.css), appliqués à la racine
+ * de la page : data-theme="light" | "dark" (absent : mode automatique, réglage de l'appareil),
+ * data-palette="<thème>". Choix du visiteur : page « Réglages → Apparence » (localStorage),
+ * sinon réglages du site (window.WX_APPEARANCE ci-dessus), sinon automatique / classic.
+ *   WXS.MODES, WXS.THEMES       modes et thèmes proposés (identifiants)
+ *   WXS.mode(), WXS.theme()     mode et thème retenus
+ *   WXS.siteMode(), WXS.siteTheme()   réglages du site
+ *   WXS.userChoice(k)           choix du visiteur pour « mode » ou « theme » (sinon undefined)
+ *   WXS.set(k, v), WXS.reset()  choix du visiteur ; reset : réglages du site
+ *   WXS.name(id)                nom d'un thème dans la langue des pages ([Texts] [[Themes]]) */
+(function () {
+  "use strict";
+  var KEY = "weewx-live:appearance";
+  var ID = /^[a-z0-9_-]+$/;
+  var site = window.WX_APPEARANCE || {};
+  var MODES = ["auto", "light", "dark"];
+  var THEMES = (Array.isArray(site.themes) ? site.themes : []).filter(function (t) { return ID.test(t); });
+  if (!THEMES.length) THEMES = ["classic"];
+  var siteMode = function () { return MODES.indexOf(site.mode) >= 0 ? site.mode : "auto"; };
+  var siteTheme = function () { return THEMES.indexOf(site.theme) >= 0 ? site.theme : THEMES[0]; };
+  var valid = function (k, v) { return k === "mode" ? MODES.indexOf(v) >= 0 : k === "theme" && THEMES.indexOf(v) >= 0; };
+
+  var user = {};
+  function load() {
+    try { user = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { user = {}; }
+    if (typeof user !== "object") user = {};
+  }
+  var userChoice = function (k) { return valid(k, user[k]) ? user[k] : undefined; };
+  var mode = function () { return userChoice("mode") || siteMode(); };
+  var theme = function () { return userChoice("theme") || siteTheme(); };
+
+  function apply() {
+    var r = document.documentElement, m = mode();
+    if (m === "auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", m);
+    r.setAttribute("data-palette", theme());
+  }
+  function save() {
+    try {
+      var o = {};
+      if (userChoice("mode")) o.mode = user.mode;
+      if (userChoice("theme")) o.theme = user.theme;
+      if (Object.keys(o).length) localStorage.setItem(KEY, JSON.stringify(o)); else localStorage.removeItem(KEY);
+    } catch (e) { /* stockage indisponible : choix pour cette page seulement */ }
+  }
+  function set(k, v) {
+    if (!valid(k, v)) return;
+    // valeur du site : choix effacé (suivra un changement de réglage du site)
+    if (v === (k === "mode" ? siteMode() : siteTheme())) delete user[k]; else user[k] = v;
+    save();
+    apply();
+  }
+  function reset() { user = {}; save(); apply(); }
+  function name(id) {
+    var c = window.WXL && WXL.t ? WXL.t("Themes", id) : id;
+    return c === id ? id.charAt(0).toUpperCase() + id.slice(1) : c;
+  }
+
+  load();
+  apply();
+  // choix fait dans un autre onglet du même site
+  window.addEventListener("storage", function (e) { if (e.key === KEY || e.key === null) { load(); apply(); } });
+
+  window.WXS = { MODES: MODES, THEMES: THEMES, mode: mode, theme: theme, siteMode: siteMode, siteTheme: siteTheme,
+    userChoice: userChoice, set: set, reset: reset, name: name };
+})();
+#end raw

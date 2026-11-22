@@ -1177,13 +1177,20 @@
         l[c.dataset.param] = compact;
         saveLayout(l);
         applyCompact(c, compact);
+        window.dispatchEvent(new Event("wx-compact-changed"));     // profils (layout.js)
       });
     }
     document.querySelectorAll(".grid-tools [data-all]").forEach((b) => b.addEventListener("click", () => {
       const compact = b.dataset.all === "compact", l = {};
       for (const c of cards) { l[c.dataset.param] = compact; applyCompact(c, compact); }
       saveLayout(l);
+      window.dispatchEvent(new Event("wx-compact-changed"));
     }));
+    // profil appliqué (layout.js) : état réduit / développé relu dans la mémoire
+    window.addEventListener("wx-compact", () => {
+      const l = loadLayout();
+      for (const c of cards) applyCompact(c, isCompact(l, c.dataset.param));
+    });
   }
 
   // ------------------------------------------------------------------
