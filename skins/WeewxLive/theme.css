@@ -27,6 +27,8 @@
  *                          on --surface)
  *   --ok, --warn, --bad    statuses (connection, alerts)
  *   --temp, --wind, --gust, --rain, --rainsum, --sun, --hum, --press, --frost   series
+ *   --accent               highlight colour of the theme (forecasts: today, current hour);
+ *                          usually one of the series above, e.g. var(--wind)
  * (the colors of the temperature scales are those of minichart.js) */
 
 
@@ -38,6 +40,7 @@
   --bad: #d03b3b; --temp: #eb6834; --wind: #2a78d6; --gust: #eb6834; --rain: #2a78d6;
   --rainsum: #1baf7a; --sun:  #eda100; --hum:  #1baf7a; --press:#4a3aa7;
   --frost:#1f62c4;   /* ligne « Durée du gel en cours » */
+  --accent: var(--sun);   /* mise en évidence (prévisions : aujourd'hui, heure actuelle) */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]), [data-palette]:not([data-theme="light"]) {
@@ -58,6 +61,7 @@
 
 /* ---------- Navy  ---------- */
 [data-palette="navy"] {
+  --accent: var(--wind);
   --bg: #edf2f6; --surface: #fbfdfe; --grid: #dce5ec; --text: #0f1d2a;
   --text-2: #3b5063; --text-3: #56697b; --border: #d3dee7;
   --temp: #e2572b; --wind: #1f6fd1; --gust: #e2572b; --rain: #1f6fd1; --rainsum: #0f9a73;
@@ -80,6 +84,7 @@
 
 /* ---------- Alpage : verts des pâturages, neutres chauds ---------- */
 [data-palette="alpage"] {
+  --accent: var(--hum);
   --bg: #f2f1e8; --surface: #fbfaf4; --grid: #e3e1d4; --text: #1d3a1b;
   --text-2: #4b5843; --text-3: #656e5d; --border: #dfdccd; --ok: #2e8a3a;
   --temp: #de582a; --wind: #2d6dbe; --gust: #de582a; --rain: #2d6dbe; --rainsum: #3b9638;
@@ -102,6 +107,7 @@
 
 /* ---------- Ardoise : gris bleutés ---------- */
 [data-palette="slate"] {
+  --accent: var(--wind);
   --bg: #eef0f3; --surface: #fbfbfc; --grid: #e0e3e8; --text: #1e2733;
   --text-2: #485362; --text-3: #626d7b; --border: #dadee4;
   --temp: #e95d28; --wind: #2563eb; --gust: #e95d28; --rain: #2563eb; --rainsum: #109c6c;
@@ -124,6 +130,7 @@
 
 /* ---------- Forest  ---------- */
 [data-palette="forest"] {
+  --accent: var(--hum);
   --bg: #e9efe7; --surface: #f8fbf6; --grid: #d9e3d6; --text: #0f2019;
   --text-2: #3a5046; --text-3: #4f665b; --border: #d0dccd;
   --temp: #c8532a; --wind: #2a68a8; --gust: #c8532a; --rain: #2a68a8; --rainsum: #2c8259;

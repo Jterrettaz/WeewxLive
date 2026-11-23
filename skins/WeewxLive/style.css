@@ -202,7 +202,7 @@ body {
   display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px;
   padding: 10px 6px; border-radius: 10px; background: color-mix(in srgb, var(--grid) 35%, transparent);
 }
-.fc li:first-child .fc-day { background: color-mix(in srgb, var(--sun) 12%, transparent); }
+.fc li:first-child .fc-day { background: color-mix(in srgb, var(--accent, var(--sun)) 12%, transparent); }   /* aujourd'hui : couleur du thème */
 .fc > li { display: flex; min-width: 0; }
 :where(.fc-day > span) { display: block; }   /* éléments du bouton (span : HTML valide) */
 button.fc-day {
@@ -238,7 +238,7 @@ button.fc-day:focus-visible, .fh-close:focus-visible { outline: 2px solid var(--
   padding: 8px 4px; border-radius: 10px; background: color-mix(in srgb, var(--grid) 35%, transparent);
   font-size: 12px; color: var(--text-2);
 }
-.fh-hour.now { background: color-mix(in srgb, var(--sun) 14%, transparent); }
+.fh-hour.now { background: color-mix(in srgb, var(--accent, var(--sun)) 14%, transparent); }
 .fh-hour.past { opacity: .55; }
 .fh-hour .wx { width: 32px; height: 32px; }
 .fh-h { font-weight: 600; color: var(--text); }
