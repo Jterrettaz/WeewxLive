@@ -64,6 +64,8 @@ and does not need to be reachable from the internet. Version 1.2.
 - **Pages in French, English, German, Italian or Polish** (option `lang`, skin files `lang/fr.conf`,
   `en.conf`, `de.conf`, `it.conf`,`pl.conf` following the weewx guidelines); another language is
   added with one more file (see [Page language](#page-language-lang)).
+- **NOAA reports** ("Climatology" → "NOAA reports", `noaa.html`): monthly and yearly
+  climatological summaries in the NOAA text format, for every month and year of the database.
 - **"Extremes" page**: all-time records, rankings (days, months, showers) and longest frost,
   dry and wet spells, over the whole database.
 - **Common menu**: Dashboard, "Data" (detail page of each configured parameter), "History"
@@ -128,6 +130,7 @@ See skin [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 | `skins/WeewxLive/wxtime.js.tmpl` | station time zone (the date functions of all pages are in `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | "Settings → Units" page (units chosen by the visitor) |
 | `skins/WeewxLive/appearance.html.tmpl`, `appearance.js` | "Settings → Appearance" page (light / dark mode and colour theme chosen by the visitor, [Appearance](#appearance-light--dark-mode-and-colour-themes-appearance)) |
+| `skins/WeewxLive/noaa.html.tmpl`, `noaa.js`, `NOAA/*.txt.tmpl` | "Climatology → NOAA reports" page and NOAA report templates ([NOAA reports](#noaa-reports)) |
 | `skins/WeewxLive/theme.js.tmpl` | default appearance of the site, applied in the `<head>` of every page (`theme.js`) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | "Webcam" page (images and videos from `[[webcam]]`) |
 | `skins/WeewxLive/about.html` | example "About" page, to adapt (["About" page](#about-page-about)) |
@@ -153,7 +156,7 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `wxtime.js` | station time zone ([Station time](#station-time)) | at each archive |
 | `i18n.js` | texts of the chosen language ([Page language](#page-language-lang)) | at each archive |
 | `theme.js` | default appearance ([Appearance](#appearance-light--dark-mode-and-colour-themes-appearance)) | at each archive |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `appearance.html`, `admin.html`, `webcam.html`, `vigilance.html` | translated pages (templates) | at each archive |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `appearance.html`, `noaa.html`, `admin.html`, `webcam.html`, `vigilance.html` | translated pages (templates) | at each archive |
 | `data/history.json` | 24 h series, extremes and totals of the day | at each archive |
 | `data/p24h.json` | detail page, 24 h | at each archive |
 | `data/p7d.json` | 7 days | 30 min max. |
@@ -166,6 +169,7 @@ weewx writes to the root of the report's `HTML_ROOT` folder (see
 | `data/ensembles.json` | Open-Meteo ensemble forecasts (members) | every 30 min, download at most once every 3 h per model |
 | `data/warnings.json` | weather warnings of each location (MeteoAlarm, NWS, ECCC) | at each archive, download at most once every 5 min per source (MeteoAlarm: per country) |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | archive pages | current period at each archive; past periods once |
+| `NOAA/NOAA-YYYY-MM.txt`, `NOAA-YYYY.txt` | NOAA reports ([NOAA reports](#noaa-reports)) | current period at each archive; past periods once |
 | `*.js`, `style.css`, `theme.css`, `img/`, `vendor/` | copied files | at each archive (FTP only uploads changed files) |
 
 Archive pages of past periods are generated only once: after a weewx-live update they keep
@@ -1322,6 +1326,7 @@ not already exist).
         month = true      # "month" pages (all, since the start of the database)
         year = true       # "year" pages (all)
         climato = true    # monthly and yearly climatological tables (all)
+        noaa = true       # NOAA reports, monthly and yearly (all), see "NOAA reports"
         climato_method = civil   # civil (0:00 to 24:00) or omm (WMO UTC windows), see below
         days = 0          # "day" pages produced going back from today (0 = all, default)
 ```
@@ -1341,6 +1346,25 @@ some time and the first FTP upload will be large; later generations only produce
 the day. To limit it, for example, to the last 365 days: `days = 365`. These options are
 applied by the skin generator (`user.livejson.LiveCheetahGenerator`, the weewx Cheetah
 generator with these options), declared in `[Generators]` of `skin.conf`.
+
+**Large database: generate the "day" pages once by hand.** Instead of letting weewx produce
+them during its normal cycle, you can stop weewx and run the skin alone, then restart weewx:
+
+```bash
+sudo systemctl stop weewx
+sudo weectl report run WeewxLive     # weewx 5; can take a long time, let it finish
+sudo systemctl start weewx
+```
+
+- While weewx is stopped, it records no new data. A station with its own memory (Davis
+  Vantage data logger, for example) is read again at restart and nothing is lost; with other
+  stations, the readings of that period are missing.
+- `weectl report run WeewxLive` only generates the pages: they are uploaded by the FTP /
+  RSYNC report at the next normal cycle after the restart (one large upload).
+- If `weewx.conf` is not in the default place, add `--config=/path/to/weewx.conf`.
+- weewx 4: `sudo wee_reports` runs **all** reports (FTP and RSYNC included) once, with the
+  same effect.
+- Afterwards, each cycle only produces the page of the current day.
 
 ### Monthly climatology
 
@@ -1415,6 +1439,33 @@ In bold: extremes of the year. At the top: choice of year, previous / next year,
 year's charts; the archive "year" page has a "Yearly climatological table" link. Thresholds
 are in `livejson.py` (`CLIMATO_ICE_C`, `CLIMATO_HEAT_C`, `CLIMATO_HEAVY_MM`, `FROST_C`,
 `RAIN_DAY_MM`) and apply in °C and mm whatever the displayed units.
+
+### NOAA reports
+
+Text reports in the format of the NOAA climatological summaries, **for every month and every
+year** of the database: `NOAA/NOAA-YYYY-MM.txt` and `NOAA/NOAA-YYYY.txt` (templates
+`NOAA/NOAA-%Y-%m.txt.tmpl` and `NOAA/NOAA-%Y.txt.tmpl`, sections `[[SummaryByMonth]]` and
+`[[SummaryByYear]]`). They are shown by the **"Climatology" → "NOAA reports"** page
+(`noaa.html`): choice of the year and of a month (or the whole year), and a download link.
+`noaa.html#2026-11` or `noaa.html#2026` opens a given report.
+
+- **Monthly report**: one row per day: mean, high and low temperature with their times,
+  heating and cooling degree days, rain, average wind speed, highest gust with its time,
+  dominant wind direction (degrees); then the month's summary.
+- **Yearly report**: one row per month and a total row, in three tables:
+  - temperature: mean maximum and minimum, mean, degree days, highest and lowest with their
+    day, number of days with max. ≥ 30 °C (90 °F), max. ≤ 0 °C (32 °F), min. ≤ 0 °C (32 °F)
+    and min. ≤ −18 °C (0 °F);
+  - rain: total, wettest day, number of days with at least 0.2, 2 and 20 mm (0.01, 0.1 and
+    1 in);
+  - wind: average speed, highest gust with its date, dominant direction.
+- Units: the site's default units (`[[units]]`: temperature, rain, wind speed), metric if
+  not set. Degree days on a base of 18.3 °C (65 °F).
+- Days from 0:00 to 24:00 (station time), computed from the weewx daily summaries. Column
+  headings stay in English, as in the NOAA format.
+- The first generation produces the reports of all past months and years (small files); then
+  only the current month and year are regenerated, at each archive.
+- To disable them: `noaa = false` in `[[archives]]`. The menu entry then disappears.
 
 ## 9. "Extremes" page (station records)
 

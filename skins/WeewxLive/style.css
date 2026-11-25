@@ -1002,3 +1002,19 @@ html:not(.wx-admin) [data-admin] { display: none !important; }
 .site-foot .sf-tail { margin-top: 10px; }
 /* le pied de page propre à chaque page reste au-dessus, sans marge basse */
 .foot:has(+ .site-foot) { padding-bottom: 8px; }
+
+/* Page « Climatologie → Rapports NOAA » (noaa.html) : rapport texte à colonnes fixes */
+.noaa-page .p-last { margin-left: 0; }
+.noaa-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 12px; }
+.noaa-bar label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.noaa-bar select {
+  font: inherit; font-size: 14px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px;
+}
+.noaa-bar select:focus-visible, .noaa-dl:focus-visible, .noaa-text:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+.noaa-dl { margin-left: auto; font-size: 13px; color: var(--text-2); }
+.noaa-text {
+  margin: 0; padding: 12px 14px; overflow-x: auto; border-radius: 10px; background: var(--bg);
+  border: 1px solid var(--grid); font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--text); white-space: pre; tab-size: 8;
+}

@@ -18,7 +18,7 @@ See the [demo](http://meteo-sciez.fr/weewx/WeewxLive/index.html).
 - **Forecasts** (Open-Meteo, 7 days, hour by hour), **radar and satellite** maps,
   **Sun and Moon**, **weather warnings** (Europe, United States, Canada).
 - **History**: one page per measurement (24 h to 2 years), archives by day, month and year,
-  climatological tables, station records.
+  climatological tables, NOAA reports for every month and year, station records.
 - **Meteogram** and **ensemble forecasts** pages.
 - Pages in **English, French, German, Italian or Polish**; light / dark mode and **colour
   themes**; works on smartphones.

@@ -266,7 +266,7 @@ if (!window.WXS && document.readyState === "loading") {
 /* weewx-live — menu commun aux pages : « Tableau de bord », puis menus déroulants
  * « Données » (pages par période, une page de détail par paramètre de skin.conf,
  * « Extrêmes », « Archives »), « Climatologie » (tableaux mensuel et annuel, si
- * [[archives]] climato), « Prévisions » (« Météogramme », « Ensembles », « Vigilance météo »,
+ * [[archives]] climato ; rapports NOAA, noaa.html, si [[archives]] noaa), « Prévisions » (« Météogramme », « Ensembles », « Vigilance météo »,
  * si activés) et
  * « Webcam » (images et vidéos de [[webcam]], webcam.html ; seulement si un élément est
  * visible par le visiteur, éléments admin compris), lien « Éclairs » (carte Blitzortung
@@ -303,7 +303,11 @@ if (!window.WXS && document.readyState === "loading") {
     entry("period:365d", "Last 365 days"),
   ];
   // pages supplémentaires du menu « Données », après les paramètres
-  const EXTRA = [entry("extremes", "Extremes", { page: "extremes.html" })];
+  const EXTRA = [entry("extremes", "Extremes", { page: "extremes.html" }),
+                 entry("noaa", "NOAA reports", { page: "noaa.html" })];
+  // rapports NOAA ([[archives]] noaa) : entrée du menu « Climatologie », affichée d'après la
+  // configuration
+  let hasNoaa = /\/noaa\.html$/.test(location.pathname) || location.pathname === "noaa.html";
 
   // menu « Climatologie » (rempli d'après la configuration : [[archives]] climato)
   const CLIMATO = [];
@@ -371,6 +375,7 @@ if (!window.WXS && document.readyState === "loading") {
       LIGHTNING = `https://maps.blitzortung.org/${encodeURIComponent(bl)}/#${lg.zoom || 7}/${lat.toFixed(3)}/${lon.toFixed(3)}`;
     }
     const a = cfg && cfg.archives;
+    if (a && a.noaa) hasNoaa = true;
     if (!a || EXTRA.some((e) => e.id === "archives")) return;
     const [y, m, dd] = WXT.ymd(WXT.now()).split("-");   // date du jour de la station
     const page = a.day ? `archive/day-${y}-${m}-${dd}.html` : a.month ? `archive/month-${y}-${m}.html` : a.year ? `archive/year-${y}.html` : "";
@@ -442,6 +447,9 @@ if (!window.WXS && document.readyState === "loading") {
     // « Données » : pages de détail des paramètres ; « Historique » : pages par période
     // (24 h, 7, 30, 365 jours), puis « Archives » et « Extrêmes »
     const HIST_EXTRA = ["archives", "extremes"].map((id) => EXTRA.find((e) => e.id === id)).filter(Boolean);
+    // « Climatologie » : tableaux climatologiques, puis rapports NOAA ([[archives]] noaa)
+    const NOAA = hasNoaa ? EXTRA.filter((e) => e.id === "noaa") : [];
+    const CLIM_MENU = [...CLIMATO, ...NOAA];
     const all = [HOME, ...DATA, ...PERIOD_PAGES, ...EXTRA, ...CLIMATO, ...FORECAST, ...SETTINGS, WEBCAM];
     const curItem = current === "about" ? { label: tm("About") } : all.find((d) => d.id === current);
     nav.innerHTML = `
@@ -454,7 +462,8 @@ if (!window.WXS && document.readyState === "loading") {
       dropdown("dd-hist", esc(tm("History")), [...PERIOD_PAGES, ...HIST_EXTRA], `
           ${PERIOD_PAGES.map(item).join("")}
           ${HIST_EXTRA.length ? '<li class="dd-sep" role="separator"></li>' + HIST_EXTRA.map(item).join("") : ""}`) +
-      (CLIMATO.length ? dropdown("dd-climato", esc(tm("Climatology")), CLIMATO, CLIMATO.map(item).join("")) : "") +
+      (CLIM_MENU.length ? dropdown("dd-climato", esc(tm("Climatology")), CLIM_MENU, CLIMATO.map(item).join("") +
+        (CLIMATO.length && NOAA.length ? '<li class="dd-sep" role="separator"></li>' : "") + NOAA.map(item).join("")) : "") +
       (FORECAST.length ? dropdown("dd-fc", esc(tm("Forecasts")), FORECAST, FORECAST.map(item).join("")) : "") +
       (hasWebcam ? `<a href="${esc(href(WEBCAM.id))}"${current === WEBCAM.id ? ' aria-current="page"' : ""}>${esc(WEBCAM.label)}</a>` : "") +
       (LIGHTNING ? `<a class="ext-link" href="${esc(LIGHTNING)}" target="_blank" rel="noopener"

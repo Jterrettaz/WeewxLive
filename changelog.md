@@ -2,6 +2,11 @@
 
 *Version française : [changelog.fr.md](changelog.fr.md).*
 
+## 1.3
+
+- NOAA reports (text) for every month and year (`NOAA/NOAA-YYYY-MM.txt`, `NOAA-YYYY.txt`), shown by the new "Climatology" → "NOAA reports" page; option `noaa` of `[[archives]]`.
+- Documentation: short installation guide in `README.md` / `README.fr.md`; the full documentation moves to `docs/manual.md` / `docs/manual.fr.md`.
+
 ## 1.2
 
 - "Sun and Moon": sun path in the sky (direction / altitude) to the right of the altitude chart: today, 21 June, equinox, 21 December, moon from rise to set.

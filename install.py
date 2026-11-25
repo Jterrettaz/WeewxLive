@@ -16,7 +16,7 @@ def loader():
 class WeewxLiveInstaller(ExtensionInstaller):
     def __init__(self):
         super(WeewxLiveInstaller, self).__init__(
-            version="1.2",
+            version="1.3",
             name="weewx-live",
             description="Tableau de bord météo temps réel (MQTT ou archive), pages de détail, archives, "
                         "records et prévisions Open-Meteo, en JSON statique",

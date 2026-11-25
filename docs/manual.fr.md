@@ -69,6 +69,9 @@ et n'a pas besoin d'être joignable depuis internet. Version 1.2.
 - **Pages en français, anglais, allemand, italien ou polonais** (option `lang`, fichiers `lang/fr.conf`,
   `en.conf`, `de.conf`,`it.conf` et `pl.conf` du skin, selon les directives weewx) ; une autre langue
   s'ajoute avec un fichier de plus (voir [Langue des pages](#langue-des-pages-lang)).
+- **Rapports NOAA** (« Climatologie » → « Rapports NOAA », `noaa.html`) : résumés
+  climatologiques mensuels et annuels au format texte NOAA, pour chaque mois et chaque année
+  de la base.
 - **Page « Extrêmes »** : records absolus, classements (jours, mois, averses) et plus longues
   périodes de gel, de sécheresse et de pluie, sur toute la base de données.
 - **Menu commun** : Tableau de bord, « Données » (page de détail de chaque paramètre configuré),
@@ -133,6 +136,7 @@ Voir [DEMO](http://meteo-sciez.fr/weewx/WeewxLive/index.html)
 | `skins/WeewxLive/wxtime.js.tmpl` | fuseau horaire de la station (les fonctions de date de toutes les pages sont dans `nav.js`) |
 | `skins/WeewxLive/units.html.tmpl`, `units.js` | page « Réglages → Unités » (unités choisies par le visiteur) |
 | `skins/WeewxLive/appearance.html.tmpl`, `appearance.js` | page « Réglages → Apparence » (mode clair / sombre et thème de couleurs choisis par le visiteur, [Apparence](#apparence--mode-clair--sombre-et-thèmes-de-couleurs-appearance)) |
+| `skins/WeewxLive/noaa.html.tmpl`, `noaa.js`, `NOAA/*.txt.tmpl` | page « Climatologie → Rapports NOAA » et gabarits des rapports NOAA ([Rapports NOAA](#rapports-noaa)) |
 | `skins/WeewxLive/theme.js.tmpl` | apparence par défaut du site, appliquée dans le `<head>` de chaque page (`theme.js`) |
 | `skins/WeewxLive/webcam.html.tmpl`, `webcam.js` | page « Webcam » (images et vidéos de `[[webcam]]`) |
 | `skins/WeewxLive/about.html` | exemple de page « À propos », à adapter ([Page « À propos »](#page--à-propos--about)) |
@@ -158,7 +162,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `wxtime.js` | fuseau horaire de la station ([Heure de la station](#heure-de-la-station)) | à chaque archive |
 | `i18n.js` | textes de la langue choisie ([Langue des pages](#langue-des-pages-lang)) | à chaque archive |
 | `theme.js` | apparence par défaut ([Apparence](#apparence--mode-clair--sombre-et-thèmes-de-couleurs-appearance)) | à chaque archive |
-| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `appearance.html`, `admin.html`, `webcam.html`, `vigilance.html` | pages traduites (gabarits) | à chaque archive |
+| `detail.html`, `extremes.html`, `ensembles.html`, `meteogram.html`, `units.html`, `appearance.html`, `noaa.html`, `admin.html`, `webcam.html`, `vigilance.html` | pages traduites (gabarits) | à chaque archive |
 | `data/history.json` | séries 24 h, extrêmes et cumuls du jour | à chaque archive |
 | `data/p24h.json` | page de détail, 24 h | à chaque archive |
 | `data/p7d.json` | 7 jours | 30 min max. |
@@ -171,6 +175,7 @@ weewx produit à la racine du dossier `HTML_ROOT` du rapport (voir
 | `data/ensembles.json` | prévisions d'ensemble Open-Meteo (membres) | toutes les 30 min, téléchargement au plus une fois par 3 h et par modèle |
 | `data/warnings.json` | vigilance météo de chaque lieu (MeteoAlarm, NWS, ECCC) | à chaque archive, téléchargement au plus une fois par 5 min et par source (MeteoAlarm : par pays) |
 | `archive/day-…`, `month-…`, `year-…`, `climato-…html` | pages d'archives | période en cours à chaque archive ; périodes passées une fois |
+| `NOAA/NOAA-AAAA-MM.txt`, `NOAA-AAAA.txt` | rapports NOAA ([Rapports NOAA](#rapports-noaa)) | période en cours à chaque archive ; périodes passées une fois |
 | `*.js`, `style.css`, `theme.css`, `img/`, `vendor/` | fichiers copiés | à chaque archive (le FTP n'envoie que les fichiers modifiés) |
 
 Les pages d'archives des périodes passées ne sont générées qu'une fois : après une mise à
@@ -1350,6 +1355,7 @@ qu'une fois (si le fichier n'existe pas déjà).
         month = true      # pages « mois » (toutes, depuis le début de la base)
         year = true       # pages « année » (toutes)
         climato = true    # tableaux climatologiques mensuels et annuels (tous)
+        noaa = true       # rapports NOAA mensuels et annuels (tous), voir « Rapports NOAA »
         climato_method = civil   # civil (0 h à 24 h) ou omm (fenêtres UTC de l'OMM), voir ci-dessous
         days = 0          # pages « jour » produites en remontant depuis aujourd'hui (0 = toutes, défaut)
 ```
@@ -1369,6 +1375,27 @@ peut prendre du temps et le premier envoi FTP sera volumineux ; les suivantes ne
 que la page du jour. Pour limiter, par exemple, aux 365 derniers jours : `days = 365`. Ces
 options sont appliquées par le générateur du skin (`user.livejson.LiveCheetahGenerator`, le
 générateur Cheetah de weewx avec ces options), déclaré dans `[Generators]` de `skin.conf`.
+
+**Base de données importante : générer les pages « jour » une fois à la main.** Au lieu de
+laisser weewx les produire pendant son cycle normal, vous pouvez arrêter weewx et lancer le
+skin seul, puis redémarrer weewx :
+
+```bash
+sudo systemctl stop weewx
+sudo weectl report run WeewxLive     # weewx 5 ; peut être long, le laisser se terminer
+sudo systemctl start weewx
+```
+
+- Pendant l'arrêt, weewx n'enregistre aucune nouvelle donnée. Une station qui a sa propre
+  mémoire (enregistreur de données Davis Vantage, par exemple) est relue au redémarrage et
+  rien n'est perdu ; avec les autres stations, les mesures de cette période manquent.
+- `weectl report run WeewxLive` ne fait que générer les pages : elles sont envoyées par le
+  rapport FTP / RSYNC au premier cycle normal après le redémarrage (un envoi volumineux).
+- Si `weewx.conf` n'est pas à l'emplacement par défaut, ajouter
+  `--config=/chemin/vers/weewx.conf`.
+- weewx 4 : `sudo wee_reports` lance **tous** les rapports (FTP et RSYNC compris) une fois,
+  avec le même effet.
+- Ensuite, chaque cycle ne produit que la page du jour.
 
 ### Climatologie mensuelle
 
@@ -1447,6 +1474,34 @@ vers les graphiques de l'année ; la page « année » des archives a un lien «
 climatologique de l'année ». Les seuils sont dans `livejson.py` (`CLIMATO_ICE_C`,
 `CLIMATO_HEAT_C`, `CLIMATO_HEAVY_MM`, `FROST_C`, `RAIN_DAY_MM`) et s'appliquent en °C et
 en mm quelles que soient les unités affichées.
+
+### Rapports NOAA
+
+Rapports texte au format des résumés climatologiques de la NOAA, **pour tous les mois et
+toutes les années** de la base : `NOAA/NOAA-AAAA-MM.txt` et `NOAA/NOAA-AAAA.txt` (gabarits
+`NOAA/NOAA-%Y-%m.txt.tmpl` et `NOAA/NOAA-%Y.txt.tmpl`, sections `[[SummaryByMonth]]` et
+`[[SummaryByYear]]`). Ils sont affichés par la page **« Climatologie » → « Rapports NOAA »**
+(`noaa.html`) : choix de l'année et d'un mois (ou de l'année entière), et lien de
+téléchargement. `noaa.html#2026-11` ou `noaa.html#2026` ouvre un rapport donné.
+
+- **Rapport mensuel** : une ligne par jour : température moyenne, maximale et minimale avec
+  leurs heures, degrés-jours de chauffage et de climatisation, pluie, vitesse moyenne du vent,
+  rafale maximale avec son heure, direction dominante du vent (degrés) ; puis la synthèse du
+  mois.
+- **Rapport annuel** : une ligne par mois et une ligne de total, en trois tableaux :
+  - température : moyennes des maximales et des minimales, moyenne, degrés-jours, plus haute
+    et plus basse avec leur jour, nombre de jours avec max. ≥ 30 °C (90 °F), max. ≤ 0 °C
+    (32 °F), min. ≤ 0 °C (32 °F) et min. ≤ −18 °C (0 °F) ;
+  - pluie : total, jour le plus pluvieux, nombre de jours avec au moins 0,2, 2 et 20 mm
+    (0,01, 0,1 et 1 in) ;
+  - vent : vitesse moyenne, rafale maximale avec sa date, direction dominante.
+- Unités : les unités par défaut du site (`[[units]]` : température, pluie, vitesse du vent),
+  métriques si elles ne sont pas réglées. Degrés-jours sur une base de 18,3 °C (65 °F).
+- Journées de 0 h à 24 h (heure de la station), calculées à partir des résumés journaliers
+  de weewx. Les intitulés des colonnes restent en anglais, comme dans le format NOAA.
+- La première génération produit les rapports de tous les mois et années passés (petits
+  fichiers) ; ensuite, seuls le mois et l'année en cours sont regénérés, à chaque archive.
+- Pour les désactiver : `noaa = false` dans `[[archives]]`. L'entrée du menu disparaît alors.
 
 ## 9. Page « Extrêmes » (records de la station)
 

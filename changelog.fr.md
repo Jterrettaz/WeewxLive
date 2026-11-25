@@ -2,6 +2,12 @@
 
 *English version: [changelog.md](changelog.md).*
 
+## 1.3
+
+- Rapports NOAA (texte) pour chaque mois et chaque année (`NOAA/NOAA-AAAA-MM.txt`, `NOAA-AAAA.txt`), affichés par la nouvelle page « Climatologie » → « Rapports NOAA » ; option `noaa` de `[[archives]]`.
+- Documentation : guide d'installation court dans `README.md` / `README.fr.md` ; la documentation complète passe dans `docs/manual.md` / `docs/manual.fr.md`.
+
+
 ## 1.2
 
 - « Soleil et Lune » : course du soleil dans le ciel (direction / hauteur) à droite du graphique des hauteurs : aujourd'hui, 21 juin, équinoxe, 21 décembre, lune du lever au coucher.

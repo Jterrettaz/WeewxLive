@@ -17,6 +17,8 @@ Fournit aux gabarits Cheetah du skin « WeewxLive » :
   $livejson_day, $livejson_span, $livejson_arch : pages d'archives (archive/day-AAAA-MM-JJ,
                            month-AAAA-MM, year-AAAA.html : SummaryByDay / Month / Year)
   $livejson_climato, $livejson_climato_year : tableaux climatologiques mensuel et annuel
+  $livejson_noaa_month, $livejson_noaa_year : rapports NOAA (texte, NOAA/NOAA-AAAA[-MM].txt) ;
+  $livejson_noaa_index : période couverte (page noaa.html)
                            (archive/climato-AAAA-MM.html, climato-AAAA.html)
   $livejson_period.p24h …  JSON : pages de détail (24 h, 7, 30, 365 et 730 jours)
   $livejson_params, $livejson_station, $livejson_logo, $livejson_hardware,
@@ -86,7 +88,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.0"
+VERSION = "1.3"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -384,6 +386,7 @@ def _archive_options(opts):
         "month": to_bool(a.get("month", True)),
         "year": to_bool(a.get("year", True)),
         "climato": to_bool(a.get("climato", True)),    # tableaux climatologiques mensuels et annuels
+        "noaa": to_bool(a.get("noaa", True)),          # rapports NOAA (texte), mensuels et annuels
         # méthode des tableaux climatologiques : civil (journées de 0 h à 24 h, résumés
         # journaliers) ou omm (fenêtres UTC de l'OMM / Météo-France, enregistrements d'archive)
         "climato_method": "omm" if str(a.get("climato_method", "civil")).strip().lower() in ("omm", "wmo") else "civil",
@@ -1680,6 +1683,10 @@ class LiveJSON(SearchList):
             # tableau climatologique mensuel (archive/climato-AAAA-MM.html)
             "livejson_climato": _Lazy(lambda: self._dump(self.climato_data(timespan, db_lookup)).replace("</", "<\\/")),
             # tableau climatologique annuel (archive/climato-AAAA.html)
+            # rapports NOAA (texte) : mois et année du gabarit, période couverte (noaa.html)
+            "livejson_noaa_month": _Lazy(lambda: self.noaa_month(timespan, db_lookup)),
+            "livejson_noaa_year": _Lazy(lambda: self.noaa_year(timespan, db_lookup)),
+            "livejson_noaa_index": _Lazy(lambda: json.dumps(self.noaa_index(stop, db_lookup))),
             "livejson_climato_year": _Lazy(lambda: self._dump(self.climato_year_data(timespan, db_lookup)).replace("</", "<\\/")),
             # gabarit index.html.tmpl : paramètres (chaînes déjà échappées pour le HTML),
             # nom de la station et configuration à intégrer dans la page
@@ -1791,7 +1798,7 @@ class LiveJSON(SearchList):
             "latitude": lat,
             "longitude": lon,
             # pages d'archives : archive/day-AAAA-MM-JJ.html, month-…, year-…, climato-…
-            "archives": {k: self.arch[k] for k in ("day", "days", "month", "year", "climato")},
+            "archives": {k: self.arch[k] for k in ("day", "days", "month", "year", "climato", "noaa")},
             # « Soleil et Lune » : almanach weewx (data/astro.json)
             "astro": {"enable": to_bool(self.astro.get("enable", True))},
             # ordre des cadres du tableau de bord défini par l'administrateur (layout.js)
@@ -3483,6 +3490,253 @@ class LiveJSON(SearchList):
         return out
 
     # ------------------------------------------------------------------
+    # Rapports NOAA (texte) : NOAA/NOAA-AAAA-MM.txt (un par mois) et NOAA/NOAA-AAAA.txt (un
+    # par année), au format des rapports climatologiques NOAA (en-têtes en anglais), dans les
+    # unités par défaut du site ([[units]] : température, pluie, vent). Calculés à partir des
+    # résumés journaliers de weewx (journées de 0 h à 24 h).
+    # ------------------------------------------------------------------
+    # unité affichée ([[units]]) -> (unité weewx, libellé ASCII, décimales)
+    NOAA_UNITS = {
+        "temp": {"°C": ("degree_C", "C", 1), "°F": ("degree_F", "F", 1)},
+        "rain": {"mm": ("mm", "mm", 1), "in": ("inch", "in", 2)},
+        "wind": {"km/h": ("km_per_hour", "km/h", 1), "m/s": ("meter_per_second", "m/s", 1),
+                 "mph": ("mile_per_hour", "mph", 1), "kn": ("knot", "knots", 1)},
+    }
+
+    def _noaa_units(self):
+        du = self.display_units or {}
+        out = {}
+        for g, table in self.NOAA_UNITS.items():
+            out[g] = table.get(du.get(g), next(iter(table.values())))
+        return out
+
+    def _noaa_days(self, dbm, start, end, U):
+        """Valeurs journalières de start à end (résumés journaliers) : {date: {clé: valeur}},
+        dans les unités U ; heures en secondes Unix."""
+        rows = {}
+
+        def read(table, cols, obs, pick):
+            sql = ("SELECT dateTime, %s FROM %s_day_%s WHERE dateTime >= ? AND dateTime < ? ORDER BY dateTime"
+                   % (cols, dbm.table_name, table))
+            try:
+                res = list(dbm.genSql(sql, (start, end)))
+            except Exception as e:
+                log.debug("livejson: NOAA, résumé journalier %s indisponible : %s", table, e)
+                return
+            unit, group = weewx.units.getStandardUnitType(dbm.std_unit_system, obs)
+            g = {"outTemp": "temp", "rain": "rain"}.get(obs, "wind")
+
+            def conv(v):
+                if v is None:
+                    return None
+                return weewx.units.convert(weewx.units.ValueTuple(v, unit, group), U[g][0])[0]
+            for r in res:
+                vals = {k: v for k, v in pick(r[1:], conv).items() if v is not None}
+                if vals:
+                    rows.setdefault(datetime.date.fromtimestamp(r[0]), {}).update(vals)
+
+        def avg(ws, st):
+            return ws / st if ws is not None and st else None
+        read(self.col("outTemp"), "min, mintime, max, maxtime, wsum, sumtime", "outTemp",
+             lambda r, c: {"tmin": c(r[0]), "tmint": r[1], "tmax": c(r[2]), "tmaxt": r[3], "tavg": c(avg(r[4], r[5]))})
+        read(self.col("rain"), "sum", "rain", lambda r, c: {"rain": c(r[0]) if r[0] is not None else None})
+        # vent : vitesse moyenne, rafale maximale et son heure, vecteur moyen (direction)
+        read("wind", "max, maxtime, wsum, sumtime, xsum, ysum", "windSpeed",
+             lambda r, c: {"gust": c(r[0]), "gustt": r[1], "wind": c(avg(r[2], r[3])),
+                           "xsum": r[4], "ysum": r[5]})
+        return rows
+
+    def _noaa_head(self, title):
+        stn = self.generator.stn_info
+        lat, lon = self._coords()
+
+        def dm(v, pos, neg):
+            if v is None:
+                return "--"
+            a = abs(v)
+            return "%d-%05.2f %s" % (int(a), (a - int(a)) * 60, pos if v >= 0 else neg)
+        # altitude de la station (weewx : [Station] altitude, sinon console), convertie dans
+        # l'unité d'altitude du site ([[units]] altitude : m par défaut, ou ft)
+        ft = (self.display_units or {}).get("alt") == "ft"
+        try:
+            v = weewx.units.convert(stn.altitude_vt, "foot" if ft else "meter")[0]
+            elev = "%.0f %s" % (v, "ft" if ft else "m")
+        except Exception:
+            elev = "--"
+        return [title.center(84).rstrip(), "", "",
+                "NAME: %s" % self.station_label(),
+                "ELEV: %s    LAT: %s    LONG: %s" % (elev, dm(lat, "N", "S"), dm(lon, "E", "W")), "", ""]
+
+    @staticmethod
+    def _noaa_table(widths, heads, rows):
+        """Tableau à colonnes fixes (alignées à droite) : lignes d'en-tête, tirets, lignes."""
+        def line(cells):
+            return " ".join(str(c if c is not None else "").rjust(w) for c, w in zip(cells, widths)).rstrip()
+        out = [line(h) for h in heads]
+        out.append("-" * (sum(widths) + len(widths) - 1))
+        out += [line(r) if r is not None else "-" * (sum(widths) + len(widths) - 1) for r in rows]
+        return out
+
+    def noaa_month(self, timespan, db_lookup):
+        """Rapport NOAA mensuel (texte)."""
+        dbm = db_lookup(self.binding)
+        start, end = int(timespan.start), int(timespan.stop)
+        U = self._noaa_units()
+        dt, dr, dw = U["temp"][2], U["rain"][2], U["wind"][2]
+        base = 18.3 if U["temp"][0] == "degree_C" else 65.0      # base des degrés-jours
+        rows = self._noaa_days(dbm, start, end, U)
+        first = datetime.date.fromtimestamp(start + 43200)
+        f = lambda v, d: None if v is None else "%.*f" % (d, v)
+        hm = lambda t: None if t is None else time.strftime("%H:%M", time.localtime(t))
+        lines, days = [], []
+        d = first
+        while d.month == first.month:
+            r = rows.get(d, {})
+            ta = r.get("tavg")
+            r["hdd"] = None if ta is None else max(0.0, base - ta)
+            r["cdd"] = None if ta is None else max(0.0, ta - base)
+            days.append((d, r))
+            lines.append(["%02d" % d.day, f(ta, dt), f(r.get("tmax"), dt), hm(r.get("tmaxt")),
+                          f(r.get("tmin"), dt), hm(r.get("tmint")), f(r["hdd"], 1), f(r["cdd"], 1),
+                          f(r.get("rain"), dr), f(r.get("wind"), dw), f(r.get("gust"), dw), hm(r.get("gustt")),
+                          self._vecdir(r.get("xsum"), r.get("ysum"))])
+            d += datetime.timedelta(days=1)
+
+        def ext(key, fn):
+            vals = [(r[key], dd.day) for dd, r in days if r.get(key) is not None]
+            return fn(vals, key=lambda x: x[0]) if vals else (None, None)
+
+        def tot(key):
+            vals = [r[key] for _dd, r in days if r.get(key) is not None]
+            return sum(vals) if vals else None
+
+        def mean(key):
+            vals = [r[key] for _dd, r in days if r.get(key) is not None]
+            return sum(vals) / len(vals) if vals else None
+        hi, hid = ext("tmax", max)
+        lo, lod = ext("tmin", min)
+        gu, gud = ext("gust", max)
+        xs, ys = tot("xsum"), tot("ysum")
+        summary = ["", f(mean("tavg"), dt), f(hi, dt), hid, f(lo, dt), lod, f(tot("hdd"), 1), f(tot("cdd"), 1),
+                   f(tot("rain"), dr), f(mean("wind"), dw), f(gu, dw), gud, self._vecdir(xs, ys)]
+        widths = [3, 6, 6, 6, 6, 6, 6, 6, 7, 6, 6, 6, 4]
+        heads = [["", "", "", "", "", "", "HEAT", "COOL", "", "AVG", "", "", ""],
+                 ["", "MEAN", "", "", "", "", "DEG", "DEG", "", "WIND", "", "", "DOM"],
+                 ["DAY", "TEMP", "HIGH", "TIME", "LOW", "TIME", "DAYS", "DAYS", "RAIN", "SPEED", "HIGH", "TIME", "DIR"]]
+        tab = self._noaa_table(widths, heads, lines + [None])
+        lab = " ".join(str(c).rjust(w) for c, w in zip(
+            ["", "MEAN", "HIGH", "DAY", "LOW", "DAY", "HDD", "CDD", "TOTAL", "AVG", "HIGH", "DAY", "DIR"], widths)).rstrip()
+        val = " ".join(str(c if c is not None else "").rjust(w) for c, w in zip(summary, widths)).rstrip()
+        out = self._noaa_head("MONTHLY CLIMATOLOGICAL SUMMARY for %s %d" % (calendar.month_abbr[first.month], first.year))
+        out += [("TEMPERATURE (%s), RAIN (%s), WIND SPEED (%s)" % (U["temp"][1], U["rain"][1], U["wind"][1])).center(84).rstrip(), ""]
+        out += tab + [lab, val, "", "Degree days: base %s %s." % (f(base, 1), U["temp"][1]), ""]
+        return "\n".join(out)
+
+    def noaa_year(self, timespan, db_lookup):
+        """Rapport NOAA annuel (texte) : une ligne par mois (température, pluie, vent)."""
+        dbm = db_lookup(self.binding)
+        start, end = int(timespan.start), int(timespan.stop)
+        U = self._noaa_units()
+        dt, dr, dw = U["temp"][2], U["rain"][2], U["wind"][2]
+        celsius = U["temp"][0] == "degree_C"
+        base = 18.3 if celsius else 65.0
+        hot, frz, cold = (30.0, 0.0, -18.0) if celsius else (90.0, 32.0, 0.0)
+        r1, r2, r3 = (0.2, 2.0, 20.0) if U["rain"][0] == "mm" else (0.01, 0.1, 1.0)
+        rows = self._noaa_days(dbm, start, end, U)
+        year = datetime.date.fromtimestamp(start + 43200).year
+        f = lambda v, d: None if v is None else "%.*f" % (d, v)
+        T, P, W = [], [], []
+        allm = []
+        for m in range(1, 13):
+            md = [(d, r) for d, r in sorted(rows.items()) if d.month == m and d.year == year]
+            allm.append(md)
+
+        def stats(md):
+            def vals(k):
+                return [(r[k], d) for d, r in md if r.get(k) is not None]
+            tx, tn, ta = vals("tmax"), vals("tmin"), vals("tavg")
+            rn, gu, wi = vals("rain"), vals("gust"), vals("wind")
+            avg = lambda v: sum(x for x, _ in v) / len(v) if v else None
+            s = {
+                "mx": avg(tx), "mn": avg(tn), "mean": avg(ta),
+                "hdd": sum(max(0.0, base - x) for x, _ in ta) if ta else None,
+                "cdd": sum(max(0.0, x - base) for x, _ in ta) if ta else None,
+                "hi": max(tx, key=lambda x: x[0]) if tx else (None, None),
+                "lo": min(tn, key=lambda x: x[0]) if tn else (None, None),
+                "n_hot": sum(1 for x, _ in tx if x >= hot) if tx else None,
+                "n_ice": sum(1 for x, _ in tx if x <= frz) if tx else None,
+                "n_frz": sum(1 for x, _ in tn if x <= frz) if tn else None,
+                "n_cold": sum(1 for x, _ in tn if x <= cold) if tn else None,
+                "rain": sum(x for x, _ in rn) if rn else None,
+                "rmax": max(rn, key=lambda x: x[0]) if rn else (None, None),
+                "r1": sum(1 for x, _ in rn if x >= r1) if rn else None,
+                "r2": sum(1 for x, _ in rn if x >= r2) if rn else None,
+                "r3": sum(1 for x, _ in rn if x >= r3) if rn else None,
+                "wind": avg(wi),
+                "gust": max(gu, key=lambda x: x[0]) if gu else (None, None),
+            }
+            xs = [r["xsum"] for _d, r in md if r.get("xsum") is not None]
+            ys = [r["ysum"] for _d, r in md if r.get("ysum") is not None]
+            s["dir"] = self._vecdir(sum(xs), sum(ys)) if xs and ys else None
+            return s
+
+        def day_of(pair, with_month):
+            v, d = pair
+            if d is None:
+                return None
+            return "%02d-%02d" % (d.month, d.day) if with_month else "%02d" % d.day
+
+        def rows_for(s, label, with_month):
+            T.append([label, f(s["mx"], dt), f(s["mn"], dt), f(s["mean"], dt), f(s["hdd"], 1), f(s["cdd"], 1),
+                      f(s["hi"][0], dt), day_of(s["hi"], with_month), f(s["lo"][0], dt), day_of(s["lo"], with_month),
+                      s["n_hot"], s["n_ice"], s["n_frz"], s["n_cold"]])
+            P.append([label, f(s["rain"], dr), f(s["rmax"][0], dr), day_of(s["rmax"], with_month), s["r1"], s["r2"], s["r3"]])
+            W.append([label, f(s["wind"], dw), f(s["gust"][0], dw), day_of(s["gust"], with_month), s["dir"]])
+        for m, md in enumerate(allm, 1):
+            if md:
+                rows_for(stats(md), "%d %02d" % (year, m), False)
+            else:
+                T.append(["%d %02d" % (year, m)]); P.append(["%d %02d" % (year, m)]); W.append(["%d %02d" % (year, m)])
+        whole = [x for md in allm for x in md]
+        out = self._noaa_head("ANNUAL CLIMATOLOGICAL SUMMARY for %d" % year)
+        if not whole:
+            return "\n".join(out + ["No data.", ""])
+        T.append(None); P.append(None); W.append(None)
+        rows_for(stats(whole), "", True)
+        g = lambda v: ("%g" % v)
+        tu = U["temp"][1]
+        out += ["TEMPERATURE (%s), HEAT BASE %s, COOL BASE %s" % (tu, f(base, 1), f(base, 1)), ""]
+        out += self._noaa_table(
+            [7, 6, 6, 6, 6, 6, 6, 5, 6, 5, 5, 5, 5, 5],
+            [["", "MEAN", "MEAN", "", "HEAT", "COOL", "", "", "", "", "MAX", "MAX", "MIN", "MIN"],
+             ["", "MAX", "MIN", "", "DEG", "DEG", "", "", "", "", ">=", "<=", "<=", "<="],
+             ["YR MO", "", "", "MEAN", "DAYS", "DAYS", "HI", "DAY", "LOW", "DAY", g(hot), g(frz), g(frz), g(cold)]], T)
+        out += ["", "", "RAIN (%s)" % U["rain"][1], ""]
+        out += self._noaa_table(
+            [7, 7, 7, 5, 6, 6, 6],
+            [["", "", "MAX", "", "DAYS", "DAYS", "DAYS"],
+             ["", "", "OBS.", "", "RAIN", "RAIN", "RAIN"],
+             ["YR MO", "TOTAL", "DAY", "DATE", ">=" + g(r1), ">=" + g(r2), ">=" + g(r3)]], P)
+        out += ["", "", "WIND SPEED (%s)" % U["wind"][1], ""]
+        out += self._noaa_table(
+            [7, 6, 6, 5, 4],
+            [["", "", "", "", "DOM"], ["YR MO", "AVG", "HIGH", "DATE", "DIR"]], W)
+        out.append("")
+        return "\n".join(out)
+
+    def noaa_index(self, stop, db_lookup):
+        """Période couverte par les rapports NOAA (page noaa.html) : premier et dernier mois."""
+        try:
+            first = self._first_ts
+            if first is None:
+                first = self._first_ts = db_lookup(self.binding).firstGoodStamp() or 0
+        except Exception:
+            first = 0
+        last = datetime.date.fromtimestamp(stop - 1)
+        f = datetime.date.fromtimestamp(first) if first else last
+        return {"first": "%04d-%02d" % (f.year, f.month), "last": "%04d-%02d" % (last.year, last.month)}
+
+    # ------------------------------------------------------------------
     # Page « Extrêmes » : records absolus, classements (jours, mois, averses) et plus
     # longues périodes de gel, de sécheresse et de pluie, depuis le début des données.
     # ------------------------------------------------------------------
@@ -3801,7 +4055,7 @@ class LiveJSON(SearchList):
 # désactivation par type de page (day / month / year / climato = false, d'après le nom du
 # gabarit) et limite des pages « jour » aux N derniers jours (days = N ; 0 = toutes).
 # ----------------------------------------------------------------------
-ARCH_TEMPLATE_RE = re.compile(r"^(day|month|year|climato)-%")
+ARCH_TEMPLATE_RE = re.compile(r"^(day|month|year|climato|NOAA)-%")
 
 
 class LiveCheetahGenerator(CheetahGenerator):
@@ -3835,7 +4089,7 @@ class LiveCheetahGenerator(CheetahGenerator):
         a = _archive_options(self.skin_dict.get("LiveJSON", {}))
         if "template" in section:
             m = ARCH_TEMPLATE_RE.match(os.path.basename(str(section["template"])))
-            if m and not a[m.group(1)]:
+            if m and not a[m.group(1).lower()]:
                 return 0
             if m and m.group(1) == "climato" and a["climato_method"] == "omm":
                 self._refresh_closed(section, gen_ts)
