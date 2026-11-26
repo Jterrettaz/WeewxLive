@@ -87,6 +87,10 @@ class WeewxLiveInstaller(ExtensionInstaller):
                     "skins/WeewxLive/lang/it.conf",
                     "skins/WeewxLive/lang/pl.conf",
                 ]),
+                ("skins/WeewxLive/NOAA", [
+                    "skins/WeewxLive/NOAA/NOAA-%Y-%m.txt.tmpl",
+                    "skins/WeewxLive/NOAA/NOAA-%Y.txt.tmpl",
+                ]),
                 ("skins/WeewxLive/archive", [
                     "skins/WeewxLive/archive/header.inc",
                     "skins/WeewxLive/archive/brand.inc",
