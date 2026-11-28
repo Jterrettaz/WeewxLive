@@ -554,7 +554,8 @@ if (!window.WXS && document.readyState === "loading") {
 
   // ------------------------------------------------------------------
   // Pied de page commun à toutes les pages ([LiveJSON] [[footer]], config.json) : station et
-  // logiciel weewx, clause de non-responsabilité, avertissement, copyright, contact.
+  // logiciel weewx, clause de non-responsabilité, avertissement, copyright, contact, puis
+  // « Weewx-live V x.y » (version de livejson.py, lien vers le projet).
   // Pages d'archives dont la configuration intégrée n'a pas de pied de page (générées avant
   // sa création) : lu dans config.json, donc toujours à jour.
   function footer(f) {
@@ -570,10 +571,13 @@ if (!window.WXS && document.readyState === "loading") {
       : "";
     const mail = f.email ? `${f.email_label ? esc(f.email_label) + " " : ""}<a href="mailto:${esc(f.email)}">${esc(f.email)}</a>` : "";
     const tail = [f.copyright ? esc(f.copyright) : "", mail].filter(Boolean).join(" · ");
-    if (!head && !disc && !tail) return;
+    const ver = f.skin_version
+      ? `<p class="sf-ver"><a href="https://github.com/Jterrettaz/WeewxLive" target="_blank" rel="noopener">Weewx-live V ${esc(f.skin_version)}</a></p>`
+      : "";
+    if (!head && !disc && !tail && !ver) return;
     const el = document.createElement("footer");
     el.id = "site-foot"; el.className = "site-foot";
-    el.innerHTML = (head ? `<p class="sf-head">${head}</p>` : "") + disc + (tail ? `<p class="sf-tail">${tail}</p>` : "");
+    el.innerHTML = (head ? `<p class="sf-head">${head}</p>` : "") + disc + (tail ? `<p class="sf-tail">${tail}</p>` : "") + ver;
     const feet = document.querySelectorAll("footer.foot");
     const last = feet[feet.length - 1];
     if (last) last.after(el); else document.body.appendChild(el);

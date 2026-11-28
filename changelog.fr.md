@@ -2,6 +2,11 @@
 
 *English version: [changelog.md](changelog.md).*
 
+## 1.31
+
+- Panneau Pluie : quand l'intensité est nulle, « Sans pluie depuis … » (temps écoulé depuis la dernière pluie) remplace la ligne « Intensité ».
+- Nouveau fichier language en grec (gr.conf) - Merci à Stefanos Kalaitzis pour la traduction
+
 ## 1.3
 
 - Rapports NOAA (texte) pour chaque mois et chaque année (`NOAA/NOAA-AAAA-MM.txt`, `NOAA-AAAA.txt`), affichés par la nouvelle page « Climatologie » → « Rapports NOAA » ; option `noaa` de `[[archives]]`.

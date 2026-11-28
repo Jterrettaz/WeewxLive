@@ -344,6 +344,14 @@ chaque seconde. Le début du gel est cherché dans toute l'archive weewx (`frost
 `history.json`), puis suivi par les messages MQTT ; si la base ne contient aucune mesure
 positive, la durée est précédée de « plus de ».
 
+**Durée sans pluie** (panneau Pluie, tableau de bord seulement) : quand l'intensité de pluie
+est nulle, la ligne « Intensité » est remplacée par « Sans pluie depuis 42 min » (« 3 h 05 min »,
+« 2 j 4 h »), le temps écoulé depuis le dernier enregistrement d'archive avec de la pluie,
+actualisé chaque seconde. La dernière pluie est recherchée dans toute l'archive weewx
+(`lastRain` dans `history.json`, trouvée grâce au résumé journalier de la pluie), puis suivie
+par les messages MQTT ; si la base ne contient aucune pluie, la durée est précédée de « plus
+de ». Dès qu'il pleut de nouveau, la ligne « Intensité » revient.
+
 Créez deux comptes sur le broker : `weewx` (écriture sur `weather/#`) et un compte
 **lecture seule** pour la page — ses identifiants sont publics puisque lus par le navigateur.
 
@@ -464,6 +472,9 @@ clause de non-responsabilité, avertissement final, copyright et contact.
   des pages ; les mettre entre guillemets s'ils contiennent des virgules. Une option vide
   n'est pas affichée.
 - `software` : version du weewx qui génère le site, avec un lien vers weewx.com.
+- Dernière ligne, toujours présente quand le pied de page est activé : « Weewx-live V 1.31 »
+  (version de l'extension, `VERSION` dans `livejson.py`), avec un lien vers la page du projet
+  sur GitHub.
 - L'adresse électronique est visible dans les pages et dans `config.json` (comme toute adresse
   publiée sur un site).
 - Les pages d'archives générées avant cette option lisent le pied de page dans `config.json` :
@@ -1495,8 +1506,9 @@ téléchargement. `noaa.html#2026-11` ou `noaa.html#2026` ouvre un rapport donn�
   - pluie : total, jour le plus pluvieux, nombre de jours avec au moins 0,2, 2 et 20 mm
     (0,01, 0,1 et 1 in) ;
   - vent : vitesse moyenne, rafale maximale avec sa date, direction dominante.
-- Unités : les unités par défaut du site (`[[units]]` : température, pluie, vitesse du vent),
-  métriques si elles ne sont pas réglées. Degrés-jours sur une base de 18,3 °C (65 °F).
+- Unités : les unités par défaut du site (`[[units]]` : température, pluie, vitesse du vent,
+  et altitude pour celle de la station dans l'en-tête), métriques si elles ne sont pas
+  réglées. Degrés-jours sur une base de 18,3 °C (65 °F).
 - Journées de 0 h à 24 h (heure de la station), calculées à partir des résumés journaliers
   de weewx. Les intitulés des colonnes restent en anglais, comme dans le format NOAA.
 - La première génération produit les rapports de tous les mois et années passés (petits

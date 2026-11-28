@@ -337,6 +337,13 @@ up in the whole weewx archive (`frost` in `history.json`), then followed through
 messages; if the database contains no positive reading, the duration is preceded by "more
 than".
 
+**Time without rain** (Rain panel, dashboard only): when the rain rate is zero, the "Rate"
+line is replaced by "No rain for 42 min" ("3 h 05 min", "2 d 4 h"), the time elapsed since
+the last archive record with rain, updated every second. The last rain is looked up in the
+whole weewx archive (`lastRain` in `history.json`, found through the daily rain summary),
+then followed through the MQTT messages; if the database contains no rain at all, the
+duration is preceded by "more than". As soon as it rains again, the "Rate" line comes back.
+
 Create two accounts on the broker: `weewx` (write access to `weather/#`) and a **read-only**
 account for the page — its credentials are public since they are read by the browser.
 
@@ -453,6 +460,8 @@ footer: station and weewx software, disclaimer, final warning, copyright and con
 - Texts are shown as written (plain text, no HTML), whatever the page language; put them in
   quotes if they contain commas. An empty option is not shown.
 - `software`: version of the weewx that generates the site, with a link to weewx.com.
+- Last line, always present when the footer is enabled: "Weewx-live V 1.31" (version of the
+  extension, `VERSION` in `livejson.py`), with a link to the project page on GitHub.
 - The email address is visible in the pages and in `config.json` (as any address published on
   a website).
 - Archive pages generated before this option read the footer from `config.json`: no need to
@@ -1459,8 +1468,8 @@ year** of the database: `NOAA/NOAA-YYYY-MM.txt` and `NOAA/NOAA-YYYY.txt` (templa
   - rain: total, wettest day, number of days with at least 0.2, 2 and 20 mm (0.01, 0.1 and
     1 in);
   - wind: average speed, highest gust with its date, dominant direction.
-- Units: the site's default units (`[[units]]`: temperature, rain, wind speed), metric if
-  not set. Degree days on a base of 18.3 °C (65 °F).
+- Units: the site's default units (`[[units]]`: temperature, rain, wind speed, and altitude
+  for the station's elevation in the header), metric if not set. Degree days on a base of 18.3 °C (65 °F).
 - Days from 0:00 to 24:00 (station time), computed from the weewx daily summaries. Column
   headings stay in English, as in the NOAA format.
 - The first generation produces the reports of all past months and years (small files); then

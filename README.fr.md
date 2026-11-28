@@ -21,7 +21,7 @@ Voir la [démo](http://meteo-sciez.fr/weewx/WeewxLive/index.html).
 - **Historique** : une page par mesure (de 24 h à 2 ans), archives par jour, mois et année,
   tableaux climatologiques, records de la station.
 - Pages **Météogramme** et **Prévisions d'ensemble**.
-- Pages en **français, anglais, allemand, italien ou polonais** ; mode clair / sombre et
+- Pages en **français, anglais, allemand, italien, grec ou polonais** ; mode clair / sombre et
   **thèmes de couleurs** ; adapté aux smartphones.
 - Chaque visiteur peut choisir ses unités, son thème et la disposition du tableau de bord
   (mémorisés par son navigateur).

@@ -2,6 +2,11 @@
 
 *Version française : [changelog.fr.md](changelog.fr.md).*
 
+## 1.31
+
+- Rain panel: when the rain rate is zero, "No rain for …" (time since the last rain) replaces the "Rate" line.
+- New greek language file (gr.conf) - Thanks to Stefanos Kalaitzis for the translation
+
 ## 1.3
 
 - NOAA reports (text) for every month and year (`NOAA/NOAA-YYYY-MM.txt`, `NOAA-YYYY.txt`), shown by the new "Climatology" → "NOAA reports" page; option `noaa` of `[[archives]]`.

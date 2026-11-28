@@ -88,7 +88,7 @@ except ImportError:                                  # weewx 4 et 5.0 à 5.3
 
 log = logging.getLogger(__name__)
 
-VERSION = "1.3"
+VERSION = "1.31"
 
 # Périodes des pages de détail : nom -> (nombre de jours civils, résolution des séries)
 PERIODS = {
@@ -684,6 +684,8 @@ def _footer(opts):
         "station": txt("station"),
         "software": to_bool(sec.get("software", True)),
         "weewx_version": str(getattr(weewx, "__version__", "") or ""),
+        # version de weewx-live (dernière ligne du pied de page, lien vers le projet)
+        "skin_version": VERSION,
         "disclaimer_title": txt("disclaimer_title"),
         "disclaimers": [p for _n, p in sorted(paras)],
         "warning": txt("warning"),
@@ -2611,6 +2613,8 @@ class LiveJSON(SearchList):
             "day": day,
             # gel en cours (température < 0 °C) : début, même au-delà de « hours » heures
             "frost": self._frost(stop, dbm),
+            # dernière pluie (ligne « Sans pluie depuis … » du panneau Pluie)
+            "lastRain": self._last_rain(stop, dbm),
         }
         log.debug("livejson: historique généré en %.2f s", time.time() - t1)
         return out
@@ -2636,6 +2640,27 @@ class LiveJSON(SearchList):
             return {"since": int(first[0]), "partial": True} if first and first[0] else None
         except Exception as e:
             log.debug("livejson: durée du gel indisponible : %s", e)
+            return None
+
+    def _last_rain(self, stop, dbm):
+        """Dernière pluie : {"t": dernier enregistrement d'archive avec de la pluie} ;
+        « partial » : aucune pluie dans la base (sec au moins depuis le premier
+        enregistrement). Le jour est trouvé par le résumé journalier (rapide même après des
+        semaines sans pluie), puis l'enregistrement dans ce jour."""
+        col, table = self.col("rain"), dbm.table_name
+        try:
+            day = dbm.getSql("SELECT MAX(dateTime) FROM %s_day_%s WHERE dateTime <= ? AND sum > 0"
+                             % (table, col), (stop,))
+            if day and day[0] is not None:
+                # 90 000 s : journée de 25 h (changement d'heure)
+                row = dbm.getSql("SELECT MAX(dateTime) FROM %s WHERE dateTime > ? AND dateTime <= ? "
+                                 "AND %s > 0" % (table, col), (int(day[0]), min(int(stop), int(day[0]) + 90000)))
+                if row and row[0] is not None:
+                    return {"t": int(row[0])}
+            first = dbm.getSql("SELECT MIN(dateTime) FROM %s WHERE %s IS NOT NULL" % (table, col))
+            return {"t": int(first[0]), "partial": True} if first and first[0] else None
+        except Exception as e:
+            log.debug("livejson: dernière pluie indisponible : %s", e)
             return None
 
     def _day_aggregates(self, day_span, dbm):

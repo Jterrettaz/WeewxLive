@@ -1000,6 +1000,7 @@ html:not(.wx-admin) [data-admin] { display: none !important; }
 .site-foot hr { width: 120px; margin: 8px auto; border: 0; border-top: 1px solid var(--border); }
 .site-foot .sf-warn { color: var(--text-2); }
 .site-foot .sf-tail { margin-top: 10px; }
+.site-foot .sf-ver { margin-top: 10px; font-size: 11.5px; color: var(--text-3); }   /* version de weewx-live */
 /* le pied de page propre à chaque page reste au-dessus, sans marge basse */
 .foot:has(+ .site-foot) { padding-bottom: 8px; }
 

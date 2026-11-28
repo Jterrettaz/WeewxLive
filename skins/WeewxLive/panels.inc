@@ -89,7 +89,8 @@
         <header><h2>#if $day_page#$p.title#else#<a class="more" data-detail="rain" href="detail.html?p=rain">$p.title</a>#end if#</h2><span class="hint">$lt("Panels", "today's total")</span></header>
         <div class="now"><span class="val" data-k="value">--</span><span class="unit" data-ubase="mm">mm</span></div>
 #if not $day_page
-        <p class="aux">$lt("Panels", "Rate") <b data-k="rate">--</b> <span data-ubase="mm/h">mm/h</span></p>
+        <p class="aux" data-k="rateRow">$lt("Panels", "Rate") <b data-k="rate">--</b> <span data-ubase="mm/h">mm/h</span></p>
+        <p class="aux" data-k="dryRow" hidden title="$lt("Panels", "Time since the last archive record with rain")">$lt("Panels", "No rain for") <b data-k="dry">--</b></p>
 #end if
         <dl class="ext">
           <div><dt>$lt("Panels", "Max rate")</dt><dd><b data-k="max">--</b><small data-k="maxTime"></small></dd></div>

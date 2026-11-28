@@ -148,6 +148,8 @@
     stationDay: false,       // true dès que le jour de la station est connu (history.json)
     lastAbove: null,         // dernière mesure à 0 °C ou plus (durée du gel en cours)
     frostPartial: false,     // gel depuis le début de la base : durée minimale (« plus de »)
+    lastRain: null,          // dernière pluie (ligne « Sans pluie depuis … » du panneau Pluie)
+    rainPartial: false,      // aucune pluie dans la base : durée minimale (« plus de »)
     cur: {},
     day: {},                 // extrêmes du jour {obs: {min,minTime,max,maxTime}}
     dayRain: null,
@@ -606,6 +608,7 @@
     // même calcul que la courbe de cumul du graphique (dernière valeur)
     const cum = rainCumul(nowS()), s24 = cum.length ? cum[cum.length - 1][1] : 0;
     set("rain", "sum24", fmtK("rain", s24));
+    renderDry();
     // Variations de température sur 1 h et 24 h
     set("outTemp", "d1h", tempDelta("outTemp1h", 3600));
     set("outTemp", "d24h", tempDelta("outTemp24h", 86400));
@@ -626,6 +629,22 @@
     const v = S.cur.outTemp, on = isNum(v) && v < 0 && isNum(S.lastAbove);
     if (row.hidden === on) row.hidden = !on;
     if (on) set("outTemp", "frost", S.frostPartial ? tp("more than {duration}", { duration: duration(nowS() - S.lastAbove) }) : duration(nowS() - S.lastAbove));
+  }
+  // Panneau Pluie : intensité nulle -> « Sans pluie depuis … » (temps écoulé depuis la dernière
+  // pluie) à la place de la ligne Intensité ; recalculé chaque seconde par tick()
+  function markRain(t) {
+    if (!isNum(S.lastRain) || t > S.lastRain) { S.lastRain = t; S.rainPartial = false; }
+  }
+  function renderDry() {
+    const row = field("rain", "dryRow"), rate = field("rain", "rateRow");
+    if (!row || !rate) return;
+    const r = S.cur.rainRate, dry = isNum(r) && r <= 0 && isNum(S.lastRain);
+    if (row.hidden === dry) row.hidden = !dry;
+    if (rate.hidden !== dry) rate.hidden = dry;
+    if (dry) {
+      const d = duration(nowS() - S.lastRain);
+      set("rain", "dry", S.rainPartial ? tp("more than {duration}", { duration: d }) : d);
+    }
   }
   // durée lisible : « 42 min », « 3 h 05 min », « 2 j 4 h »
   function duration(s) {
@@ -721,6 +740,7 @@
 
     // Pluie : cumul horaire pour le graphique, cumul du jour
     if (p.rain > 0) {
+      markRain(t);
       const h = Math.floor(t / 3600) * 3600;
       S.rainHourly.set(h, (S.rainHourly.get(h) || 0) + p.rain);
       S.rainPoints.push([t, p.rain]);
@@ -861,6 +881,12 @@
         markAbove(h.frost.since);
         if (h.frost.partial && S.lastAbove === h.frost.since) S.frostPartial = true;
       }
+      // dernière pluie : history.json « lastRain » (même au-delà de l'historique) et séries
+      for (const q of S.rainPoints) if (q[1] > 0) markRain(q[0]);
+      if (h.lastRain && isNum(h.lastRain.t)) {
+        markRain(h.lastRain.t);
+        if (h.lastRain.partial && S.lastRain === h.lastRain.t) S.rainPartial = true;
+      }
     }
 
     // Valeurs « courantes » provisoires avant le premier paquet MQTT (mode archive : toujours)
@@ -971,7 +997,7 @@
     if (!window.mqtt) {
       // repli : mise à jour à chaque archive weewx
       setArchiveMode(m.archivePoll || 60, td("mqtt.js not found"));
-      return showBanner("lib", td("The mqtt.js library could not be loaded (see README: vendor/mqtt.min.js): updated at each weewx archive."));
+      return showBanner("lib", td("The mqtt.js library could not be loaded (see the manual: vendor/mqtt.min.js): updated at each weewx archive."));
     }
     setPastKeys(m.temp1hKey, m.temp24hKey, m.tempDeltas !== false);
     const client = mqtt.connect(m.url, {
@@ -1053,6 +1079,7 @@
     }
     checkMidnight(now);
     renderFrost();
+    renderDry();
   }
 
   // ------------------------------------------------------------------
